@@ -31,7 +31,7 @@ export class Player {
     this.hp = 5;
     this.cinder = 0;
     this.glints = 0;
-    this.abilities = { dash: false, grip: false };
+    this.abilities = { dash: false, grip: false, wing: false };
     this.dead = false;
     this.resetTimers();
     this.buildVisual();
@@ -44,6 +44,7 @@ export class Player {
     this.dashT = 0;
     this.dashCd = 0;
     this.airDash = true;
+    this.airJump = true;
     this.atkT = 0;
     this.atkCd = 0;
     this.atkDir = 'side';
@@ -221,13 +222,14 @@ export class Player {
 
     // ── wall slide ──
     this.wallSlide = 0;
-    if (this.abilities.grip && !this.onGround && !dashing && this.knockT <= 0 && this.vy < 2) {
+    if (this.abilities.grip && !this.onGround && !dashing && this.knockT <= 0 && this.vy < 4) {
       for (const d of [1, -1]) {
         if (ax === d && this.touchingWall(d)) {
           this.wallSlide = d;
           this.wallDir = d;
           this.wallCoyote = 0.13;
           this.airDash = true;
+          this.airJump = true;
         }
       }
     }
@@ -257,6 +259,16 @@ export class Player {
         this.jumpBuf = 0;
         audio.sfx('walljump');
         fx.dust(this.x + d * 0.3, this.y + 0.5, 6, -d);
+        this.stretch = 1;
+      } else if (this.abilities.wing && this.airJump && !this.onGround) {
+        // Kindled Leap: one extra jump in mid-air
+        this.vy = JUMP * 0.9;
+        this.airJump = false;
+        this.jumpHeld = true;
+        this.jumpBuf = 0;
+        audio.sfx('djump');
+        fx.ring(this.x, this.y + 0.1, '#ffd08a', 14, 5);
+        fx.burst(this.x, this.y, 10, { color: '#ffb060', speed: 5, angle: -Math.PI / 2, spread: 0.9, grav: 6 });
         this.stretch = 1;
       }
     }
@@ -333,6 +345,7 @@ export class Player {
     if (this.onGround) {
       this.coyote = 0.1;
       this.airDash = true;
+      this.airJump = true;
       if (!this.wasGround) {
         this.landT = 0.14;
         this.squash = clamp(-vyBefore / 24, 0.2, 1);
@@ -429,6 +442,7 @@ export class Player {
       this.vy = 17.5;
       this.jumpHeld = false;
       this.airDash = true;
+      this.airJump = true;
       this.pogoGrace = 0.12;
     }
     // blade tip clinks against walls

@@ -46,7 +46,7 @@ export class Entity {
 }
 
 // ───────────────────────── enemies ─────────────────────────
-class Enemy extends Entity {
+export class Enemy extends Entity {
   constructor(g, x, y) {
     super(g, x, y);
     this.hurtable = true;
@@ -237,7 +237,7 @@ export class Spitter extends Enemy {
   }
 }
 
-class Seed extends Entity {
+export class Seed extends Entity {
   constructor(g, x, y, vx, vy, grav) {
     super(g, x, y);
     this.w = 0.4;
@@ -386,6 +386,10 @@ export class Warden extends Enemy {
     this.w = 2.7;
     this.h = 3.9;
     this.maxHp = this.hp = 46;
+    this.key = 'warden';
+    this.title = 'The Cold Warden';
+    this.sub = 'keeper of a dead fire';
+    this.fallen = 'the vigil is over';
     this.heavy = true;
     this.drop = 0;
     this.state = 'sleep';
@@ -446,7 +450,7 @@ export class Warden extends Enemy {
     this.vx = 0;
     audio.sfx('roar');
     this.g.fx.freeze(0.35);
-    this.g.onBossDying();
+    this.g.onBossDying(this);
   }
   choose() {
     const p = this.g.player;
@@ -584,7 +588,7 @@ export class Warden extends Enemy {
         if (this.t <= 0) {
           const n = this.phase2 ? 9 : 6;
           for (let i = 0; i < n; i++) {
-            const x = i === 0 ? p.x : clamp(p.x + rnd(-11, 11), 23.5, 55);
+            const x = i === 0 ? p.x : clamp(p.x + rnd(-11, 11), g.arena.x0, g.arena.x1);
             g.spawn(new EmberFall(g, x, this.y, 0.55 + i * 0.16));
           }
           this.state = 'recover';
@@ -633,7 +637,7 @@ export class Warden extends Enemy {
           fx.burst(this.x, this.y + 2.4, 120, { color: '#ffc070', speed: 16, life: 1.8, grav: 3 });
           fx.burst(this.x, this.y + 2.4, 40, { color: '#1a1e30', speed: 9, normal: true, size: 0.9, alpha: 0.8, life: 1.5 });
           for (let i = 0; i < 40; i++) g.spawn(new Glint(g, this.x + rnd(-1, 1), this.y + rnd(1, 4)));
-          g.onBossDead();
+          g.onBossDead(this);
         }
         break;
     }
@@ -656,7 +660,7 @@ export class Warden extends Enemy {
   }
 }
 
-class Shockwave extends Entity {
+export class Shockwave extends Entity {
   constructor(g, x, y, dir) {
     super(g, x, y);
     this.w = 0.9;
@@ -892,7 +896,7 @@ export class Shrine extends Entity {
     super(g, x, y);
     this.ability = ability;
     this.taken = g.player.abilities[ability];
-    this.color = ability === 'dash' ? '#6ff5df' : '#d8b0ff';
+    this.color = { dash: '#6ff5df', grip: '#d8b0ff', wing: '#ffc46b' }[ability];
     this.root.position.z = -0.1;
     this.base = quad(sprite('plinth'), 2.6, 1.1, { anchor: 'b', order: ORDER.back + 1 });
     this.orbG = new THREE.Group();
@@ -982,4 +986,227 @@ export class Gate extends Entity {
   }
 }
 
-export const ENEMY_KINDS = { potling: Potling, wisp: Wisp, spitter: Spitter, brute: Brute };
+// ───────────────────────── expansion creatures ─────────────────────────
+// Emberling: a slag blob that hops toward you.
+export class Emberling extends Enemy {
+  constructor(g, x, y) {
+    super(g, x, y);
+    this.w = 0.85;
+    this.h = 0.75;
+    this.hp = 2;
+    this.drop = 4;
+    this.body = this.part('emberling', 1.25, 1.1, { anchor: 'b' });
+    const gl = glow('#ff8a3c', 2.8, 0.2);
+    gl.position.set(0, 0.5, -0.02);
+    gl.renderOrder = ORDER.entity - 1;
+    this.root.add(gl, this.body);
+    this.t = rnd(0.3, 1.2);
+    this.sq = 0;
+  }
+  update(dt) {
+    this.tick(dt);
+    const p = this.g.player;
+    const w = this.g.world;
+    this.t -= dt;
+    if (this.onGround && this.knockT <= 0) {
+      this.vx = approach(this.vx, 0, 40 * dt);
+      if (this.t <= 0) {
+        const dx = p.x - this.x;
+        const near = Math.abs(dx) < 10 && Math.abs(p.y - this.y) < 6 && !p.dead;
+        this.dir = near ? (dx > 0 ? 1 : -1) : -this.dir;
+        // never hop off a ledge or into thorns when idle
+        const ahead = this.x + this.dir * (near ? 2.4 : 1.2);
+        const safe = w.groundBelow(ahead, this.y) && w.tile(Math.floor(ahead), Math.floor(this.y + 0.2)) !== T.THORN;
+        if (near || safe) {
+          this.vx = this.dir * (near ? 4.6 : 2);
+          this.vy = near ? 13 : 8;
+          this.sq = -0.6;
+        }
+        this.t = near ? rnd(0.9, 1.3) : rnd(1.2, 2.2);
+      }
+    }
+    this.vy -= 46 * dt;
+    const wasAir = !this.onGround;
+    w.move(this, dt);
+    if (this.hitWall) this.vx = -this.hitWall * 1.5;
+    if (this.onGround && wasAir) this.sq = 0.8;
+    this.sq = damp(this.sq, 0, 9, dt);
+    const pre = this.onGround && this.t < 0.25 ? 0.25 : 0;
+    this.body.scale.set(1.25 * this.dir * (1 + this.sq * 0.25 + pre * 0.3), 1.1 * (1 - this.sq * 0.3 - pre * 0.35), 1);
+    if (Math.random() < dt * 6) this.g.fx.trail(this.x + rnd(-0.3, 0.3), this.y + 0.5, '#ff8a3c', 0.16, 0.6, 0.7);
+    this.sync();
+  }
+}
+
+// Molten drip / fire orb: simple hurtful projectiles.
+export class Drop extends Entity {
+  constructor(g, x, y, vx = 0, vy = 0, grav = 30, tex = 'drop') {
+    super(g, x, y);
+    this.w = 0.45;
+    this.h = 0.5;
+    this.vx = vx;
+    this.vy = vy;
+    this.grav = grav;
+    this.life = 4;
+    this.contact = true;
+    this.hurtable = tex === 'orb';
+    this.color = '#ffb040';
+    this.body = quad(sprite(tex), tex === 'orb' ? 0.9 : 0.5, tex === 'orb' ? 0.9 : 0.85, { add: true, order: ORDER.entity + 2 });
+    this.body.position.y = 0.25;
+    this.root.add(this.body);
+    this.sync();
+  }
+  takeHit() {
+    this.pop();
+    audio.sfx('clink');
+    return 0;
+  }
+  pop() {
+    if (this.dead) return;
+    this.dead = true;
+    this.g.fx.burst(this.x, this.y + 0.2, 10, { color: this.color, speed: 6, angle: Math.PI / 2, spread: 1.4, life: 0.5 });
+  }
+  update(dt) {
+    this.vy -= this.grav * dt;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+    if (Math.random() < dt * 30) this.g.fx.trail(this.x, this.y + 0.3, this.color, 0.3, 0.3, 0.7);
+    if (this.life <= 0 || this.g.world.solid(Math.floor(this.x), Math.floor(this.y + 0.1))) this.pop();
+    this.sync();
+  }
+}
+
+// Dripper: a hanging crucible that lets molten drops fall on a rhythm. (x, y) is its ceiling anchor.
+export class Dripper extends Enemy {
+  constructor(g, x, y) {
+    super(g, x, y - 1.75);
+    this.top = y;
+    this.w = 1.0;
+    this.h = 1.2;
+    this.hp = 3;
+    this.drop = 4;
+    this.heavy = true;
+    this.body = this.part('dripper', 1.3, 1.8, { anchor: 't', sway: 0.04, hang: true });
+    this.body.position.y = 1.75;
+    const gl = glow('#ff8a3c', 3, 0.22);
+    gl.position.set(0, 0.6, -0.02);
+    gl.renderOrder = ORDER.entity - 1;
+    this.root.add(gl, this.body);
+    this.t = rnd(0.4, 1.6);
+    this.sync();
+  }
+  update(dt) {
+    this.tick(dt);
+    this.t -= dt;
+    if (this.t <= 0) {
+      this.t = 1.7;
+      const p = this.g.player;
+      if (Math.abs(p.x - this.x) < 16 && Math.abs(p.y - this.y) < 16) {
+        this.g.spawn(new Drop(this.g, this.x, this.y - 0.2));
+        if (Math.abs(p.x - this.x) < 8) audio.sfx('spit');
+      }
+    }
+    this.body.scale.y = 1.8 * (this.t < 0.3 ? 1 + (0.3 - this.t) * 0.4 : 1);
+  }
+}
+
+// Lancer: a shard of living ice that lines you up, then lunges straight through.
+export class Lancer extends Enemy {
+  constructor(g, x, y) {
+    super(g, x, y);
+    this.w = 0.9;
+    this.h = 0.8;
+    this.hp = 3;
+    this.drop = 5;
+    this.home = { x, y };
+    this.state = 'drift';
+    this.t = rnd(0.5, 1.5);
+    this.ang = 0;
+    this.pivot = new THREE.Group();
+    this.pivot.position.y = 0.4;
+    this.body = this.part('lancer', 2.0, 0.86);
+    this.pivot.add(this.body);
+    this.gl = glow(COLD, 3, 0.2);
+    this.gl.position.set(0, 0.4, -0.02);
+    this.gl.renderOrder = ORDER.entity - 1;
+    this.root.add(this.gl, this.pivot);
+    this.ph = rnd(0, 6);
+  }
+  update(dt) {
+    this.tick(dt);
+    const p = this.g.player;
+    const dx = p.x - this.x;
+    const dy = p.y + 0.6 - (this.y + 0.4);
+    const d = Math.hypot(dx, dy);
+    this.t -= dt;
+    this.ph += dt;
+    let glowA = 0.18;
+    this.pivot.position.x = 0;
+    if (this.knockT > 0) {
+      this.vx *= Math.exp(-5 * dt);
+      this.vy *= Math.exp(-5 * dt);
+      if (this.state === 'lunge' || this.state === 'aim') {
+        this.state = 'drift';
+        this.t = 1;
+      }
+    } else if (this.state === 'drift') {
+      let tx;
+      let ty;
+      if (d < 15 && !p.dead) {
+        // close to striking distance: hang off to one side, a little above
+        const side = this.x > p.x ? 1 : -1;
+        tx = clamp((p.x + side * 6.5 - this.x) * 1.2, -3.6, 3.6);
+        ty = clamp((p.y + 3.2 + Math.sin(this.ph * 1.5) * 0.5 - this.y) * 1.2, -3, 3);
+      } else {
+        tx = clamp((this.home.x - this.x) * 1.5, -2, 2);
+        ty = clamp((this.home.y + Math.sin(this.ph * 1.5) * 0.5 - this.y) * 1.5, -2, 2);
+      }
+      this.vx = approach(this.vx, tx, 9 * dt);
+      this.vy = approach(this.vy, ty, 9 * dt);
+      this.ang = damp(this.ang, this.vx > 0 ? 0 : Math.PI, 5, dt);
+      if (this.t <= 0 && d < 10.5 && !p.dead) {
+        this.state = 'aim';
+        this.t = 0.7;
+        audio.sfx('windup');
+      }
+    } else if (this.state === 'aim') {
+      this.vx = approach(this.vx, 0, 30 * dt);
+      this.vy = approach(this.vy, 0, 30 * dt);
+      this.aimA = Math.atan2(dy, dx);
+      let da = this.aimA - this.ang;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      this.ang += da * Math.min(1, dt * 14);
+      glowA = 0.7;
+      this.pivot.position.x = Math.sin(this.g.time * 80) * 0.04;
+      if (this.t <= 0) {
+        this.state = 'lunge';
+        this.t = 0.62;
+        this.vx = Math.cos(this.ang) * 17;
+        this.vy = Math.sin(this.ang) * 17;
+        audio.sfx('dash');
+      }
+    } else if (this.state === 'lunge') {
+      glowA = 0.6;
+      this.g.fx.trail(this.x, this.y + 0.4, COLD, 0.4, 0.3, 0.7);
+      if (this.t <= 0 || this.hitWall || this.onGround || this.hitCeil) {
+        if (this.t > 0) {
+          this.g.fx.burst(this.x, this.y + 0.4, 10, { color: COLD, speed: 6 });
+          audio.sfx('clink');
+        }
+        this.state = 'drift';
+        this.t = 1.5;
+        this.vx *= -0.15;
+        this.vy *= -0.15;
+      }
+    }
+    this.g.world.move(this, dt);
+    this.pivot.rotation.z = this.ang;
+    this.body.scale.y = 0.86 * (Math.cos(this.ang) < 0 ? -1 : 1);
+    this.gl.material.uniforms.uAlpha.value = glowA;
+    this.sync();
+  }
+}
+
+export const ENEMY_KINDS = { potling: Potling, wisp: Wisp, spitter: Spitter, brute: Brute, emberling: Emberling, dripper: Dripper, lancer: Lancer };

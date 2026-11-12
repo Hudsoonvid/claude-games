@@ -10,7 +10,8 @@ import { HUD } from './hud.js';
 import { createPost, MAX_LIGHTS } from './post.js';
 import { quad, glow, globalUniforms } from './art.js';
 import { sprite } from './sprites.js';
-import { ENEMY_KINDS, Warden, Pot, Hearth, Tablet, Shrine, EmberShard, Gate, Flare } from './entities.js';
+import { ENEMY_KINDS, Pot, Hearth, Tablet, Shrine, EmberShard, Gate, Flare } from './entities.js';
+import { BOSS_KINDS } from './bosses.js';
 import { approach, clamp, damp, lerp, overlap } from './util.js';
 
 const FOV = 40;
@@ -18,13 +19,18 @@ const VIEW_H = 15;
 const SAVE_KEY = 'emberwake.save.v1';
 
 const freshSave = () => ({
-  hearth: null, abilities: { dash: false, grip: false }, maxHp: 5, glints: 0, embers: {}, bossDead: false, deaths: 0, time: 0, started: false,
+  hearth: null, abilities: { dash: false, grip: false, wing: false }, maxHp: 5, glints: 0, embers: {}, bosses: {}, deaths: 0, time: 0, started: false,
 });
 
 function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (s && s.started) return { ...freshSave(), ...s };
+    if (s && s.started) {
+      const f = freshSave();
+      const out = { ...f, ...s, abilities: { ...f.abilities, ...s.abilities }, bosses: { ...(s.bosses || {}) } };
+      if (s.bossDead) out.bosses.warden = true; // saves from before the expansion
+      return out;
+    }
   } catch (e) {
     /* storage may be unavailable */
   }
@@ -47,6 +53,7 @@ class Game {
     this.world = new World(this.scene);
     this.fx = new FX(this.scene);
     this.hud = new HUD();
+    this.input = input;
     this.player = new Player(this);
     this.player.addTo(this.scene);
     this.entities = [];
@@ -128,7 +135,7 @@ class Game {
     this.hud.prompt(null);
     audio.setBoss(false);
     const p = this.player;
-    p.abilities = { dash: false, grip: false };
+    p.abilities = { dash: false, grip: false, wing: false };
     p.maxHp = p.hp = 5;
     p.revive();
     p.frozen = true;
@@ -152,6 +159,7 @@ class Game {
     // debug shortcuts: ?room=vault2&dash=1&grip=1
     if (this.params.get('dash')) s.abilities.dash = true;
     if (this.params.get('grip')) s.abilities.grip = true;
+    if (this.params.get('wing')) s.abilities.wing = true;
     p.abilities = { ...s.abilities };
     p.maxHp = s.maxHp;
     p.hp = p.maxHp;
@@ -211,8 +219,9 @@ class Game {
     this.room = room;
     this.hints = [];
     this.flickers = [];
-    this.gate = null;
+    this.gates = [];
     this.boss = null;
+    this.arena = { x0: 0, x1: room.w };
     this.trigger = null;
     this.heart = null;
     const G = this.world.group;
@@ -224,7 +233,8 @@ class Game {
           start = m;
           break;
         case 'kiln': {
-          const k = quad(sprite('kiln'), 8.5, 8.5, { anchor: 'b', order: ORDER.back, tint: 0xb8c4e0 });
+          const ks = m.size || 8.5;
+          const k = quad(sprite('kiln'), ks, ks, { anchor: 'b', order: ORDER.back, tint: 0xb8c4e0 });
           k.position.set(m.x, m.y - 0.15, -0.6);
           G.add(k);
           break;
@@ -238,7 +248,7 @@ class Game {
           gl.position.set(m.x, m.y + 3, -0.7);
           gl.renderOrder = ORDER.back + 1;
           G.add(k, flame, gl);
-          this.heart = { x: m.x, y: m.y, flame, gl, k: this.save.bossDead ? 1 : 0, lit: this.save.bossDead, light: this.world.addLight(m.x, m.y + 3, 16, '#ffa040', 0) };
+          this.heart = { x: m.x, y: m.y, flame, gl, k: this.save.bosses.wick ? 1 : 0, lit: !!this.save.bosses.wick, light: this.world.addLight(m.x, m.y + 3, 16, '#ffa040', 0) };
           break;
         }
         case 'lantern': {
@@ -273,13 +283,14 @@ class Game {
           if (!this.save.embers[id + i]) this.spawn(new EmberShard(this, m.x, m.y, id + i));
           break;
         case 'gate':
-          this.gate = this.spawn(new Gate(this, m.x, m.y, m.h));
+          this.gates.push(this.spawn(new Gate(this, m.x, m.y, m.h)));
           break;
         case 'bossTrigger':
           this.trigger = m;
           break;
         case 'boss':
-          if (!this.save.bossDead) this.boss = this.spawn(new Warden(this, m.x, m.y));
+          this.arena = { x0: m.x0, x1: m.x1 };
+          if (!this.save.bosses[m.kind]) this.boss = this.spawn(new BOSS_KINDS[m.kind](this, m.x, m.y));
           break;
       }
     });
@@ -311,7 +322,7 @@ class Game {
     this.updateCamera(0, true);
     if (this.state !== 'title' && !this.seen.has(id)) {
       this.seen.add(id);
-      const subs = { kiln: 'where the fire was kept', root: 'where the warmth was drunk', vault: 'where the cold was shaped' };
+      const subs = { kiln: 'where the fire was kept', root: 'where the warmth was drunk', vault: 'where the cold was shaped', forge: 'where the mistakes were poured', rime: 'where the light stood still' };
       this.after(0.5, () => this.hud.areaCard(room.name, subs[room.biome]));
     }
   }
@@ -401,6 +412,7 @@ class Game {
     const text = {
       dash: ['GUST STEP', `Press ${k('dash')} to surge forward on a borrowed wind — on the ground or in mid-air. It returns when you touch earth, or bounce off something sharp.`],
       grip: ['EMBER GRIP', `Push against a wall while falling to cling to it. Press ${k('jump')} to kick away. Two walls make a ladder.`],
+      wing: ['KINDLED LEAP', `Press ${k('jump')} again in mid-air for a second jump. It returns when you land, cling to a wall, or bounce off something sharp.`],
     }[a];
     this.banner('A GIFT OF THE OLD MAKERS', text[0], text[1]);
   }
@@ -425,11 +437,22 @@ class Game {
     audio.setBoss(false);
   }
 
-  onBossDead() {
-    this.save.bossDead = true;
+  onBossDead(boss) {
+    this.save.bosses[boss.key] = true;
     this.persist();
-    if (this.gate) this.gate.set(false);
+    this.gates.forEach((gt) => gt.set(false));
     this.boss = null;
+    const p = this.player;
+    if (!boss.final) {
+      // an ordinary boss: the way on opens, and the wick is made whole
+      this.after(1.4, () => {
+        p.hp = p.maxHp;
+        this.hud.pulse();
+        audio.sfx('rest');
+        this.hud.areaCard(boss.title, boss.fallen, 3.4);
+      });
+      return;
+    }
     this.after(1.6, () => {
       if (!this.heart) return;
       this.heart.lit = true;
@@ -462,6 +485,8 @@ class Game {
       case 'thorns': return `In mid-air, hold ${k('down')} and strike to bounce off thorns`;
       case 'focus': return p.hp < p.maxHp ? `Striking foes gathers Cinder. Hold ${k('focus')} to mend a flame, or ${k('flare')} to cast it.` : `Striking foes gathers Cinder. Spend it with ${k('focus')} (mend) or ${k('flare')} (flare).`;
       case 'dashgap': return p.abilities.dash ? `Jump, then ${k('dash')} in mid-air` : 'Too wide for small legs. The roots to the west remember a shrine.';
+      case 'shaft': return p.abilities.grip ? `Jump into the shaft and push toward a wall to cling. ${k('jump')} kicks you across to the other wall.` : 'A shaft climbs out of reach. Something at the far end of this chamber might help.';
+      case 'wing': return p.abilities.wing ? `${k('jump')} again in mid-air to reach the high planks` : 'These planks hang higher than one jump can reach.';
       default: return null;
     }
   }
@@ -615,10 +640,10 @@ class Game {
     }
     // boss trigger
     if (this.boss && this.boss.state === 'sleep' && this.trigger && p.x > this.trigger.x) {
-      if (this.gate) this.gate.set(true);
+      this.gates.forEach((gt) => gt.set(true));
       this.boss.wake();
       audio.setBoss(true);
-      this.hud.areaCard('The Cold Warden', 'keeper of a dead fire', 3.2);
+      this.hud.areaCard(this.boss.title, this.boss.sub, 3.2);
     }
     // interaction
     let near = null;

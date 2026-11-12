@@ -151,8 +151,10 @@ export class World {
       kiln: ['grass', 'grass', 'rock', 'shards', 'bricks', 'grass'],
       root: ['grass', 'grass', 'fern', 'pod', 'rock', 'fern', 'grass'],
       vault: ['crystal', 'grass', 'rock', 'crystal', 'grass'],
+      forge: ['rock', 'bricks', 'shards', 'grass', 'rock', 'bricks'],
+      rime: ['crystal', 'rock', 'grass', 'crystal', 'grass', 'rock'],
     }[bname];
-    const ceilSets = { kiln: ['chain', 'stalactite', 'stalactite'], root: ['vine', 'vine', 'stalactite', 'vine'], vault: ['stalactite', 'crystal', 'vine'] }[bname];
+    const ceilSets = { kiln: ['chain', 'stalactite', 'stalactite'], root: ['vine', 'vine', 'stalactite', 'vine'], vault: ['stalactite', 'crystal', 'vine'], forge: ['chain', 'chain', 'stalactite'], rime: ['stalactite', 'crystal', 'stalactite'] }[bname];
     const sizes = {
       grass: [1.5, 1.05], fern: [1.7, 1.7], rock: [1.5, 0.95], shards: [1.4, 0.7], bricks: [1.9, 0.95], crystal: [1.5, 1.5], pod: [0.9, 1.5],
       vine: [0.6, 3], chain: [0.42, 2.8], stalactite: [1.1, 2.2],

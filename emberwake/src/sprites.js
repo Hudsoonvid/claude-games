@@ -945,6 +945,358 @@ const PAINT = {
       g.closePath();
       g.fill();
     }),
+  // ───────── expansion: forge / rime creatures and bosses ─────────
+  emberling: () =>
+    canvasTex(128, 112, (g) => {
+      const gr = g.createRadialGradient(64, 70, 4, 64, 66, 56);
+      gr.addColorStop(0, '#5a2a1c');
+      gr.addColorStop(0.6, '#2a1210');
+      gr.addColorStop(1, '#0c0505');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(10, 106);
+      g.bezierCurveTo(-2, 60, 30, 22, 64, 20);
+      g.bezierCurveTo(98, 22, 130, 60, 118, 106);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = '#050202';
+      g.lineWidth = 4;
+      g.stroke();
+      glowStroke(g, '#ffb040', 10, 3, () => {
+        jag(g, 26, 96, 50, 44, 5, 8, 1.4);
+      });
+      glowStroke(g, '#ffb040', 10, 3, () => {
+        jag(g, 80, 100, 100, 58, 4, 7, 2.6);
+      });
+      g.fillStyle = '#fff3c4';
+      g.shadowColor = '#ff8a3c';
+      g.shadowBlur = 14;
+      g.beginPath();
+      g.ellipse(52, 66, 7, 10, 0, 0, 7);
+      g.ellipse(80, 66, 7, 10, 0, 0, 7);
+      g.fill();
+      g.beginPath();
+      g.moveTo(48, 88);
+      g.quadraticCurveTo(66, 98, 84, 88);
+      g.quadraticCurveTo(66, 92, 48, 88);
+      g.fill();
+    }),
+  dripper: () =>
+    canvasTex(128, 176, (g) => {
+      g.strokeStyle = '#120a08';
+      g.lineWidth = 6;
+      for (let y = 0; y < 56; y += 14) {
+        g.beginPath();
+        g.ellipse(64, y + 8, 5, 8, 0, 0, 7);
+        g.stroke();
+      }
+      const gr = g.createLinearGradient(20, 0, 108, 0);
+      gr.addColorStop(0, '#5a3a30');
+      gr.addColorStop(1, '#140a08');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(14, 60);
+      g.lineTo(114, 60);
+      g.lineTo(98, 150);
+      g.quadraticCurveTo(64, 172, 30, 150);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = '#080403';
+      g.lineWidth = 4;
+      g.stroke();
+      g.fillStyle = '#ffd98a';
+      g.shadowColor = '#ff8a3c';
+      g.shadowBlur = 18;
+      g.beginPath();
+      g.ellipse(64, 62, 46, 8, 0, 0, 7);
+      g.fill();
+      g.beginPath();
+      g.arc(46, 104, 6, 0, 7);
+      g.arc(82, 104, 6, 0, 7);
+      g.fill();
+      g.beginPath();
+      g.moveTo(58, 150);
+      g.quadraticCurveTo(64, 176, 70, 150);
+      g.fill();
+    }),
+  drop: () =>
+    canvasTex(48, 80, (g) => {
+      const gr = g.createRadialGradient(24, 54, 2, 24, 50, 26);
+      gr.addColorStop(0, '#ffffff');
+      gr.addColorStop(0.4, '#ffd070');
+      gr.addColorStop(1, 'rgba(255,90,20,0)');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(24, 2);
+      g.bezierCurveTo(30, 30, 46, 44, 42, 60);
+      g.bezierCurveTo(38, 78, 10, 78, 6, 60);
+      g.bezierCurveTo(2, 44, 18, 30, 24, 2);
+      g.fill();
+    }),
+  orb: () =>
+    canvasTex(64, 64, (g) => {
+      const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+      gr.addColorStop(0, '#ffffff');
+      gr.addColorStop(0.35, '#ffd070');
+      gr.addColorStop(0.7, 'rgba(255,110,30,0.7)');
+      gr.addColorStop(1, 'rgba(255,60,10,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 64, 64);
+    }),
+  lancer: () =>
+    canvasTex(224, 96, (g) => {
+      g.shadowColor = '#bfe8ff';
+      g.shadowBlur = 14;
+      const gr = g.createLinearGradient(0, 20, 0, 76);
+      gr.addColorStop(0, '#f2fbff');
+      gr.addColorStop(0.5, '#9cd0ee');
+      gr.addColorStop(1, '#3c6a94');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(218, 48);
+      g.lineTo(150, 24);
+      g.lineTo(40, 30);
+      g.lineTo(6, 48);
+      g.lineTo(40, 66);
+      g.lineTo(150, 72);
+      g.closePath();
+      g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = 'rgba(255,255,255,0.55)';
+      g.beginPath();
+      g.moveTo(218, 48);
+      g.lineTo(150, 24);
+      g.lineTo(40, 30);
+      g.lineTo(60, 46);
+      g.closePath();
+      g.fill();
+      g.fillStyle = '#0a1830';
+      g.beginPath();
+      g.ellipse(150, 48, 13, 9, 0, 0, 7);
+      g.fill();
+      g.fillStyle = '#ffffff';
+      g.beginPath();
+      g.ellipse(154, 48, 5, 5, 0, 0, 7);
+      g.fill();
+      // trailing shards
+      g.fillStyle = '#9cd0ee';
+      for (const [x, y, l] of [[30, 16, 26], [22, 80, 22], [60, 10, 18], [56, 86, 16]]) {
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x - l, y + (y < 48 ? -6 : 6));
+        g.lineTo(x - 4, y + (y < 48 ? 8 : -8));
+        g.fill();
+      }
+    }),
+  briar: () =>
+    canvasTex(384, 384, (g) => {
+      // thorned vines
+      g.lineCap = 'round';
+      for (const [sx, ex, ey, w] of [[150, 30, 200, 16], [234, 356, 190, 16], [170, 70, 320, 12], [214, 320, 310, 12]]) {
+        g.strokeStyle = '#0a1c18';
+        g.lineWidth = w;
+        g.beginPath();
+        g.moveTo(sx, 380);
+        g.quadraticCurveTo((sx + ex) / 2, ey - 80, ex, ey);
+        g.stroke();
+        g.fillStyle = '#17362e';
+        for (let t = 0.25; t < 1; t += 0.2) {
+          const mx = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * ((sx + ex) / 2) + t * t * ex;
+          const my = (1 - t) * (1 - t) * 380 + 2 * (1 - t) * t * (ey - 80) + t * t * ey;
+          g.beginPath();
+          g.moveTo(mx - 6, my);
+          g.lineTo(mx + (ex < 192 ? -22 : 22), my - 18);
+          g.lineTo(mx + 6, my + 4);
+          g.fill();
+        }
+      }
+      // petals
+      for (let i = -3; i <= 3; i++) {
+        const a = i * 0.36;
+        g.save();
+        g.translate(192, 230);
+        g.rotate(a);
+        const pg = g.createLinearGradient(0, -190, 0, 0);
+        pg.addColorStop(0, '#ff9ae0');
+        pg.addColorStop(0.35, '#7a2f6a');
+        pg.addColorStop(1, '#1c0c20');
+        g.fillStyle = pg;
+        g.beginPath();
+        g.moveTo(-26, 0);
+        g.quadraticCurveTo(-44, -110, 0, -196);
+        g.quadraticCurveTo(44, -110, 26, 0);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = '#12060f';
+        g.lineWidth = 3;
+        g.stroke();
+        g.restore();
+      }
+      // bulb
+      const gr = g.createRadialGradient(170, 240, 8, 192, 262, 120);
+      gr.addColorStop(0, '#6e3a76');
+      gr.addColorStop(0.6, '#33183c');
+      gr.addColorStop(1, '#0f0714');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.moveTo(192, 150);
+      g.bezierCurveTo(320, 180, 316, 350, 192, 384);
+      g.bezierCurveTo(68, 350, 64, 180, 192, 150);
+      g.fill();
+      g.strokeStyle = '#0b0510';
+      g.lineWidth = 5;
+      g.stroke();
+      // the eye
+      g.fillStyle = '#0a040c';
+      g.beginPath();
+      g.ellipse(192, 258, 54, 40, 0, 0, 7);
+      g.fill();
+      const eg = g.createRadialGradient(192, 258, 2, 192, 258, 40);
+      eg.addColorStop(0, '#ffffff');
+      eg.addColorStop(0.4, '#ffb0ea');
+      eg.addColorStop(1, 'rgba(255,90,200,0.15)');
+      g.fillStyle = eg;
+      g.shadowColor = '#ff7ad9';
+      g.shadowBlur = 30;
+      g.beginPath();
+      g.ellipse(192, 258, 40, 28, 0, 0, 7);
+      g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = '#1a0618';
+      g.beginPath();
+      g.ellipse(192, 258, 8, 24, 0, 0, 7);
+      g.fill();
+      g.fillStyle = '#ffd0f4';
+      for (const [x, y] of [[120, 300], [264, 300], [150, 340], [234, 340]]) {
+        g.beginPath();
+        g.arc(x, y, 5, 0, 7);
+        g.fill();
+      }
+    }),
+  briarSpike: () =>
+    canvasTex(96, 256, (g) => {
+      const gr = g.createLinearGradient(0, 256, 0, 0);
+      gr.addColorStop(0, '#0a1c18');
+      gr.addColorStop(0.6, '#3a1640');
+      gr.addColorStop(0.9, '#ff9ae0');
+      gr.addColorStop(1, '#ffffff');
+      g.fillStyle = gr;
+      g.shadowColor = '#ff7ad9';
+      g.shadowBlur = 10;
+      g.beginPath();
+      g.moveTo(14, 256);
+      g.quadraticCurveTo(40, 120, 48, 4);
+      g.quadraticCurveTo(56, 120, 82, 256);
+      g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = '#3a1640';
+      for (const [y, s] of [[200, -1], [160, 1], [110, -1], [70, 1]]) {
+        g.beginPath();
+        g.moveTo(48, y - 10);
+        g.lineTo(48 + s * 34, y - 26);
+        g.lineTo(48, y + 10);
+        g.fill();
+      }
+    }),
+  bellowsBody: () =>
+    canvasTex(320, 320, (g) => {
+      // chains
+      g.strokeStyle = '#140a08';
+      g.lineWidth = 6;
+      for (const x of [110, 210]) {
+        for (let y = 262; y < 316; y += 15) {
+          g.beginPath();
+          g.ellipse(x, y + 7, 5, 8, 0, 0, 7);
+          g.stroke();
+        }
+      }
+      const gr = g.createRadialGradient(124, 124, 10, 160, 160, 140);
+      gr.addColorStop(0, '#7a4a3a');
+      gr.addColorStop(0.55, '#3a1e18');
+      gr.addColorStop(1, '#100706');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.arc(160, 156, 122, 0, 7);
+      g.fill();
+      g.strokeStyle = '#070303';
+      g.lineWidth = 7;
+      g.stroke();
+      // riveted bands
+      g.strokeStyle = 'rgba(7,3,3,0.7)';
+      g.lineWidth = 6;
+      g.beginPath();
+      g.ellipse(160, 156, 122, 44, 0, 0, 7);
+      g.stroke();
+      g.fillStyle = '#b07a5a';
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        g.beginPath();
+        g.arc(160 + Math.cos(a) * 110, 156 + Math.sin(a) * 110, 4.5, 0, 7);
+        g.fill();
+      }
+      // crown stack
+      g.fillStyle = '#241210';
+      g.fillRect(132, 6, 56, 44);
+      g.fillStyle = '#5a3628';
+      g.fillRect(122, 0, 76, 14);
+      // furnace grate
+      g.fillStyle = '#050202';
+      g.beginPath();
+      g.roundRect(84, 150, 152, 84, 22);
+      g.fill();
+      const fg = g.createRadialGradient(160, 196, 4, 160, 192, 80);
+      fg.addColorStop(0, '#ffffff');
+      fg.addColorStop(0.35, '#ffcf70');
+      fg.addColorStop(1, 'rgba(255,90,20,0.1)');
+      g.fillStyle = fg;
+      g.shadowColor = '#ff8a3c';
+      g.shadowBlur = 30;
+      g.beginPath();
+      g.roundRect(94, 160, 132, 64, 16);
+      g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = '#100706';
+      for (let i = 0; i < 6; i++) g.fillRect(102 + i * 22, 150, 9, 84);
+      // eyes
+      g.fillStyle = '#fff3c4';
+      g.shadowColor = '#ff8a3c';
+      g.shadowBlur = 18;
+      g.beginPath();
+      g.moveTo(92, 104);
+      g.lineTo(140, 118);
+      g.lineTo(96, 128);
+      g.closePath();
+      g.moveTo(228, 104);
+      g.lineTo(180, 118);
+      g.lineTo(224, 128);
+      g.closePath();
+      g.fill();
+    }),
+  bellowsWing: () =>
+    canvasTex(256, 192, (g) => {
+      // accordion bellows fanning out from the left edge
+      for (let i = 0; i < 6; i++) {
+        const a0 = -0.62 + i * 0.21;
+        const a1 = a0 + 0.21;
+        const R = 236;
+        g.fillStyle = i % 2 ? '#4a2a20' : '#22110d';
+        g.beginPath();
+        g.moveTo(8, 96);
+        g.lineTo(8 + Math.cos(a0) * R, 96 + Math.sin(a0) * R * 0.78);
+        g.lineTo(8 + Math.cos(a1) * R, 96 + Math.sin(a1) * R * 0.78);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = '#070303';
+        g.lineWidth = 3;
+        g.stroke();
+      }
+      g.strokeStyle = 'rgba(255,176,90,0.55)';
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(8, 96);
+      g.lineTo(8 + Math.cos(-0.62) * 236, 96 + Math.sin(-0.62) * 236 * 0.78);
+      g.stroke();
+    }),
 };
 
 export function sprite(name) {

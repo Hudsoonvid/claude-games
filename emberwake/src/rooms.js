@@ -82,10 +82,10 @@ add(build('kiln2', 'Ashfall Gallery', 'kiln', 86, 30, (g) => {
   // thorn pit with stepping platforms
   g.thorns(16, 3, 12);
   g.plat(18, 6, 3);
-  g.plat(23, 7, 3);
+  g.plat(23, 6, 3);
   // climb toward the high ledge (the last gap needs the Gust Step)
-  g.plat(28, 10, 3);
-  g.plat(23, 13, 3);
+  g.plat(28, 9, 3);
+  g.plat(23, 12, 3);
   g.plat(19, 15, 3);
   g.solid(2, 15, 10, 1);
   g.mark('ember', 5.5, 17);
@@ -171,7 +171,7 @@ add(build('root3', 'Shrine of the Gust', 'root', 48, 24, (g) => {
 add(build('root2', 'Glimmer Grotto', 'root', 92, 28, (g) => {
   g.carve(2, 3, 88, 22);
   g.exit('a', 'left', 3, 'root1', 'b');
-  g.exit('b', 'right', 12, 'vault1', 'a');
+  g.exit('b', 'right', 12, 'root4', 'a');
   // the gap that demands a dash
   g.thorns(14, 3, 7);
   g.mark('hint', 10, 3, { text: 'dashgap', r: 4 });
@@ -204,46 +204,263 @@ add(build('vault1', 'Glasswater Vaults', 'vault', 60, 38, (g) => {
   g.carve(2, 3, 56, 6); // lower chamber
   g.carve(27, 9, 4, 20); // the shaft
   g.carve(2, 29, 56, 7); // upper chamber
-  g.exit('a', 'left', 3, 'root2', 'b');
-  g.exit('b', 'right', 29, 'vault2', 'a');
+  g.exit('a', 'left', 3, 'root4', 'b');
+  g.exit('b', 'right', 29, 'vault3', 'a');
   g.mark('lantern', 7, 3);
   g.mark('enemy', 14, 3, { kind: 'potling' });
-  g.mark('enemy', 20, 3, { kind: 'spitter' });
+  g.mark('enemy', 19, 3, { kind: 'spitter' });
+  // two planks step up into the mouth of the shaft
+  g.plat(22, 5, 3);
   g.plat(27, 7, 4);
-  g.mark('enemy', 38, 3, { kind: 'brute' });
+  g.plat(27, 19, 2); // a place to catch your breath halfway up
+  g.mark('hint', 28.5, 5, { text: 'shaft', r: 6 });
+  g.mark('lantern', 25.2, 3);
+  g.mark('lantern', 32.2, 3);
+  g.mark('enemy', 40, 3, { kind: 'brute' });
   g.mark('pot', 44, 3);
   g.mark('pot', 45.4, 3);
   g.solid(48, 3, 9, 1);
   g.mark('shrine', 52.5, 4, { ability: 'grip' });
-  g.mark('lantern', 34, 3);
   // upper chamber
   g.mark('lantern', 24, 29);
   g.mark('enemy', 14, 29, { kind: 'potling' });
   g.mark('pot', 5, 29);
   g.mark('pot', 6.5, 29);
-  g.mark('tablet', 9, 29, { text: 'The Warden was built to keep the Kiln\'s heart from thieves.\nNo one told it the heart had already gone out.' });
+  g.mark('tablet', 9, 29, { text: 'The Warden was built to keep the Kiln\'s heart from thieves.\nNo one told it the heart had already gone.' });
   g.mark('enemy', 40, 33, { kind: 'wisp' });
   g.mark('enemy', 46, 29, { kind: 'spitter' });
   g.mark('lantern', 52, 29);
 }));
 
-// ───────────────────────── The Warden's Vigil (boss) ─────────────────────────
-add(build('vault2', "The Warden's Vigil", 'vault', 64, 26, (g) => {
-  g.carve(2, 3, 60, 20);
+// Boss rooms share one shape: a hearth antechamber, a gated arena, and a way onward.
+function arenaRoom(id, name, biome, opts) {
+  const { from, to, boss, sub = {}, tall = 0, planks = [], heart = false } = opts;
+  const w = to ? 70 : 64;
+  return build(id, name, biome, w, 26 + tall, (g) => {
+    g.carve(2, 3, w - 4, 20 + tall);
+    g.exit('a', 'left', 3, from[0], from[1]);
+    g.solid(2, 12, 18, 11 + tall); // low antechamber roof
+    g.solid(20, 12, 3, 11 + tall); // lintel over the first gate
+    g.solid(23, 18 + tall, 35, 5); // arena roof
+    g.mark('hearth', 8, 3);
+    g.mark('lantern', 5, 3);
+    if (sub.tablet) g.mark('tablet', 14, 3, { text: sub.tablet });
+    g.mark('gate', 21, 3, { h: 9 });
+    g.mark('bossTrigger', 27, 3);
+    if (to) {
+      g.solid(58, 12, 3, 11 + tall);
+      g.solid(61, 12, w - 63, 11 + tall);
+      g.mark('gate', 59, 3, { h: 9 });
+      g.exit('b', 'right', 3, to[0], to[1]);
+      g.mark('lantern', 64, 3);
+      if (sub.after) g.mark('tablet', 66.5, 3, { text: sub.after });
+    } else {
+      g.solid(58, 3, 4, 20 + tall);
+    }
+    for (const [x, y, len] of planks) g.plat(x, y, len);
+    if (heart) g.mark('heart', 52, 3);
+    if (sub.kiln) g.mark('kiln', sub.kiln, 3, { size: 12 });
+    g.mark('boss', boss[1], 3, { kind: boss[0], x0: 23.6, x1: 57.4 });
+    g.mark('lantern', 26, 3);
+    g.mark('lantern', 40, 3);
+    g.mark('lantern', 55, 3);
+  });
+}
+
+// ───────────────────────── Briar Hollow (boss) ─────────────────────────
+add(arenaRoom('root4', 'Briar Hollow', 'root', {
+  from: ['root2', 'b'], to: ['vault1', 'a'], boss: ['briar', 44],
+  sub: { tablet: 'She was a seed the makers planted for shade.\nShe grew toward the only warm thing left: them.' },
+}));
+
+// ───────────────────────── Prism Walk ─────────────────────────
+add(build('vault3', 'Prism Walk', 'vault', 70, 34, (g) => {
+  g.carve(2, 3, 40, 7); // lower hall
+  g.carve(18, 10, 4, 12); // shaft
+  g.carve(18, 22, 50, 8); // upper hall
   g.exit('a', 'left', 3, 'vault1', 'b');
-  g.solid(2, 12, 18, 11);
-  g.solid(20, 12, 3, 11); // lintel above the gate
-  g.solid(23, 18, 39, 5);
-  g.solid(56, 3, 6, 15);
+  g.exit('b', 'right', 22, 'vault2', 'a');
+  g.mark('lantern', 6, 3);
+  g.mark('enemy', 9, 3, { kind: 'potling' });
+  g.plat(13, 5, 3);
+  g.plat(18, 7, 4);
+  g.mark('lantern', 16.3, 3);
+  // optional: a long thorn bed guards a kiln ember
+  g.thorns(25, 3, 11);
+  g.mark('ember', 39, 5);
+  g.mark('lantern', 23, 3);
+  // upper hall
+  g.mark('lantern', 24, 22);
+  g.mark('enemy', 26, 25, { kind: 'wisp' });
+  g.thorns(29, 22, 7);
+  g.mark('enemy', 40, 22, { kind: 'spitter' });
+  g.mark('enemy', 46, 22, { kind: 'brute' });
+  g.mark('pot', 52, 22);
+  g.mark('pot', 53.4, 22);
+  g.mark('enemy', 57, 26, { kind: 'wisp' });
+  g.mark('lantern', 62, 22);
+}));
+
+// ───────────────────────── The Warden's Vigil (boss) ─────────────────────────
+add(arenaRoom('vault2', "The Warden's Vigil", 'vault', {
+  from: ['vault3', 'b'], to: ['forge1', 'a'], boss: ['warden', 46],
+  sub: {
+    kiln: 49.5,
+    tablet: 'Rest. Mend. Beyond this gate the cold has a shape,\nand it has been waiting a very long time.',
+    after: 'The Kiln stands whole, and empty. Its First Ember was carried off:\ndown through the slag, then up into the frost.',
+  },
+}));
+
+// ───────────────────────── Slagworks Descent ─────────────────────────
+add(build('forge1', 'Slagworks Descent', 'forge', 84, 30, (g) => {
+  g.carve(2, 3, 80, 24);
+  g.exit('a', 'left', 20, 'vault2', 'b');
+  g.exit('b', 'right', 3, 'forge2', 'a');
+  g.solid(2, 3, 16, 17); // entry ledge, top 20
+  g.mark('lantern', 8, 20);
+  g.thorns(18, 3, 14);
+  g.plat(20, 17, 5);
+  g.plat(26, 14, 4);
+  g.solid(32, 3, 8, 8); // top 11
+  g.mark('enemy', 36, 11, { kind: 'emberling' });
+  g.mark('lantern', 33.5, 11);
+  g.thorns(40, 3, 10);
+  g.plat(42, 8, 3);
+  g.plat(47, 6, 3);
+  g.mark('enemy', 54, 3, { kind: 'emberling' });
+  g.solid(56, 10, 16, 17); // low roof with crucibles
+  g.mark('enemy', 60, 10, { kind: 'dripper' });
+  g.mark('enemy', 66, 10, { kind: 'dripper' });
+  g.mark('enemy', 63, 3, { kind: 'potling' });
+  g.mark('pot', 70, 3);
+  g.mark('pot', 71.4, 3);
+  g.mark('enemy', 76, 3, { kind: 'emberling' });
+  g.mark('lantern', 52, 3);
+  g.mark('lantern', 79, 3);
+  g.mark('tablet', 74, 3, { text: 'Here the makers poured their mistakes.\nThe slag never forgave them, and never cooled.' });
+}));
+
+// ───────────────────────── The Tempering Hall ─────────────────────────
+add(build('forge2', 'The Tempering Hall', 'forge', 70, 34, (g) => {
+  g.carve(2, 3, 66, 28);
+  g.exit('a', 'left', 3, 'forge1', 'b');
+  g.exit('b', 'right', 20, 'forge3', 'a');
+  g.solid(2, 14, 14, 17);
+  g.mark('hearth', 7, 3);
+  g.mark('lantern', 4.5, 3);
+  g.mark('enemy', 13, 3, { kind: 'emberling' });
+  g.solid(18, 3, 9, 1);
+  g.mark('shrine', 22.5, 4, { ability: 'wing' });
+  // the climb: every rise is taller than a single jump
+  g.solid(40, 3, 28, 17); // cliff, top 20
+  g.solid(37, 19, 3, 1); // overhanging lip
+  g.plat(32, 8, 4);
+  g.plat(26, 13, 4);
+  g.plat(33, 18, 4);
+  g.mark('hint', 33, 3, { text: 'wing', r: 5 });
+  g.mark('lantern', 30, 3);
+  g.mark('enemy', 48, 20, { kind: 'emberling' });
+  g.mark('enemy', 56, 20, { kind: 'brute' });
+  g.mark('lantern', 44, 20);
+  g.mark('lantern', 62, 20);
+}));
+
+// ───────────────────────── The Long Pour ─────────────────────────
+add(build('forge3', 'The Long Pour', 'forge', 96, 30, (g) => {
+  g.carve(2, 3, 92, 24);
+  g.exit('a', 'left', 10, 'forge2', 'b');
+  g.exit('b', 'right', 14, 'forge4', 'a');
+  g.solid(2, 3, 10, 7); // entry ledge, top 10
+  g.mark('lantern', 6, 10);
+  g.thorns(12, 3, 68);
+  g.solid(23, 3, 3, 7); // top 10
+  g.solid(36, 3, 3, 9); // top 12
+  g.solid(49, 3, 4, 7); // top 10
+  g.mark('enemy', 51, 10, { kind: 'emberling' });
+  g.plat(58, 13, 3);
+  g.plat(66, 16, 3);
+  g.solid(80, 3, 14, 11); // far bank, top 14
+  g.solid(26, 19, 14, 8); // low roof with crucibles
+  g.mark('enemy', 30.5, 19, { kind: 'dripper' });
+  g.solid(60, 22, 14, 5);
+  g.mark('enemy', 63.5, 22, { kind: 'dripper' });
+  g.mark('enemy', 43, 15, { kind: 'wisp' });
+  g.mark('lantern', 84, 14);
+  g.mark('pot', 88, 14);
+  g.mark('pot', 89.4, 14);
+}));
+
+// ───────────────────────── The Bellows' Lair (boss) ─────────────────────────
+add(arenaRoom('forge4', "The Bellows' Lair", 'forge', {
+  from: ['forge3', 'b'], to: ['rime1', 'a'], boss: ['bellows', 40], tall: 3,
+  planks: [[28, 6, 4], [49, 6, 4]],
+  sub: {
+    tablet: 'It was built to breathe for the furnaces.\nWhen the furnaces died, it kept breathing. It does not know how to stop.',
+    after: 'Above the slag the air turns thin and white.\nSomething carried the First Ember up there, and sat down beside it.',
+  },
+}));
+
+// ───────────────────────── Rimestair (vertical) ─────────────────────────
+add(build('rime1', 'Rimestair', 'rime', 44, 64, (g) => {
+  g.carve(2, 3, 40, 58);
+  g.exit('a', 'left', 3, 'forge4', 'b');
+  g.exit('b', 'right', 56, 'rime2', 'a');
+  g.mark('lantern', 6, 3);
+  g.plat(10, 8, 5);
+  g.solid(20, 10, 8, 3); // top 13
+  g.plat(32, 18, 5);
+  g.solid(20, 20, 8, 3); // top 23
+  g.plat(12, 23, 4);
+  // a shaft between two ice masses
+  g.solid(2, 26, 10, 18);
+  g.solid(16, 26, 10, 18); // tops 44
+  g.plat(12, 35, 2);
+  g.plat(29, 48, 5);
+  g.plat(21, 52, 5);
+  g.solid(32, 53, 10, 3); // top 56
+  g.mark('enemy', 24, 13, { kind: 'potling' });
+  g.mark('enemy', 34, 12, { kind: 'lancer' });
+  g.mark('enemy', 8, 20, { kind: 'lancer' });
+  g.mark('enemy', 34, 30, { kind: 'lancer' });
+  g.mark('lantern', 22, 23);
+  g.mark('lantern', 6, 44);
+  g.mark('pot', 20, 44);
+  g.mark('pot', 21.4, 44);
+  g.mark('enemy', 36, 50, { kind: 'wisp' });
+  g.mark('lantern', 38, 56);
+}));
+
+// ───────────────────────── The Still Gallery ─────────────────────────
+add(build('rime2', 'The Still Gallery', 'rime', 90, 28, (g) => {
+  g.carve(2, 3, 86, 22);
+  g.exit('a', 'left', 3, 'rime1', 'b');
+  g.exit('b', 'right', 3, 'rime3', 'a');
   g.mark('hearth', 8, 3);
   g.mark('lantern', 5, 3);
-  g.mark('tablet', 14, 3, { text: 'Rest. Mend. Beyond this gate the cold has a shape,\nand it has been waiting a very long time.' });
-  g.mark('gate', 21, 3, { h: 9 });
-  g.mark('bossTrigger', 27, 3);
-  g.mark('heart', 49.5, 3);
-  g.mark('boss', 46, 3);
-  g.mark('lantern', 26, 3);
-  g.mark('lantern', 38, 3);
+  g.mark('tablet', 14, 3, { text: 'They walked up here to bring the fire home, and stopped.\nNot one of them fell. They are all still standing.' });
+  g.thorns(20, 3, 31);
+  g.solid(30, 3, 3, 3); // top 6
+  g.solid(42, 3, 3, 5); // top 8
+  g.mark('enemy', 26, 10, { kind: 'lancer' });
+  g.mark('enemy', 38, 13, { kind: 'lancer' });
+  g.mark('enemy', 55, 3, { kind: 'brute' });
+  g.plat(59, 7, 3);
+  g.solid(64, 3, 4, 8); // wall, top 11
+  g.plat(70, 7, 3);
+  g.mark('enemy', 61, 14, { kind: 'lancer' });
+  g.mark('enemy', 74, 3, { kind: 'spitter' });
+  g.mark('enemy', 80, 8, { kind: 'wisp' });
+  g.mark('lantern', 53, 3);
+  g.mark('lantern', 70, 3);
+  g.mark('lantern', 84, 3);
+  g.solid(2, 17, 16, 8);
+  g.solid(52, 19, 20, 6);
+}));
+
+// ───────────────────────── The Snuffed Crown (final boss) ─────────────────────────
+add(arenaRoom('rime3', 'The Snuffed Crown', 'rime', {
+  from: ['rime2', 'b'], boss: ['wick', 44], heart: true,
+  sub: { tablet: 'The first wick the makers ever lit climbed up here with the Ember, to keep it safe.\nIt kept it so safe that it let its own light go out.' },
 }));
 
 export const START_ROOM = 'kiln1';

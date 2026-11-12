@@ -201,7 +201,7 @@ export class FX {
 
   ambient(dt, kind, cx, cy, hw, hh) {
     this.ambT += dt;
-    const rate = kind === 'ash' ? 0.035 : 0.05;
+    const rate = kind === 'ash' || kind === 'snow' ? 0.035 : 0.05;
     while (this.ambT > rate) {
       this.ambT -= rate;
       const x = cx + rnd(-hw, hw) * 1.2;
@@ -210,6 +210,11 @@ export class FX {
       if (kind === 'ash') {
         this.norm.spawn({ x, y: cy + hh * 1.2, z, vx: rnd(-0.6, 0.1), vy: rnd(-1.6, -0.6), life: rnd(6, 11), size: rnd(0.06, 0.16), size1: 0.08, color: [0.75, 0.8, 0.92], alpha: rnd(0.25, 0.6), wobble: 0.6, fadeIn: 1 });
         if (Math.random() < 0.12) this.add.spawn({ x, y, z, vx: rnd(-0.2, 0.2), vy: rnd(0.2, 0.7), life: rnd(2, 4), size: rnd(0.05, 0.1), color: [1, 0.55, 0.2], alpha: 0.9, wobble: 0.5, fadeIn: 0.6 });
+      } else if (kind === 'ember') {
+        this.add.spawn({ x, y: cy - hh * 1.1 + Math.random() * hh, z, vx: rnd(-0.4, 0.4), vy: rnd(0.8, 2.6), life: rnd(2.5, 5), size: rnd(0.05, 0.14), size1: 0.02, color: Math.random() < 0.3 ? [1, 0.85, 0.4] : [1, 0.45, 0.15], alpha: rnd(0.5, 1), wobble: 0.9, fadeIn: 0.5 });
+      } else if (kind === 'snow') {
+        this.norm.spawn({ x, y: cy + hh * 1.2, z, vx: rnd(-1.4, -0.3), vy: rnd(-2.2, -0.9), life: rnd(6, 10), size: rnd(0.07, 0.17), size1: 0.1, color: [0.93, 0.97, 1], alpha: rnd(0.45, 0.9), wobble: 0.8, fadeIn: 0.8 });
+        if (Math.random() < 0.5) this.norm.spawn({ x: cx + rnd(-hw, hw) * 1.2, y: cy + hh * 1.2, z: rnd(-6, 3), vx: rnd(-1.4, -0.3), vy: rnd(-2.2, -0.9), life: rnd(6, 10), size: rnd(0.05, 0.12), size1: 0.08, color: [0.93, 0.97, 1], alpha: rnd(0.4, 0.8), wobble: 0.8, fadeIn: 0.8 });
       } else if (kind === 'spore') {
         this.add.spawn({ x, y, z, vx: rnd(-0.15, 0.15), vy: rnd(0.1, 0.5), life: rnd(4, 8), size: rnd(0.08, 0.22), size1: 0.05, color: [0.35, 1, 0.75], alpha: rnd(0.3, 0.8), wobble: 0.5, fadeIn: 1.2 });
       } else {

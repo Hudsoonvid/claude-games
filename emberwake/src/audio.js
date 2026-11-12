@@ -14,6 +14,8 @@ const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const SCORES = {
   kiln: { root: 38, scale: [0, 2, 3, 5, 7, 8, 10], chords: [[0, 2, 4], [5, 0, 2], [3, 5, 0], [4, 6, 1]], chordLen: 9, pluck: 0.32, bright: 700, oct: 2 },
   root: { root: 41, scale: [0, 2, 4, 6, 7, 9, 11], chords: [[0, 2, 4], [1, 3, 5], [4, 6, 1], [3, 5, 0]], chordLen: 8, pluck: 0.5, bright: 1000, oct: 2 },
+  forge: { root: 36, scale: [0, 1, 3, 5, 7, 8, 10], chords: [[0, 2, 4], [1, 3, 5], [0, 2, 4], [6, 1, 3]], chordLen: 8, pluck: 0.35, bright: 620, oct: 2 },
+  rime: { root: 40, scale: [0, 2, 4, 6, 7, 9, 11], chords: [[0, 2, 4], [4, 6, 1], [3, 5, 0], [1, 3, 5]], chordLen: 9, pluck: 0.6, bright: 1500, oct: 3 },
   vault: { root: 37, scale: [0, 2, 3, 5, 7, 8, 11], chords: [[0, 2, 4], [3, 5, 0], [5, 0, 2], [4, 6, 1]], chordLen: 8, pluck: 0.55, bright: 1300, oct: 3 },
 };
 
@@ -106,6 +108,10 @@ const SFX = {
     noise({ dur: 0.25, vol: 0.3, f0: 900, f1: 150, type: 'lowpass' });
   },
   jump: () => tone({ type: 'sine', f0: 280, f1: 480, dur: 0.1, vol: 0.07 }),
+  djump: () => {
+    tone({ type: 'sine', f0: 420, f1: 880, dur: 0.14, vol: 0.09, wet: 0.3 });
+    noise({ dur: 0.12, vol: 0.1, f0: 1500, f1: 4000, q: 1 });
+  },
   walljump: () => {
     tone({ type: 'sine', f0: 340, f1: 620, dur: 0.1, vol: 0.08 });
     noise({ dur: 0.06, vol: 0.1, f0: 1200, type: 'lowpass' });
@@ -326,7 +332,7 @@ function scheduleMusic() {
     let tt = t + 0.5 + Math.random();
     let deg = ch[Math.floor(Math.random() * 3)];
     for (let i = 0; i < n; i++) {
-      if (Math.random() < sc.pluck + 0.3) pluck(mtof(noteOf(deg, sc.oct + 1)), tt, 0.055 + Math.random() * 0.03, biome === 'vault' ? 'triangle' : 'sine');
+      if (Math.random() < sc.pluck + 0.3) pluck(mtof(noteOf(deg, sc.oct + 1)), tt, 0.055 + Math.random() * 0.03, biome === 'vault' || biome === 'rime' ? 'triangle' : 'sine');
       deg += [-2, -1, 1, 2, 2, -1][Math.floor(Math.random() * 6)];
       tt += [0.5, 0.75, 1, 1.5][Math.floor(Math.random() * 4)];
       if (tt > t + sc.chordLen - 0.5) break;

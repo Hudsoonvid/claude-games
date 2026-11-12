@@ -14,6 +14,16 @@ export const BIOMES = {
     terrDeep: '#020909', terrMid: '#0b211e', rim: '#86e6b6', moss: '#2f9d6c',
     accent: '#7dffd0', glow: '#7dffd0', dark: 0.58, tint: [0.86, 1.1, 1.0], particles: 'spore',
   },
+  forge: {
+    skyTop: '#160605', skyBot: '#6a2210', fog: '#b04a1e',
+    terrDeep: '#080303', terrMid: '#2a1210', rim: '#ffb878', moss: '#8c3c1e',
+    accent: '#ffb040', glow: '#ff8a3c', dark: 0.6, tint: [1.14, 0.96, 0.86], particles: 'ember',
+  },
+  rime: {
+    skyTop: '#060f1c', skyBot: '#234a68', fog: '#4a7fa2',
+    terrDeep: '#060b14', terrMid: '#15273b', rim: '#dff4ff', moss: '#82b8d6',
+    accent: '#e4f8ff', glow: '#bfe8ff', dark: 0.66, tint: [0.93, 1.02, 1.12], particles: 'snow', mist: 0.55,
+  },
   vault: {
     skyTop: '#0d0a2a', skyBot: '#3b2c82', fog: '#6a56c0',
     terrDeep: '#05040f', terrMid: '#171236', rim: '#c9b4ff', moss: '#6f5cc8',
@@ -218,7 +228,7 @@ export function skyMaterial(biome) {
 export function mistMaterial(biome, alpha) {
   const b = BIOMES[biome];
   return new THREE.ShaderMaterial({
-    uniforms: { uTime: globalUniforms.uTime, uCol: { value: new THREE.Color(b.fog) }, uAlpha: { value: alpha } },
+    uniforms: { uTime: globalUniforms.uTime, uCol: { value: new THREE.Color(b.fog) }, uAlpha: { value: alpha * (b.mist ?? 1) } },
     vertexShader: `varying vec2 vW; void main(){ vec4 wp = modelMatrix*vec4(position,1.0); vW = wp.xy; gl_Position = projectionMatrix*viewMatrix*wp; }`,
     fragmentShader: /* glsl */ `
       uniform float uTime, uAlpha; uniform vec3 uCol; varying vec2 vW;
@@ -510,7 +520,137 @@ function paintVault(g, W, H, r, col, hi, k, b) {
   }
 }
 
-const PAINTERS = { kiln: paintKiln, root: paintRoot, vault: paintVault };
+function paintForge(g, W, H, r, col, hi, k, b) {
+  edgeMass(g, W, H, r, true, 3.5, col);
+  edgeMass(g, W, H, r, false, 3, col);
+  // great pipes with flanges
+  for (let x = r.range(0, 6); x < W; x += r.range(6, 13)) {
+    const w = r.range(1.2, 3) * (1.4 - k * 0.5);
+    const y0 = r() < 0.5 ? 0 : H * r.range(0.1, 0.5);
+    const y1 = r() < 0.5 ? H : H * r.range(0.5, 0.95);
+    g.fillStyle = col;
+    g.fillRect(x - w / 2, y0, w, y1 - y0);
+    for (let y = y0 + 1; y < y1; y += r.range(4, 9)) g.fillRect(x - w * 0.72, y, w * 1.44, 0.7);
+    g.fillStyle = hi;
+    g.globalAlpha = 0.3;
+    g.fillRect(x - w / 2, y0, w * 0.18, y1 - y0);
+    g.globalAlpha = 1;
+    // elbow to a horizontal run
+    if (r() < 0.5) {
+      const len = r.range(5, 14);
+      const yy = r.range(y0 + 2, y1 - 2);
+      g.fillStyle = col;
+      g.fillRect(x, yy - w * 0.4, len, w * 0.8);
+      g.fillRect(x + len - 0.4, yy - w * 0.62, 0.8, w * 1.24);
+    }
+  }
+  // cog wheels
+  for (let i = 0; i < W / 16; i++) {
+    const cx = r() * W;
+    const cy = r() * H;
+    const rad = r.range(2.5, 6.5) * (1.3 - k * 0.4);
+    g.fillStyle = col;
+    g.beginPath();
+    const teeth = Math.round(rad * 3.2);
+    for (let t = 0; t < teeth * 2; t++) {
+      const a = (t / (teeth * 2)) * Math.PI * 2;
+      const rr = rad * (t % 2 ? 1.0 : 0.86);
+      g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      g.lineTo(cx + Math.cos(a + Math.PI / (teeth * 2)) * rr, cy + Math.sin(a + Math.PI / (teeth * 2)) * rr);
+    }
+    g.closePath();
+    g.fill();
+    g.globalCompositeOperation = 'destination-out';
+    for (let t = 0; t < 5; t++) {
+      const a = (t / 5) * Math.PI * 2;
+      g.beginPath();
+      g.arc(cx + Math.cos(a) * rad * 0.5, cy + Math.sin(a) * rad * 0.5, rad * 0.17, 0, 7);
+      g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+  // hanging crucibles and molten pours
+  for (let i = 0; i < W / 8; i++) {
+    const cx = r() * W;
+    const len = r.range(3, H * 0.5);
+    g.strokeStyle = col;
+    g.lineWidth = 0.16;
+    g.beginPath();
+    g.moveTo(cx, 0);
+    g.lineTo(cx, len);
+    g.stroke();
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(cx - 1.1, len);
+    g.lineTo(cx + 1.1, len);
+    g.lineTo(cx + 0.7, len + 1.6);
+    g.lineTo(cx - 0.7, len + 1.6);
+    g.closePath();
+    g.fill();
+    g.fillStyle = rgba(b.accent, 0.5 + k * 0.4);
+    g.shadowColor = b.glow;
+    g.shadowBlur = 14 + k * 18;
+    g.fillRect(cx - 0.9, len - 0.12, 1.8, 0.24);
+    if (r() < 0.45) {
+      const gr = g.createLinearGradient(0, len + 1.6, 0, H);
+      gr.addColorStop(0, rgba(b.accent, 0.75));
+      gr.addColorStop(1, rgba(b.glow, 0.05));
+      g.fillStyle = gr;
+      g.fillRect(cx - 0.12, len + 1.6, 0.24 + k * 0.1, H - len);
+    }
+    g.shadowBlur = 0;
+  }
+}
+
+function paintRime(g, W, H, r, col, hi, k, b) {
+  hi = mix(col, hi, 0.42); // ice catches light, but must not out-shine the wick
+  edgeMass(g, W, H, r, true, 5, col);
+  edgeMass(g, W, H, r, false, 3, col);
+  // ice spires rising and hanging
+  const n = Math.round(W / 5);
+  for (let i = 0; i < n; i++) {
+    const top = r() < 0.35;
+    const cx = r() * W;
+    const cy = top ? r.range(0, 3) : H - r.range(0, 3);
+    const s = r.range(1, 2.6) * (1.6 - k * 0.6);
+    const m = r.int(2, 5);
+    for (let j = 0; j < m; j++) {
+      shard(g, cx + r.range(-1.6, 1.6) * s, cy, (top ? Math.PI : 0) + r.range(-0.22, 0.22), r.range(4, top ? 9 : 16) * s, r.range(0.8, 1.7) * s, col, hi);
+    }
+  }
+  // frozen lamp posts: the makers' lights, snuffed mid-step
+  for (let x = r.range(2, 9); x < W; x += r.range(8, 16)) {
+    const h = r.range(5, 11);
+    const by = H - r.range(0, H * 0.4);
+    g.strokeStyle = col;
+    g.lineWidth = 0.35;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(x, by);
+    g.lineTo(x, by - h);
+    g.quadraticCurveTo(x, by - h - 1.2, x + 1.3, by - h - 1.1);
+    g.stroke();
+    g.fillStyle = col;
+    g.fillRect(x + 0.85, by - h - 1.1, 0.9, 1.5);
+    g.fillStyle = hi;
+    g.globalAlpha = 0.6;
+    g.fillRect(x + 1.0, by - h - 0.9, 0.6, 1.0);
+    g.globalAlpha = 1;
+    // icicles off the lamp
+    for (let j = 0; j < 3; j++) shard(g, x + 0.95 + j * 0.35, by - h + 0.4, Math.PI, r.range(0.5, 1.6), 0.22, hi, hi);
+  }
+  // snow drifts
+  g.fillStyle = hi;
+  g.globalAlpha = 0.3 + k * 0.15;
+  g.beginPath();
+  g.moveTo(0, H);
+  for (let x = 0; x <= W; x += 3) g.lineTo(x, H - 1.2 - Math.sin(x * 0.21 + k * 5) * 0.9 - r() * 0.5);
+  g.lineTo(W, H);
+  g.fill();
+  g.globalAlpha = 1;
+}
+
+const PAINTERS = { kiln: paintKiln, root: paintRoot, vault: paintVault, forge: paintForge, rime: paintRime };
 
 // Paints one parallax layer sized to a room. k: 0 (far) → 1 (near).
 export function paintLayer(biome, Wu, Hu, k, seed) {

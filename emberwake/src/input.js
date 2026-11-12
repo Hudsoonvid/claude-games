@@ -73,6 +73,7 @@ function readPad() {
 }
 
 export const input = {
+  inject: null, // automated tests can drive actions directly: { left: true, jump: true, ... }
   axisX: 0,
   axisY: 0,
   get device() {
@@ -99,6 +100,7 @@ export const input = {
           }
         }
       }
+      if (this.inject) v = !!this.inject[a];
       now[a] = v;
     }
     tapped.clear();
