@@ -102,14 +102,39 @@
   #ending > *:nth-child(3) { animation-delay: 3.6s; }
   #ending > *:nth-child(4) { animation-delay: 4.8s; }
   @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  #loading { display: flex; background: var(--bg); font-family: var(--display); letter-spacing: 0.4em; font-size: 14px; color: var(--ink-dim); transition: opacity 0.8s; }
+  #loading { background: var(--bg); pointer-events: none; font-family: var(--display); letter-spacing: 0.4em; font-size: 14px; color: var(--ink-dim); transition: opacity 0.8s; }
   #loading.off { opacity: 0; }
 
   /* ── touch ── */
-  #touch { display: none; pointer-events: none; }
-  #touch.on { display: block; }
-  .tbtn { position: absolute; pointer-events: auto; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(233, 227, 214, 0.35); background: rgba(10, 12, 24, 0.38); color: rgba(233, 227, 214, 0.85); font-family: var(--display); font-size: 11px; letter-spacing: 0.08em; -webkit-tap-highlight-color: transparent; }
-  .tbtn.down { background: rgba(255, 180, 90, 0.35); border-color: var(--ember); }
+  :root { --sat: env(safe-area-inset-top, 0px); --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); }
+  #touch { display: none; touch-action: none; -webkit-touch-callout: none; }
+  #touch.on { display: block; pointer-events: auto; }
+  #touch.tap > :not(.tcatch) { display: none !important; }
+  .tcatch { position: absolute; inset: 0; display: none; }
+  #touch.tap .tcatch { display: block; }
+  .tbtn, .tstick, .tknob, .thint { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .tbtn { display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid rgba(233, 227, 214, 0.42); background: radial-gradient(circle at 35% 30%, rgba(60, 70, 110, 0.5), rgba(8, 10, 22, 0.5)); color: rgba(240, 234, 222, 0.92); font-family: var(--display); letter-spacing: 0.08em; text-shadow: 0 1px 3px #000; transition: transform 0.06s, background 0.08s, opacity 0.2s; }
+  .tbtn.t-jump { border-color: rgba(255, 190, 110, 0.75); box-shadow: 0 0 14px rgba(255, 170, 70, 0.22); }
+  .tbtn.t-attack { border-color: rgba(190, 240, 255, 0.7); }
+  .tbtn.t-dash { border-color: rgba(88, 239, 208, 0.7); }
+  .tbtn.t-up { border-color: var(--ember-hot); background: radial-gradient(circle at 35% 30%, rgba(255, 180, 90, 0.45), rgba(40, 20, 8, 0.6)); animation: breathe 1.4s ease-in-out infinite; }
+  .tbtn.t-pause { opacity: 0.6; border-width: 1px; }
+  .tbtn.down { transform: scale(0.92); background: radial-gradient(circle at 50% 50%, rgba(255, 190, 110, 0.6), rgba(120, 60, 20, 0.5)); border-color: var(--ember-hot); }
+  .tbtn.dim { opacity: 0.32; }
+  .tstick { border-radius: 50%; border: 1.5px solid rgba(233, 227, 214, 0.22); background: radial-gradient(circle, rgba(20, 24, 44, 0.12), rgba(8, 10, 22, 0.4)); opacity: 0.55; transition: opacity 0.15s; }
+  .tstick.live { opacity: 1; border-color: rgba(255, 190, 110, 0.6); }
+  .tknob { border-radius: 50%; background: radial-gradient(circle at 38% 32%, rgba(255, 225, 170, 0.85), rgba(255, 150, 60, 0.4)); box-shadow: 0 0 16px rgba(255, 170, 70, 0.4); }
+  .thint { transform: translate(-50%, 0); font-family: var(--display); font-size: 10px; letter-spacing: 0.3em; color: rgba(233, 227, 214, 0.6); transition: opacity 0.6s; }
+  .thint.seen { opacity: 0; }
+  .touchhelp, .rotate { display: none; }
+  @media (pointer: coarse) {
+    .keys { display: none; }
+    .touchhelp { display: block; margin-top: 4vh; font-style: italic; font-size: 15px; color: var(--ink-dim); text-shadow: 0 2px 6px #000; padding: 0 8vw; }
+    #prompt { display: none; }
+    #hint { bottom: auto; top: 16%; }
+    #lore { bottom: auto; top: 22%; }
+  }
+  @media (pointer: coarse) and (orientation: portrait) { .rotate { display: block; margin-top: 14px; font-family: var(--display); font-size: 11px; letter-spacing: 0.22em; color: var(--ember); } }
   @media (prefers-reduced-motion: reduce) { .flame.on, #banner em, #ending em { animation: none; } }
 </style>
 </head>
@@ -142,12 +167,15 @@
   <div class="sub">a small light in a deep dark</div>
   <div class="menu" id="titleMenu"></div>
   <div class="keys" id="titleKeys"></div>
+  <div class="touchhelp">Left thumb moves. Right thumb jumps, strikes and dashes.<br />Push the stick up or down while striking to aim.</div>
+  <div class="rotate">TURN YOUR PHONE SIDEWAYS FOR A WIDER VIEW</div>
 </div>
 
 <div id="pause" class="layer screen">
   <h2>PAUSED</h2>
   <div class="menu" id="pauseMenu"></div>
   <div class="keys" id="pauseKeys"></div>
+  <div class="touchhelp">Left thumb moves. Right thumb jumps, strikes and dashes.<br />Stick down + JUMP drops through thin planks.</div>
 </div>
 
 <div id="ending" class="layer screen">

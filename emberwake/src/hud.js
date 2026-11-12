@@ -197,40 +197,243 @@ export class HUD {
     setTimeout(() => l.classList.remove('on'), 900);
   }
 
+  // ── touch controls ──
+  // Left thumb: a stick that appears wherever you touch. Right thumb: action buttons you can
+  // roll across without lifting. All pointers are tracked on one root so multi-touch is exact.
   setupTouch() {
-    const root = $('touch');
+    const root = (this.touchRoot = $('touch'));
     const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    if (!coarse && !('ontouchstart' in window)) return;
-    const mk = (action, label, css, size = 64) => {
-      const b = document.createElement('div');
-      b.className = 'tbtn';
-      b.textContent = label;
-      b.style.cssText = `width:${size}px;height:${size}px;${css}`;
-      const set = (v) => (e) => {
-        e.preventDefault();
-        audio.init();
-        b.classList.toggle('down', v);
-        input.setTouch(action, v);
-        if (action === 'jump' || action === 'attack') input.setTouch('confirm', v);
-      };
-      b.addEventListener('pointerdown', set(true));
-      b.addEventListener('pointerup', set(false));
-      b.addEventListener('pointercancel', set(false));
-      b.addEventListener('pointerleave', set(false));
-      root.appendChild(b);
+    this.touchCapable = coarse || 'ontouchstart' in window;
+    this.touchMode = 'off';
+    const mk = (cls, text) => {
+      const el = document.createElement('div');
+      el.className = cls;
+      if (text) el.textContent = text;
+      root.appendChild(el);
+      return el;
     };
-    mk('left', '◀', 'left:18px;bottom:54px;', 70);
-    mk('right', '▶', 'left:104px;bottom:54px;', 70);
-    mk('up', '▲', 'left:64px;bottom:128px;', 54);
-    mk('down', '▼', 'left:64px;bottom:2px;', 54);
-    mk('jump', 'JUMP', 'right:22px;bottom:40px;', 76);
-    mk('attack', 'STRIKE', 'right:108px;bottom:70px;', 70);
-    mk('dash', 'DASH', 'right:26px;bottom:128px;', 58);
-    mk('focus', 'MEND', 'right:184px;bottom:28px;', 54);
-    mk('flare', 'FLARE', 'right:96px;bottom:150px;', 54);
-    mk('pause', 'II', 'right:50%;top:14px;margin-right:-20px;', 40);
-    const show = () => root.classList.add('on');
-    window.addEventListener('touchstart', show, { once: true, passive: true });
-    if (coarse) show();
+    this.stickBase = mk('tstick');
+    this.stickKnob = mk('tknob');
+    this.stickHint = mk('thint', 'MOVE');
+    // [action, label, right, bottom, size] in units of the main button size
+    const spec = [
+      ['jump', 'JUMP', 0.35, 0.45, 1.15],
+      ['attack', 'STRIKE', 1.7, 0.3, 1.0],
+      ['dash', 'DASH', 0.25, 1.8, 0.9],
+      ['flare', 'FLARE', 1.55, 1.5, 0.78],
+      ['focus', 'MEND', 2.85, 0.35, 0.78],
+      ['up', 'REST', 2.7, 1.45, 0.85],
+    ];
+    this.tbtns = spec.map(([action, label, r, b, size]) => ({ action, r, b, size, el: mk('tbtn t-' + action, label), on: true, x: 0, y: 0, rad: 0 }));
+    this.pauseBtn = { action: 'pause', el: mk('tbtn t-pause', 'II'), on: true, x: 0, y: 0, rad: 0 };
+    this.tapCatch = mk('tcatch');
+    const stick = { id: null, bx: 0, by: 0, R: 50 };
+    const ptrs = new Map();
+
+    const layout = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const u = Math.max(50, Math.min(92, Math.min(w, h) * 0.2, w * 0.165));
+      const cs = getComputedStyle(document.documentElement);
+      const safeR = parseFloat(cs.getPropertyValue('--sar')) || 0;
+      const safeB = parseFloat(cs.getPropertyValue('--sab')) || 0;
+      stick.R = u * 0.72;
+      for (const b of this.tbtns) {
+        const d = b.size * u;
+        b.rad = d / 2;
+        b.x = w - safeR - b.r * u - b.rad;
+        b.y = h - safeB - b.b * u - b.rad;
+        b.el.style.cssText = `width:${d}px;height:${d}px;left:${b.x - b.rad}px;top:${b.y - b.rad}px;font-size:${Math.max(9, d * 0.17)}px;`;
+      }
+      const pb = this.pauseBtn;
+      pb.rad = 22;
+      pb.x = w / 2;
+      pb.y = 30 + (parseFloat(cs.getPropertyValue('--sat')) || 0);
+      pb.el.style.cssText = `width:44px;height:44px;left:${pb.x - 22}px;top:${pb.y - 22}px;font-size:13px;`;
+      this.stickBase.style.width = this.stickBase.style.height = stick.R * 2 + 'px';
+      this.stickKnob.style.width = this.stickKnob.style.height = stick.R * 0.95 + 'px';
+      // resting position, so players can see where the stick lives
+      stick.restX = Math.max(stick.R + 22, w * 0.13);
+      stick.restY = h - safeB - stick.R - Math.max(26, h * 0.1);
+      if (stick.id === null) place(stick.restX, stick.restY, 0, 0);
+      this.stickHint.style.left = stick.restX + 'px';
+      this.stickHint.style.top = stick.restY - stick.R - 18 + 'px';
+    };
+    const place = (bx, by, kx, ky) => {
+      this.stickBase.style.transform = `translate(${bx - stick.R}px, ${by - stick.R}px)`;
+      const k = stick.R * 0.475;
+      this.stickKnob.style.transform = `translate(${bx + kx - k}px, ${by + ky - k}px)`;
+    };
+    const press = (b, v) => {
+      b.el.classList.toggle('down', v);
+      input.setTouch(b.action, v);
+    };
+    const buttonAt = (x, y) => {
+      let best = null;
+      let bd = 1e9;
+      for (const b of [...this.tbtns, this.pauseBtn]) {
+        if (!b.on) continue;
+        const d = Math.hypot(x - b.x, y - b.y) / b.rad;
+        if (d < 1.28 && d < bd) {
+          bd = d;
+          best = b;
+        }
+      }
+      return best;
+    };
+    const setStick = (x, y) => {
+      let dx = x - stick.bx;
+      let dy = y - stick.by;
+      const d = Math.hypot(dx, dy);
+      // the base follows a thumb that drifts past the rim, so the stick is never lost
+      if (d > stick.R * 1.25) {
+        const over = d - stick.R * 1.25;
+        stick.bx += (dx / d) * over;
+        stick.by += (dy / d) * over;
+        dx = x - stick.bx;
+        dy = y - stick.by;
+      }
+      const m = Math.min(1, Math.hypot(dx, dy) / stick.R);
+      const a = Math.atan2(dy, dx);
+      const nx = Math.cos(a) * m;
+      const ny = Math.sin(a) * m;
+      place(stick.bx, stick.by, nx * stick.R, ny * stick.R);
+      input.setTouch('left', nx < -0.28);
+      input.setTouch('right', nx > 0.28);
+      input.setTouch('down', ny > 0.58);
+      // 'up' from the stick only aims strikes and looks; resting or reading uses the REST button
+      this.stickUp = ny < -0.58;
+      input.setTouch('up', this.stickUp || this.btnUp);
+    };
+    const releaseStick = () => {
+      stick.id = null;
+      this.stickUp = false;
+      for (const a of ['left', 'right', 'down']) input.setTouch(a, false);
+      input.setTouch('up', !!this.btnUp);
+      this.stickBase.classList.remove('live');
+      place(stick.restX, stick.restY, 0, 0);
+    };
+    this.releaseTouches = () => {
+      for (const p of ptrs.values()) if (p.btn) press(p.btn, false);
+      ptrs.clear();
+      this.btnUp = false;
+      releaseStick();
+      input.setTouch('confirm', false);
+    };
+
+    const down = (e) => {
+      if (this.touchMode === 'off') return;
+      e.preventDefault();
+      audio.init();
+      if (root.setPointerCapture) {
+        try {
+          root.setPointerCapture(e.pointerId);
+        } catch (err) {
+          /* synthetic pointers cannot be captured */
+        }
+      }
+      if (this.touchMode === 'tap') {
+        ptrs.set(e.pointerId, { tap: true });
+        input.setTouch('confirm', true);
+        return;
+      }
+      const b = buttonAt(e.clientX, e.clientY);
+      if (b) {
+        ptrs.set(e.pointerId, { btn: b });
+        if (b.action === 'up') this.btnUp = true;
+        press(b, true);
+        this.stickHint.classList.add('seen');
+      } else if (stick.id === null && e.clientX < window.innerWidth * 0.55) {
+        stick.id = e.pointerId;
+        stick.bx = Math.max(stick.R + 8, e.clientX);
+        stick.by = Math.min(window.innerHeight - stick.R - 8, Math.max(stick.R + 8, e.clientY));
+        ptrs.set(e.pointerId, { stick: true });
+        this.stickBase.classList.add('live');
+        this.stickHint.classList.add('seen');
+        setStick(e.clientX, e.clientY);
+      }
+    };
+    const move = (e) => {
+      const p = ptrs.get(e.pointerId);
+      if (!p) return;
+      e.preventDefault();
+      if (p.stick) setStick(e.clientX, e.clientY);
+      else if (p.btn !== undefined) {
+        const nb = buttonAt(e.clientX, e.clientY);
+        if (nb !== p.btn) {
+          if (p.btn) {
+            if (p.btn.action === 'up') this.btnUp = false;
+            press(p.btn, false);
+          }
+          p.btn = nb;
+          if (nb) {
+            if (nb.action === 'up') this.btnUp = true;
+            press(nb, true);
+          }
+        }
+      }
+    };
+    const up = (e) => {
+      const p = ptrs.get(e.pointerId);
+      if (!p) return;
+      ptrs.delete(e.pointerId);
+      if (p.stick) releaseStick();
+      else if (p.tap) input.setTouch('confirm', false);
+      else if (p.btn) {
+        if (p.btn.action === 'up') {
+          this.btnUp = false;
+          input.setTouch('up', !!this.stickUp);
+          p.btn.el.classList.remove('down');
+        } else press(p.btn, false);
+      }
+    };
+    root.addEventListener('pointerdown', down);
+    root.addEventListener('pointermove', move);
+    root.addEventListener('pointerup', up);
+    root.addEventListener('pointercancel', up);
+    root.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', () => setTimeout(layout, 250));
+    this.layoutTouch = layout;
+    layout();
+    // controls appear the first time the screen is touched (or straight away on a phone)
+    window.addEventListener('touchstart', () => (this.touchSeen = true), { passive: true });
+    this.touchSeen = coarse;
+  }
+
+  // Called every frame: show the right touch layer for the game state and what the player can do.
+  touchSync(state, p, interact) {
+    if (!this.touchCapable) return;
+    const want = !this.touchSeen || input.device === 'gamepad' ? 'off' : state === 'play' ? 'play' : state === 'banner' || state === 'ending' ? 'tap' : 'off';
+    if (want !== this.touchMode) {
+      this.releaseTouches();
+      this.touchMode = want;
+      this.touchRoot.className = 'layer ' + (want === 'off' ? '' : 'on ' + want);
+      if (want === 'play') this.layoutTouch();
+    }
+    if (want !== 'play') return;
+    const set = (action, on, dim) => {
+      const b = this.tbtns.find((k) => k.action === action);
+      if (b.on !== on) {
+        b.on = on;
+        b.el.style.display = on ? '' : 'none';
+        if (!on && b.el.classList.contains('down')) {
+          b.el.classList.remove('down');
+          input.setTouch(action, false);
+        }
+      }
+      b.el.classList.toggle('dim', !!dim);
+    };
+    set('dash', p.abilities.dash, false);
+    set('focus', true, p.cinder < CINDER_COST || p.hp >= p.maxHp);
+    set('flare', true, p.cinder < CINDER_COST);
+    set('up', !!interact, false);
+    if (interact) {
+      const b = this.tbtns.find((k) => k.action === 'up');
+      if (b.label !== interact) {
+        b.label = interact;
+        b.el.textContent = interact.toUpperCase();
+      }
+    }
   }
 }

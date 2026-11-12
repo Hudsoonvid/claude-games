@@ -35,7 +35,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 | Drop through a plank | ↓ + Jump | Down + A |
 | Pause | Esc / P | Start |
 
-Touch devices get on-screen buttons. Controllers rumble on hits where the browser supports it.
+On phones and tablets the left thumb gets a floating stick (it appears wherever you touch) and the right thumb gets action buttons you can roll across without lifting. Push the stick up or down while striking to aim; a Rest/Read button appears when there is something to use. Landscape is recommended. Controllers rumble on hits where the browser supports it.
 
 ## What's in it
 

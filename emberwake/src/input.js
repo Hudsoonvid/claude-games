@@ -130,6 +130,14 @@ export const input = {
   hit: (a) => now[a] && !prev[a],
   released: (a) => !now[a] && prev[a],
   rumble(strong = 0.5, weak = 0.5, ms = 120) {
+    if (lastDevice === 'touch' && navigator.vibrate) {
+      try {
+        navigator.vibrate(Math.min(60, Math.round(ms * 0.4)));
+      } catch (e) {
+        /* haptics are optional */
+      }
+      return;
+    }
     const pad = readPad();
     const act = pad && pad.vibrationActuator;
     if (act && act.playEffect) {
@@ -145,7 +153,7 @@ export const input = {
       jump: 'Ⓐ', attack: 'Ⓧ', dash: 'RT', focus: 'Ⓑ', flare: 'Ⓨ', up: '↑', down: '↓', pause: 'Start', move: 'Stick', confirm: 'Ⓐ',
     };
     const tc = {
-      jump: 'JUMP', attack: 'STRIKE', dash: 'DASH', focus: 'MEND', flare: 'FLARE', up: '▲', down: '▼', pause: 'II', move: '◀ ▶', confirm: 'tap',
+      jump: 'JUMP', attack: 'STRIKE', dash: 'DASH', focus: 'MEND', flare: 'FLARE', up: 'stick ▲', down: 'stick ▼', pause: 'II', move: 'left thumb', confirm: 'tap',
     };
     return (lastDevice === 'gamepad' ? gp : lastDevice === 'touch' ? tc : kb)[a] || a;
   },

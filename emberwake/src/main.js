@@ -41,7 +41,8 @@ class Game {
   constructor() {
     const canvas = document.getElementById('game');
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.maxRatio = Math.min(window.devicePixelRatio || 1, 1.6);
+    this.coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    this.maxRatio = Math.min(window.devicePixelRatio || 1, this.coarse ? 1.3 : 1.6);
     this.ratio = this.maxRatio;
     this.renderer.setPixelRatio(this.ratio);
     this.perf = { t: 0, n: 0 };
@@ -101,6 +102,8 @@ class Game {
     this.aspect = w / h;
     // tall, narrow screens zoom out so there is still room to see ahead
     this.viewH = clamp(17 / this.aspect, VIEW_H, 22);
+    // phones held sideways: zoom in a little so the wick is not tiny on a small screen
+    if (this.coarse && this.aspect > 1.5 && h < 520) this.viewH = clamp(27 / this.aspect, 12.2, VIEW_H);
     this.camera.fov = (2 * Math.atan(this.viewH / (2 * CAM_DIST)) * 180) / Math.PI;
     this.camera.aspect = this.aspect;
     this.camera.updateProjectionMatrix();
@@ -573,6 +576,7 @@ class Game {
     }
 
     this.hud.update(p, dt);
+    this.hud.touchSync(this.state, p, this.state === 'play' ? this.interactLabel : null);
     this.updateCamera(dt);
     if (draw) this.render(dt);
   }
@@ -635,6 +639,7 @@ class Game {
     const p = this.player;
     const room = this.room;
     if (p.dead) {
+      this.interactLabel = null;
       this.hud.prompt(null);
       return;
     }
@@ -651,6 +656,7 @@ class Game {
       if (e.interact && Math.abs(e.x - p.x) < e.radius && Math.abs(e.y - p.y) < 1.6) near = e;
     }
     this.hud.prompt(near && p.onGround ? `<kbd>${input.label('up')}</kbd> ${near.interact.toUpperCase()}` : null);
+    this.interactLabel = near && p.onGround ? near.interact : null;
     if (near && p.onGround && !p.frozen && input.hit('up')) near.use();
     if (this.hud.loreOpen && !near && this.hud.loreT < 8) this.hud.hideLore();
     // hints
