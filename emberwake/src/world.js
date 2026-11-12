@@ -1,7 +1,7 @@
 // Room loading: collision grid + all of the room's static visuals.
 import * as THREE from 'three';
 import { ROOMS, T } from './rooms.js';
-import { BIOMES, terrainMaterial, skyMaterial, paintLayer, decorTex, quad, glow, rayTex, spriteMat } from './art.js';
+import { BIOMES, terrainMaterial, skyMaterial, mistMaterial, paintLayer, decorTex, quad, glow, rayTex, spriteMat } from './art.js';
 import { sprite } from './sprites.js';
 import { rng, hashStr } from './util.js';
 
@@ -116,6 +116,14 @@ export class World {
       G.add(mesh);
     });
 
+    // mist sheets behind and in front of the play plane
+    for (const [z, alpha, order] of [[-14, 0.5, ORDER.layer + 2], [-3, 0.3, ORDER.ray], [2.5, 0.13, ORDER.fg - 1]]) {
+      const mist = new THREE.Mesh(new THREE.PlaneGeometry(room.w + 80, room.h + 60), mistMaterial(bname, alpha));
+      mist.position.set(room.w / 2, room.h / 2, z);
+      mist.renderOrder = order;
+      G.add(mist);
+    }
+
     // light shafts
     for (let i = 0; i < room.w / 9; i++) {
       const ray = quad(rayTex(), r.range(2.5, 6), r.range(16, 30), { add: true, tint: this.biome.fog, alpha: 0.2, anchor: 't', order: ORDER.ray });
@@ -182,7 +190,7 @@ export class World {
         }
         if (x >= room.w) continue;
         if (t === T.THORN) {
-          const q = quad(decorTex('thorn', bname, r.int(0, 2)), 1.3 * (r() < 0.5 ? -1 : 1), r.range(0.95, 1.2), { anchor: 'b', order: ORDER.prop });
+          const q = quad(decorTex('thorn', bname, r.int(0, 2)), 1.25 * (r() < 0.5 ? -1 : 1), r.range(0.9, 1.1), { anchor: 'b', order: ORDER.prop });
           q.position.set(x + 0.5, y - 0.08, 0.05);
           G.add(q);
         }

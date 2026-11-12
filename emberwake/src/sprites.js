@@ -202,17 +202,35 @@ const PAINT = {
     }),
   slash: () =>
     canvasTex(256, 256, (g) => {
-      g.filter = 'blur(2px)';
-      const gr = g.createLinearGradient(120, 0, 252, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0)');
-      gr.addColorStop(0.55, 'rgba(255,240,210,0.55)');
-      gr.addColorStop(1, 'rgba(255,255,255,1)');
+      // a thin crescent with a soft trailing smear
+      const crescent = (r1, cx2, r2, alpha, blur) => {
+        const c = document.createElement('canvas');
+        c.width = c.height = 256;
+        const k = c.getContext('2d');
+        k.fillStyle = '#fff';
+        k.beginPath();
+        k.arc(128, 128, r1, 0, 7);
+        k.fill();
+        k.globalCompositeOperation = 'destination-out';
+        k.beginPath();
+        k.arc(cx2, 128, r2, 0, 7);
+        k.fill();
+        g.globalAlpha = alpha;
+        g.filter = `blur(${blur}px)`;
+        g.drawImage(c, 0, 0);
+      };
+      crescent(118, 60, 150, 0.28, 6);
+      crescent(120, 92, 136, 1, 1.5);
+      g.filter = 'none';
+      g.globalAlpha = 1;
+      // fade the tips
+      g.globalCompositeOperation = 'destination-in';
+      const gr = g.createRadialGradient(200, 128, 30, 170, 128, 135);
+      gr.addColorStop(0, 'rgba(0,0,0,1)');
+      gr.addColorStop(0.6, 'rgba(0,0,0,0.85)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = gr;
-      g.beginPath();
-      g.arc(128, 128, 122, -1.25, 1.25);
-      g.arc(70, 128, 150, 0.88, -0.88, true);
-      g.closePath();
-      g.fill();
+      g.fillRect(0, 0, 256, 256);
     }),
   // ───────── objects ─────────
   pot: () =>

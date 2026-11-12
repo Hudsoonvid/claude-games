@@ -35,7 +35,10 @@ class Game {
   constructor() {
     const canvas = document.getElementById('game');
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    this.maxRatio = Math.min(window.devicePixelRatio || 1, 1.6);
+    this.ratio = this.maxRatio;
+    this.renderer.setPixelRatio(this.ratio);
+    this.perf = { t: 0, n: 0 };
     this.renderer.setClearColor(0x05060c);
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 0.1, 300);
@@ -89,9 +92,12 @@ class Game {
     this.renderer.setSize(w, h, false);
     this.post.composer.setSize(w, h);
     this.aspect = w / h;
+    // tall, narrow screens zoom out so there is still room to see ahead
+    this.viewH = clamp(17 / this.aspect, VIEW_H, 22);
+    this.camera.fov = (2 * Math.atan(this.viewH / (2 * CAM_DIST)) * 180) / Math.PI;
     this.camera.aspect = this.aspect;
     this.camera.updateProjectionMatrix();
-    this.fx.setScale(h * this.renderer.getPixelRatio(), FOV);
+    this.fx.setScale(h * this.renderer.getPixelRatio(), this.camera.fov);
     this.post.u.uAspect.value = this.aspect;
   }
 
@@ -468,8 +474,22 @@ class Game {
   }
 
   frame(now) {
-    const dt = Math.min(Math.max(0, (now - this.last) / 1000), 1 / 30);
+    const raw = Math.max(0, (now - this.last) / 1000);
+    const dt = Math.min(raw, 1 / 30);
     this.last = now;
+    // adaptive resolution: if frames run long, render fewer pixels
+    if (raw < 0.25) {
+      this.perf.t += raw;
+      if (++this.perf.n >= 50) {
+        const avg = this.perf.t / this.perf.n;
+        this.perf.t = this.perf.n = 0;
+        if (avg > 0.023 && this.ratio > 0.6) {
+          this.ratio = Math.max(0.6, this.ratio - 0.2);
+          this.renderer.setPixelRatio(this.ratio);
+          this.resize();
+        }
+      }
+    }
     this.tick(dt, true);
   }
 
@@ -564,7 +584,7 @@ class Game {
         es.splice(i, 1);
       }
     }
-    const hh = VIEW_H / 2;
+    const hh = this.viewH / 2;
     this.fx.ambient(dt, this.world.biome.particles, this.cam.x, this.cam.y, hh * this.aspect, hh);
     this.fx.update(dt, this.time);
 
@@ -630,7 +650,7 @@ class Game {
     const c = this.cam;
     const room = this.room;
     if (!room) return;
-    const hh = VIEW_H / 2;
+    const hh = this.viewH / 2;
     const hw = hh * this.aspect;
     const fight = this.boss && this.boss.state !== 'sleep';
     c.lookX = damp(c.lookX, p.facing * (fight ? 0.6 : 1.9), 2.2, dt);
@@ -663,14 +683,14 @@ class Game {
   render() {
     const u = this.post.u;
     const p = this.player;
-    this.world.update(this.time, this.camera, VIEW_H, this.aspect);
+    this.world.update(this.time, this.camera, this.viewH, this.aspect);
     // nearest lights → grade pass
     const L = u.uLights.value;
     const LC = u.uLightCol.value;
     const col = new THREE.Color();
     const put = (i, x, y, radius, intensity, color) => {
       this.v.set(x, y, 0).project(this.camera);
-      L[i].set(this.v.x * 0.5 + 0.5, this.v.y * 0.5 + 0.5, radius / VIEW_H, intensity);
+      L[i].set(this.v.x * 0.5 + 0.5, this.v.y * 0.5 + 0.5, radius / this.viewH, intensity);
       col.set(color);
       LC[i].set(col.r, col.g, col.b);
     };

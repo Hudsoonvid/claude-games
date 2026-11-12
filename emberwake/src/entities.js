@@ -111,7 +111,10 @@ export class Potling extends Enemy {
     this.body = this.part('potling', 1.2, 1.2, { anchor: 'b' });
     this.body.position.y = 0.1;
     this.rig.add(this.legA, this.legB, this.body);
-    this.root.add(this.rig);
+    const gl = glow(COLD, 2.6, 0.16);
+    gl.position.set(0, 0.6, -0.02);
+    gl.renderOrder = ORDER.entity - 1;
+    this.root.add(gl, this.rig);
     this.ph = Math.random() * 6;
   }
   update(dt) {

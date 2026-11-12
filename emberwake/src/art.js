@@ -214,6 +214,29 @@ export function skyMaterial(biome) {
   });
 }
 
+// drifting additive mist, drawn between the layers
+export function mistMaterial(biome, alpha) {
+  const b = BIOMES[biome];
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: globalUniforms.uTime, uCol: { value: new THREE.Color(b.fog) }, uAlpha: { value: alpha } },
+    vertexShader: `varying vec2 vW; void main(){ vec4 wp = modelMatrix*vec4(position,1.0); vW = wp.xy; gl_Position = projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime, uAlpha; uniform vec3 uCol; varying vec2 vW;
+      ${NOISE_GLSL}
+      void main(){
+        float f = fbm(vW * vec2(0.09, 0.2) + vec2(uTime * 0.035, 0.0));
+        float f2 = fbm(vW * vec2(0.24, 0.42) - vec2(uTime * 0.05, uTime * 0.012) + 7.0);
+        float a = smoothstep(0.38, 0.85, f * 0.65 + f2 * 0.5) * uAlpha;
+        gl_FragColor = vec4(uCol, a);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
 // ───────────────────────── parallax layer painters ─────────────────────────
 function taperPath(g, pts, w0, w1) {
   // pts: polyline; draws a ribbon of varying width
@@ -715,21 +738,30 @@ export function decorTex(kind, biome, v = 0) {
         });
       case 'thorn':
         return canvasTex(128, 128, (g) => {
-          g.fillStyle = dark;
-          g.fillRect(0, 112, 128, 16);
-          for (let i = 0; i < 9; i++) {
-            const x = 6 + i * 14.5 + r.range(-4, 4);
-            const len = r.range(60, 112);
-            const lean = r.range(-16, 16);
+          // hazards share one loud look in every biome: black briars with bone-white, blood-lit tips
+          g.fillStyle = '#05050a';
+          g.fillRect(0, 108, 128, 20);
+          const rg = g.createLinearGradient(0, 128, 0, 60);
+          rg.addColorStop(0, 'rgba(255,60,90,0.5)');
+          rg.addColorStop(1, 'rgba(255,60,90,0)');
+          g.fillStyle = rg;
+          g.fillRect(0, 60, 128, 68);
+          for (let i = 0; i < 7; i++) {
+            const x = 9 + i * 18.5 + r.range(-5, 5);
+            const len = r.range(70, 118);
+            const lean = r.range(-18, 18);
             const gr = g.createLinearGradient(0, 128, 0, 128 - len);
-            gr.addColorStop(0, dark);
-            gr.addColorStop(0.7, mix(dark, b.rim, 0.25));
-            gr.addColorStop(1, mix(b.rim, '#ffffff', 0.4));
+            gr.addColorStop(0, '#05050a');
+            gr.addColorStop(0.55, '#2a1420');
+            gr.addColorStop(0.85, '#ff8fa3');
+            gr.addColorStop(1, '#ffffff');
             g.fillStyle = gr;
+            g.shadowColor = '#ff5577';
+            g.shadowBlur = 6;
             g.beginPath();
-            g.moveTo(x - 8, 128);
-            g.lineTo(x + lean, 128 - len);
-            g.lineTo(x + 8, 128);
+            g.moveTo(x - 10, 128);
+            g.quadraticCurveTo(x - 2 + lean * 0.4, 128 - len * 0.5, x + lean, 128 - len);
+            g.quadraticCurveTo(x + 4 + lean * 0.4, 128 - len * 0.5, x + 10, 128);
             g.fill();
           }
         });

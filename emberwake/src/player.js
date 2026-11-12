@@ -388,10 +388,10 @@ export class Player {
     this.atkFlip = Math.random() < 0.5;
     audio.sfx('slash');
     const f = this.facing;
-    const o = { w: 2.5, h: 2.1, life: 0.15, grow: 0.22, tint: 0xffe6bf, parent: this.root, z: 0.2, flipY: this.atkFlip };
-    if (dir === 'side') this.g.fx.sprite(sprite('slash'), { ...o, x: f * 0.75, y: 0.8, rot: f > 0 ? 0 : Math.PI });
-    else if (dir === 'up') this.g.fx.sprite(sprite('slash'), { ...o, x: 0, y: 1.5, rot: Math.PI / 2 });
-    else this.g.fx.sprite(sprite('slash'), { ...o, x: 0, y: 0.1, rot: -Math.PI / 2 });
+    const o = { w: 3.1, h: 2.9, life: 0.16, grow: 0.18, tint: 0xffe9c8, parent: this.root, z: 0.2, flipY: this.atkFlip };
+    if (dir === 'side') this.g.fx.sprite(sprite('slash'), { ...o, x: f * 0.55, y: 0.8, rot: f > 0 ? 0 : Math.PI });
+    else if (dir === 'up') this.g.fx.sprite(sprite('slash'), { ...o, x: 0, y: 1.3, rot: Math.PI / 2 });
+    else this.g.fx.sprite(sprite('slash'), { ...o, x: 0, y: 0.25, rot: -Math.PI / 2 });
   }
 
   attackBox() {
