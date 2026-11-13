@@ -461,6 +461,7 @@ export class Player {
   hurt(dmg, fromX) {
     if (this.invuln > 0 || this.dead || this.frozen) return false;
     const g = this.g;
+    if (g.favour.invincible) return false;
     this.hp -= dmg;
     this.invuln = 1.25;
     this.knockT = 0.24;

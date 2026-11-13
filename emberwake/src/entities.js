@@ -238,7 +238,7 @@ export class Spitter extends Enemy {
 }
 
 export class Seed extends Entity {
-  constructor(g, x, y, vx, vy, grav) {
+  constructor(g, x, y, vx, vy, grav, color = '#ff7ad9', tint = 0xffffff, size = 0.6) {
     super(g, x, y);
     this.w = 0.4;
     this.h = 0.4;
@@ -248,9 +248,16 @@ export class Seed extends Entity {
     this.life = 4;
     this.hurtable = true;
     this.contact = true;
-    this.body = quad(sprite('seed'), 0.6, 0.6, { order: ORDER.entity + 1 });
+    this.color = color;
+    this.body = quad(sprite('seed'), size, size, { order: ORDER.entity + 1, tint });
     this.body.position.y = 0.2;
     this.root.add(this.body);
+    if (size > 0.6) {
+      // boss seeds carry a halo in their own colour so they read at a glance
+      const gl = glow(color, 2.2, 0.55);
+      gl.position.y = 0.2;
+      this.root.add(gl);
+    }
   }
   takeHit(d, kx) {
     this.pop();
@@ -259,7 +266,7 @@ export class Seed extends Entity {
   }
   pop() {
     this.dead = true;
-    this.g.fx.burst(this.x, this.y + 0.2, 10, { color: '#ff9ae0', speed: 5, life: 0.4 });
+    this.g.fx.burst(this.x, this.y + 0.2, 10, { color: this.color, speed: 5, life: 0.4 });
   }
   update(dt) {
     this.vy -= this.grav * dt;
@@ -267,7 +274,7 @@ export class Seed extends Entity {
     this.y += this.vy * dt;
     this.life -= dt;
     this.body.rotation.z += dt * 9;
-    if (Math.random() < dt * 30) this.g.fx.trail(this.x, this.y + 0.2, '#ff7ad9', 0.25, 0.3, 0.6);
+    if (Math.random() < dt * 30) this.g.fx.trail(this.x, this.y + 0.2, this.color, 0.25, 0.3, 0.6);
     if (this.life <= 0 || this.g.world.solid(Math.floor(this.x), Math.floor(this.y + 0.2))) this.pop();
     this.sync();
   }

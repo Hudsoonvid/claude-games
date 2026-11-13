@@ -19,7 +19,7 @@ const VIEW_H = 15;
 const SAVE_KEY = 'emberwake.save.v1';
 
 const freshSave = () => ({
-  hearth: null, abilities: { dash: false, grip: false, wing: false }, maxHp: 5, glints: 0, embers: {}, bosses: {}, deaths: 0, time: 0, started: false,
+  hearth: null, abilities: { dash: false, grip: false, wing: false }, maxHp: 5, glints: 0, embers: {}, bosses: {}, favour: {}, deaths: 0, time: 0, started: false,
 });
 
 function loadSave() {
@@ -27,7 +27,7 @@ function loadSave() {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (s && s.started) {
       const f = freshSave();
-      const out = { ...f, ...s, abilities: { ...f.abilities, ...s.abilities }, bosses: { ...(s.bosses || {}) } };
+      const out = { ...f, ...s, abilities: { ...f.abilities, ...s.abilities }, bosses: { ...(s.bosses || {}) }, favour: { ...(s.favour || {}) } };
       if (s.bossDead) out.bosses.warden = true; // saves from before the expansion
       return out;
     }
@@ -79,7 +79,12 @@ class Game {
     });
     this.hud.refreshKeys();
     window.addEventListener('pointerdown', () => audio.init());
-    window.addEventListener('keydown', () => audio.init());
+    window.addEventListener('keydown', (e) => {
+      audio.init();
+      this.secretKey(e.key);
+    });
+    this.secret = { typed: '', seq: '', taps: [] };
+    document.querySelector('#pause h2').addEventListener('pointerdown', () => this.secretTap());
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && this.state === 'play') this.pause();
     });
@@ -198,6 +203,80 @@ class Game {
   resume() {
     this.hud.closeMenu();
     this.state = 'play';
+  }
+
+  // ───────────────────────── hidden help ─────────────────────────
+  // Deliberately unadvertised. It only opens from the pause screen, by one of three gestures:
+  // typing a word, entering a direction sequence, or tapping the PAUSED heading seven times.
+  get favour() {
+    return this.save.favour || (this.save.favour = {});
+  }
+  secretKey(key) {
+    if (this.state !== 'pause' || !key || key.length !== 1) return;
+    const sc = this.secret;
+    sc.typed = (sc.typed + key.toLowerCase()).slice(-6);
+    if (sc.typed === 'kindle') this.openFavour();
+  }
+  secretStep() {
+    const sc = this.secret;
+    for (const [a, c] of [['up', 'U'], ['down', 'D'], ['left', 'L'], ['right', 'R']]) {
+      if (input.hit(a)) sc.seq = (sc.seq + c).slice(-8);
+    }
+    if (sc.seq === 'UUDDLRLR') this.openFavour();
+  }
+  secretTap() {
+    if (this.state !== 'pause') return;
+    const now = performance.now();
+    const sc = this.secret;
+    sc.taps = sc.taps.filter((t) => now - t < 4000);
+    sc.taps.push(now);
+    if (sc.taps.length >= 7) this.openFavour();
+  }
+  openFavour() {
+    this.secret = { typed: '', seq: '', taps: [] };
+    this.hud.closeMenu();
+    this.state = 'favour';
+    audio.sfx('pickup');
+    const f = this.favour;
+    const p = this.player;
+    const toggles = [['invincible', 'CANNOT BE HURT'], ['mighty', 'MIGHTY BLADE'], ['cinder', 'ENDLESS CINDER']];
+    const label = (k, name) => `${name}: ${f[k] ? 'ON' : 'OFF'}`;
+    const items = toggles.map(([k, name], i) => ({
+      label: label(k, name),
+      action: () => {
+        f[k] = !f[k];
+        if (f[k]) f.used = true;
+        this.hud.relabel(i, label(k, name));
+        this.persist();
+      },
+    }));
+    items.push({
+      label: 'UNLOCK EVERY ABILITY',
+      action: () => {
+        p.abilities = { dash: true, grip: true, wing: true };
+        f.used = true;
+        this.hud.relabel(3, 'EVERY ABILITY UNLOCKED');
+        this.persist();
+      },
+    });
+    items.push({
+      label: 'MEND ALL FLAMES',
+      action: () => {
+        p.hp = p.maxHp;
+        f.used = true;
+        this.hud.pulse();
+        this.hud.relabel(4, 'FLAMES MENDED');
+      },
+    });
+    items.push({
+      label: 'BACK',
+      action: () => {
+        this.hud.closeMenu();
+        this.state = 'play';
+        this.pause();
+      },
+    });
+    this.hud.openMenu('favour', 'favourMenu', items);
   }
 
   // ───────────────────────── rooms ─────────────────────────
@@ -345,7 +424,7 @@ class Game {
       const b = e.box;
       if (overlap(box.x, box.y, box.w, box.h, b.x, b.y, b.w, b.h)) {
         set.add(e);
-        n += e.takeHit(dmg, kx, ky);
+        n += e.takeHit(dmg * (this.favour.mighty ? 5 : 1), kx, ky);
       }
     }
     return n;
@@ -474,7 +553,7 @@ class Game {
       const mm = Math.floor(t / 60);
       const ss = String(t % 60).padStart(2, '0');
       this.hud.show(false);
-      this.hud.showEnding(`TIME ${mm}:${ss}   ·   GLINTS ${this.player.glints}   ·   REKINDLED ${this.save.deaths}×`);
+      this.hud.showEnding(`TIME ${mm}:${ss}   ·   GLINTS ${this.player.glints}   ·   REKINDLED ${this.save.deaths}×${this.save.favour.used ? '   ·   WITH THE MAKERS\' FAVOUR' : ''}`);
     });
   }
 
@@ -555,7 +634,16 @@ class Game {
         break;
       case 'pause':
         this.hud.menuInput();
+        this.secretStep();
         if (input.hit('pause')) this.resume();
+        break;
+      case 'favour':
+        this.hud.menuInput();
+        if (input.hit('pause')) {
+          this.hud.closeMenu();
+          this.state = 'play';
+          this.pause();
+        }
         break;
       case 'banner':
         this.bannerT += dt;
@@ -591,6 +679,7 @@ class Game {
         t.fn();
       }
     }
+    if (this.favour.cinder) p.cinder = 99;
     p.update(dt);
     const es = this.entities;
     for (let i = 0; i < es.length; i++) es[i].update(dt);

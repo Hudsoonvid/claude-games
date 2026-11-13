@@ -1297,6 +1297,67 @@ const PAINT = {
       g.lineTo(8 + Math.cos(-0.62) * 236, 96 + Math.sin(-0.62) * 236 * 0.78);
       g.stroke();
     }),
+  // attack cues shown over a boss's head: red spikes from below, gold seeds from above
+  cueSpike: () =>
+    canvasTex(160, 160, (g) => {
+      g.shadowColor = '#ff2a45';
+      g.shadowBlur = 16;
+      g.fillStyle = '#ff5a6e';
+      for (const [x, h] of [[40, 70], [80, 104], [120, 70]]) {
+        g.beginPath();
+        g.moveTo(x - 20, 132);
+        g.lineTo(x, 132 - h);
+        g.lineTo(x + 20, 132);
+        g.closePath();
+        g.fill();
+      }
+      g.fillRect(14, 132, 132, 9);
+      g.shadowBlur = 0;
+      g.fillStyle = '#ffffff';
+      for (const [x, h] of [[40, 70], [80, 104], [120, 70]]) {
+        g.beginPath();
+        g.moveTo(x - 5, 132 - h + 22);
+        g.lineTo(x, 132 - h);
+        g.lineTo(x + 5, 132 - h + 22);
+        g.fill();
+      }
+    }),
+  cueSeed: () =>
+    canvasTex(160, 160, (g) => {
+      g.shadowColor = '#ffc21a';
+      g.shadowBlur = 16;
+      g.strokeStyle = '#ffe27a';
+      g.lineWidth = 6;
+      g.setLineDash([10, 9]);
+      g.beginPath();
+      g.moveTo(22, 128);
+      g.quadraticCurveTo(80, -30, 138, 128);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = '#ffe27a';
+      for (const [x, y, r] of [[46, 74, 13], [80, 46, 16], [114, 74, 13]]) {
+        g.beginPath();
+        g.arc(x, y, r, 0, 7);
+        g.fill();
+      }
+      g.shadowBlur = 0;
+      g.fillStyle = '#ffffff';
+      for (const [x, y, r] of [[46, 74, 5], [80, 46, 7], [114, 74, 5]]) {
+        g.beginPath();
+        g.arc(x - 3, y - 3, r, 0, 7);
+        g.fill();
+      }
+      // arrowheads down at each landing point
+      g.fillStyle = '#ffe27a';
+      for (const x of [22, 138]) {
+        g.beginPath();
+        g.moveTo(x - 13, 122);
+        g.lineTo(x + 13, 122);
+        g.lineTo(x, 146);
+        g.closePath();
+        g.fill();
+      }
+    }),
 };
 
 export function sprite(name) {

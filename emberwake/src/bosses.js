@@ -10,7 +10,10 @@ import { approach, clamp, damp, lerp, overlap, smooth } from './util.js';
 const COLD = '#bfe4ff';
 const PINK = '#ff7ad9';
 const HOT = '#ff8a3c';
+const SPIKE_RED = '#ff3b4f'; // the Briar Queen's ground attack is always red
+const SEED_GOLD = '#ffe27a'; // her falling seeds are always gold
 const rnd = (a, b) => a + Math.random() * (b - a);
+const TMP = new THREE.Color();
 
 // Shared death throes: shake, pop, then hand off to the game.
 function dyingFx(b, dt, colors, cy) {
@@ -42,14 +45,19 @@ class ThornSpike extends Entity {
   constructor(g, x, floorY, delay) {
     super(g, x, floorY);
     this.delay = delay;
+    this.total = delay;
     this.contact = false;
     this.life = 0.5;
-    this.mark = glow(PINK, 1.6, 0.0);
+    // warning: a red patch on the floor and a red column showing exactly how tall the spike will be
+    this.mark = glow(SPIKE_RED, 1.6, 0.0);
     this.mark.scale.set(1.8, 0.5, 1);
     this.mark.position.y = 0.05;
+    this.col = glow(SPIKE_RED, 1, 0.0);
+    this.col.scale.set(1.0, 3.2, 1);
+    this.col.position.y = 1.25;
     this.spike = quad(sprite('briarSpike'), 1.0, 2.7, { anchor: 'b', order: ORDER.entity + 1 });
     this.spike.visible = false;
-    this.root.add(this.mark, this.spike);
+    this.root.add(this.mark, this.col, this.spike);
     this.k = 0;
     this.sync();
   }
@@ -59,14 +67,20 @@ class ThornSpike extends Entity {
   update(dt) {
     this.delay -= dt;
     if (this.delay > 0) {
-      this.mark.material.uniforms.uAlpha.value = 0.5 + 0.4 * Math.sin(this.g.time * 34);
-      if (Math.random() < dt * 20) this.g.fx.dust(this.x, this.y, 1);
+      // the warning brightens and flickers faster as the spike gets closer
+      const u = 1 - this.delay / this.total;
+      const flick = 0.75 + 0.25 * Math.sin(this.g.time * (14 + u * 40));
+      this.mark.material.uniforms.uAlpha.value = (0.6 + 0.4 * u) * flick;
+      this.mark.scale.set(1.2 + u * 1.0, 0.4 + u * 0.2, 1);
+      this.col.material.uniforms.uAlpha.value = (0.3 + 0.55 * u) * flick;
+      if (Math.random() < dt * (10 + u * 30)) this.g.fx.add.spawn({ x: this.x + rnd(-0.3, 0.3), y: this.y + 0.05, vx: rnd(-0.3, 0.3), vy: rnd(1.5, 4), life: 0.5, size: 0.14, color: [1, 0.25, 0.3], alpha: 0.9 });
       return;
     }
     if (!this.spike.visible) {
       this.spike.visible = true;
       this.contact = true;
-      this.mark.material.uniforms.uAlpha.value = 0.25;
+      this.mark.material.uniforms.uAlpha.value = 0.3;
+      this.col.material.uniforms.uAlpha.value = 0;
       this.g.fx.burst(this.x, this.y + 0.2, 6, { color: '#3a2a30', speed: 6, angle: Math.PI / 2, spread: 0.8, normal: true, size: 0.3 });
     }
     this.life -= dt;
@@ -74,6 +88,29 @@ class ThornSpike extends Entity {
     this.spike.scale.y = 2.7 * Math.max(0.02, this.k);
     if (this.life < 0.12) this.contact = false;
     if (this.life <= 0 && this.k <= 0.02) this.dead = true;
+  }
+}
+
+// A gold ring on the floor that closes in on the spot where a seed will land.
+class SeedMark extends Entity {
+  constructor(g, x, floorY, time) {
+    super(g, x, floorY);
+    this.t = this.total = time;
+    this.ring = quad(sprite('ring'), 1.9, 0.6, { add: true, tint: SEED_GOLD, order: ORDER.entity - 1 });
+    this.ring.position.y = 0.08;
+    this.dot = glow(SEED_GOLD, 1, 0.5);
+    this.dot.scale.set(1.6, 0.5, 1);
+    this.dot.position.y = 0.06;
+    this.root.add(this.ring, this.dot);
+    this.sync();
+  }
+  update(dt) {
+    this.t -= dt;
+    const u = Math.max(0, this.t / this.total);
+    this.ring.scale.set(0.8 + 1.8 * u, 0.28 + 0.6 * u, 1);
+    this.ring.material.uniforms.uAlpha.value = 1;
+    this.dot.material.uniforms.uAlpha.value = 0.55 + 0.45 * (1 - u);
+    if (this.t <= 0) this.dead = true;
   }
 }
 
@@ -100,7 +137,17 @@ export class BriarQueen extends Enemy {
     this.gl = glow(PINK, 6.5, 0.05);
     this.gl.position.set(0, 1.6, 0.02);
     this.rig.add(this.body, this.gl);
-    this.root.add(this.rig);
+    // cue icons that pop up over her head so the next attack is never a guess
+    this.cueSpike = quad(sprite('cueSpike'), 1.9, 1.9, { order: ORDER.entity + 4 });
+    this.cueSeed = quad(sprite('cueSeed'), 1.9, 1.9, { order: ORDER.entity + 4 });
+    for (const c of [this.cueSpike, this.cueSeed]) {
+      c.position.set(0, 5.7, 0.1);
+      c.visible = false;
+    }
+    this.cueK = 0;
+    this.tintNow = new THREE.Color(1, 1, 1);
+    this.glowNow = new THREE.Color(PINK);
+    this.root.add(this.rig, this.cueSpike, this.cueSeed);
     this.root.position.z = 0.2;
     this.sync();
   }
@@ -127,9 +174,20 @@ export class BriarQueen extends Enemy {
   next() {
     const seq = ['erupt', 'volley', 'burrow', 'erupt', 'volley', 'erupt', 'burrow', 'volley'];
     const a = seq[this.step++ % seq.length];
+    const g = this.g;
+    const p = g.player;
+    const A = g.arena;
     this.state = a + 'Wind';
-    this.t = (a === 'burrow' ? 0.55 : 0.65) * (this.phase2 ? 0.8 : 1);
-    audio.sfx(a === 'volley' ? 'windup' : 'gate');
+    this.t = (a === 'burrow' ? 0.55 : 0.95) * (this.phase2 ? 0.8 : 1);
+    if (a === 'erupt') {
+      // the red warnings appear on the floor the moment she starts, so there is time to step between them
+      const n = this.phase2 ? 4 : 3;
+      for (let i = -n; i <= n; i++) {
+        const x = clamp(p.x + i * 2.0, A.x0 + 0.5, A.x1 - 0.5);
+        if (Math.abs(x - this.x) > 1.6) g.spawn(new ThornSpike(g, x, this.y, this.t + 0.2 + Math.abs(i) * 0.12));
+      }
+      audio.sfx('gate');
+    } else audio.sfx(a === 'volley' ? 'windup' : 'gate');
   }
   update(dt) {
     this.tick(dt);
@@ -141,6 +199,9 @@ export class BriarQueen extends Enemy {
     let k = 1;
     let swell = 0;
     let glowA = this.phase2 ? 0.4 + Math.sin(g.time * 9) * 0.1 : 0.22;
+    let cue = null;
+    let tint = [1, 1, 1];
+    let glowCol = PINK;
     switch (this.state) {
       case 'sleep':
         k = 0.32;
@@ -160,38 +221,53 @@ export class BriarQueen extends Enemy {
         if (this.t <= 0 && !p.dead) this.next();
         break;
       case 'eruptWind':
-        this.rig.position.x = Math.sin(g.time * 70) * 0.06;
-        swell = -0.12;
-        glowA = 0.6;
+        // RED, low, and shaking: the attack comes up out of the ground
+        this.rig.position.x = Math.sin(g.time * 70) * 0.07;
+        k = 0.8;
+        swell = -0.14;
+        glowA = 0.9;
+        cue = this.cueSpike;
+        tint = [1.25, 0.42, 0.46];
+        glowCol = SPIKE_RED;
+        for (const d of [-1, 1]) {
+          fx.add.spawn({ x: this.x + d * rnd(0.8, 1.6), y: this.y + 0.12, vx: d * rnd(9, 18), vy: rnd(0, 1.5), life: 0.5, size: 0.22, size1: 0.05, color: [1, 0.22, 0.3], alpha: 1, drag: 1.5 });
+        }
+        if (Math.random() < dt * 20) fx.dust(this.x + rnd(-1.6, 1.6), this.y, 1);
         if (this.t <= 0) {
-          const n = this.phase2 ? 4 : 3;
-          for (let i = -n; i <= n; i++) {
-            const x = clamp(p.x + i * 2.0, A.x0 + 0.5, A.x1 - 0.5);
-            if (Math.abs(x - this.x) > 1.6) g.spawn(new ThornSpike(g, x, this.y, 0.5 + Math.abs(i) * 0.13));
-          }
+          audio.sfx('slam');
+          fx.shake(0.3, 0.3);
           this.state = 'recover';
-          this.t = 1.25;
+          this.t = 1.35;
         }
         break;
-      case 'volleyWind':
-        swell = 0.2 * (1 - this.t / 0.65);
-        glowA = 0.8;
+      case 'volleyWind': {
+        // GOLD, tall, and swelling: the attack is thrown up and falls from above
+        const u = 1 - this.t / 0.95;
+        k = 1.08;
+        swell = 0.24 * u;
+        glowA = 1;
+        cue = this.cueSeed;
+        tint = [1.35, 1.2, 0.7];
+        glowCol = SEED_GOLD;
+        fx.gather(this.x, this.y + 4.0, SEED_GOLD, 2, 2.4);
         if (this.t <= 0) {
           const n = this.phase2 ? 7 : 5;
           const gv = 20;
           for (let i = 0; i < n; i++) {
-            const tx = p.x + (i - (n - 1) / 2) * 2.3;
+            const tx = clamp(p.x + (i - (n - 1) / 2) * 2.3, A.x0 + 0.5, A.x1 - 0.5);
             const T2 = 0.95 + Math.abs(i - (n - 1) / 2) * 0.09;
             const sy = this.y + 3.7;
-            g.spawn(new Seed(g, this.x, sy, (tx - this.x) / T2, (p.y + 0.3 - sy) / T2 + 0.5 * gv * T2, gv));
+            g.spawn(new Seed(g, this.x, sy, (tx - this.x) / T2, (this.y + 0.3 - sy) / T2 + 0.5 * gv * T2, gv, SEED_GOLD, 0xffe890, 0.75));
+            g.spawn(new SeedMark(g, tx, this.y, T2));
           }
           audio.sfx('spit');
-          fx.burst(this.x, this.y + 3.8, 20, { color: '#ff9ae0', speed: 8, angle: Math.PI / 2, spread: 1 });
+          fx.burst(this.x, this.y + 3.8, 24, { color: SEED_GOLD, speed: 8, angle: Math.PI / 2, spread: 1 });
           this.squish = 1;
           this.state = 'recover';
           this.t = 1.5;
         }
         break;
+      }
       case 'burrowWind':
         k = 0.6;
         if (this.t <= 0) {
@@ -247,6 +323,23 @@ export class BriarQueen extends Enemy {
     this.body.visible = this.k > 0.03;
     this.h = 3.0 * this.k;
     this.gl.material.uniforms.uAlpha.value = damp(this.gl.material.uniforms.uAlpha.value, glowA * this.k, 8, dt);
+    // colour the whole body and its glow for the attack being wound up
+    const f = 1 - Math.exp(-12 * dt);
+    this.tintNow.lerp(TMP.setRGB(tint[0], tint[1], tint[2]), f);
+    this.body.material.uniforms.uTint.value.copy(this.tintNow);
+    this.glowNow.lerp(TMP.set(glowCol), f);
+    this.gl.material.uniforms.uTint.value.copy(this.glowNow);
+    this.cueK = approach(this.cueK, cue ? 1 : 0, dt * 9);
+    for (const c of [this.cueSpike, this.cueSeed]) {
+      const on = c === cue || (c === this.lastCue && this.cueK > 0.02 && !cue);
+      c.visible = on;
+      if (on) {
+        const pop = this.cueK * (1 + 0.12 * Math.sin(g.time * 16));
+        c.scale.set(1.9 * pop, 1.9 * pop, 1);
+        c.position.y = 5.2 * Math.max(0.5, this.k) + 0.6;
+      }
+    }
+    if (cue) this.lastCue = cue;
     this.sync();
   }
 }
