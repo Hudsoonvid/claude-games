@@ -609,7 +609,7 @@ export class ColdWick extends Enemy {
     super(g, x, y);
     this.w = 0.95;
     this.h = 1.95;
-    this.maxHp = this.hp = 54;
+    this.maxHp = this.hp = 40;
     this.heavy = true;
     this.drop = 0;
     this.key = 'wick';
@@ -666,10 +666,10 @@ export class ColdWick extends Enemy {
   }
   onHit(dmg) {
     this.stagger += dmg;
-    if (this.stagger >= 14 && !['dying', 'leap', 'hang', 'plunge', 'vanish'].includes(this.state)) {
+    if (this.stagger >= 10 && !['dying', 'leap', 'hang', 'plunge', 'vanish'].includes(this.state)) {
       this.stagger = 0;
       this.state = 'stagger';
-      this.t = 1.15;
+      this.t = 1.6;
       this.vx = -this.dir * 6;
       audio.sfx('slam');
       this.g.fx.ring(this.x, this.y + 1.2, COLD, 24, 9);
@@ -692,7 +692,7 @@ export class ColdWick extends Enemy {
     this.dir = p.x > this.x ? 1 : -1;
     const r = Math.random();
     let a;
-    if (this.phase2 && r < 0.22) a = 'blink';
+    if (this.phase2 && r < 0.12) a = 'blink';
     else if (d < 3.4) a = r < 0.62 ? 'combo' : 'flare';
     else if (d < 9) a = r < 0.5 ? 'dash' : r < 0.8 ? 'plunge' : 'flare';
     else a = r < 0.4 ? 'flare' : r < 0.7 ? 'dash' : 'plunge';
@@ -703,7 +703,7 @@ export class ColdWick extends Enemy {
     for (const k of Object.keys(this.since)) if (this.since[k] > 5) a = k;
     if (this.since[a] !== undefined) this.since[a] = 0;
     this.last = a;
-    const q = this.phase2 ? 0.8 : 1;
+    const q = this.phase2 ? 0.9 : 1;
     if (a === 'blink') {
       this.state = 'vanish';
       this.t = 0.28;
@@ -713,7 +713,7 @@ export class ColdWick extends Enemy {
       audio.sfx('dash');
     } else {
       this.state = a + 'Wind';
-      this.t = { dash: 0.42, plunge: 0.32, flare: 0.45, combo: 0.3 }[a] * q;
+      this.t = { dash: 0.58, plunge: 0.45, flare: 0.58, combo: 0.45 }[a] * q;
       audio.sfx('windup');
     }
   }
@@ -770,13 +770,13 @@ export class ColdWick extends Enemy {
         if (this.t <= 0) {
           this.state = 'dash';
           this.t = 0.36;
-          this.vx = this.dir * 27;
+          this.vx = this.dir * 22;
           this.slashFx(5.2, 4);
           audio.sfx('dash');
         }
         break;
       case 'dash':
-        this.vx = this.dir * 27;
+        this.vx = this.dir * 22;
         this.vy = 0;
         grav = 0;
         lean = -0.4;
@@ -785,7 +785,7 @@ export class ColdWick extends Enemy {
         if (Math.random() < 0.8) fx.sprite(sprite('cloak'), { x: this.x, y: this.y + 0.9, w: 1.38 * this.dir, h: 1.5, tint: 0x9fd0ff, alpha: 0.4, life: 0.2, grow: -0.2, z: 0.2 });
         if (this.t <= 0 || this.hitWall) {
           this.state = 'recover';
-          this.t = this.phase2 ? 0.4 : 0.6;
+          this.t = this.phase2 ? 0.7 : 0.9;
           this.vx = this.dir * 4;
         }
         break;
@@ -833,7 +833,7 @@ export class ColdWick extends Enemy {
           g.spawn(new Shockwave(g, this.x + 1.2, this.y, 1));
           g.spawn(new Shockwave(g, this.x - 1.2, this.y, -1));
           this.state = 'recover';
-          this.t = this.phase2 ? 0.7 : 0.95;
+          this.t = this.phase2 ? 1.0 : 1.25;
         }
         break;
       case 'flareWind':
@@ -844,7 +844,7 @@ export class ColdWick extends Enemy {
         fx.gather(this.x + this.dir * 0.8, this.y + 1.3, COLD, 1, 1.6);
         if (this.t <= 0) {
           this.state = 'flare';
-          this.bolts = this.phase2 ? 3 : 1;
+          this.bolts = this.phase2 ? 2 : 1;
           this.t = 0;
         }
         break;
@@ -887,7 +887,7 @@ export class ColdWick extends Enemy {
             this.t = 0.2;
           } else {
             this.state = 'recover';
-            this.t = this.phase2 ? 0.5 : 0.7;
+            this.t = this.phase2 ? 0.75 : 0.95;
           }
         }
         break;
@@ -924,7 +924,7 @@ export class ColdWick extends Enemy {
         crouch = 0.15;
         if (this.t <= 0) {
           this.state = 'idle';
-          this.t = this.phase2 ? rnd(0.15, 0.4) : rnd(0.35, 0.75);
+          this.t = this.phase2 ? rnd(0.35, 0.65) : rnd(0.55, 0.95);
         }
         break;
       case 'stagger':

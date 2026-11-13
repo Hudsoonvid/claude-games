@@ -22,9 +22,12 @@ const freshSave = () => ({
   hearth: null, abilities: { dash: false, grip: false, wing: false }, maxHp: 5, glints: 0, embers: {}, bosses: {}, favour: {}, deaths: 0, time: 0, started: false,
 });
 
-function loadSave() {
+// Three slots. Slot 1 keeps the original key so existing saves carry over.
+const slotKey = (i) => (i === 0 ? SAVE_KEY : `${SAVE_KEY}.slot${i + 1}`);
+
+function loadSave(slot = 0) {
   try {
-    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    const s = JSON.parse(localStorage.getItem(slotKey(slot)));
     if (s && s.started) {
       const f = freshSave();
       const out = { ...f, ...s, abilities: { ...f.abilities, ...s.abilities }, bosses: { ...(s.bosses || {}) }, favour: { ...(s.favour || {}) } };
@@ -65,7 +68,13 @@ class Game {
     this.fadeTarget = 0;
     this.cam = { x: 0, y: 0, lookX: 0, lookY: 0 };
     this.hurtFlash = 0;
-    this.save = loadSave();
+    this.slot = 0;
+    try {
+      this.slot = clamp(+localStorage.getItem(SAVE_KEY + '.last') || 0, 0, 2);
+    } catch (e) {
+      /* ignore */
+    }
+    this.save = loadSave(this.slot);
     this.seen = new Set();
     this.flickers = [];
     this.v = new THREE.Vector3();
@@ -124,7 +133,8 @@ class Game {
     const p = this.player;
     Object.assign(this.save, { abilities: p.abilities, maxHp: p.maxHp, glints: p.glints, started: true });
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(this.save));
+      localStorage.setItem(slotKey(this.slot), JSON.stringify(this.save));
+      localStorage.setItem(SAVE_KEY + '.last', String(this.slot));
     } catch (e) {
       /* ignore */
     }
@@ -150,12 +160,46 @@ class Game {
     this.loadRoom(START_ROOM, {});
     this.fade = 1;
     this.fadeTarget = 0;
-    const items = [];
-    if (this.save.started) items.push({ label: 'CONTINUE', action: () => this.begin(false) });
-    items.push({ label: this.save.started ? 'NEW JOURNEY' : 'BEGIN', action: () => this.begin(true) });
-    items.push({ label: audio.muted ? 'SOUND: OFF' : 'SOUND: ON', action: () => this.hud.relabel(items.length - 1, audio.toggleMute() ? 'SOUND: OFF' : 'SOUND: ON') });
-    this.hud.openMenu('title', 'titleMenu', items);
+    this.titleMenu();
     if (!first) audio.setBiome('kiln');
+  }
+
+  slotLabel(i) {
+    const s = loadSave(i);
+    if (!s.started) return `SLOT ${i + 1}  ·  EMPTY`;
+    const room = ROOMS[s.hearth ? s.hearth.room : START_ROOM];
+    const t = Math.floor(s.time || 0);
+    return `SLOT ${i + 1}  ·  ${room ? room.name.toUpperCase() : ''}  ·  ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  }
+
+  titleMenu() {
+    const items = [0, 1, 2].map((i) => ({ label: this.slotLabel(i), action: () => this.pickSlot(i) }));
+    items.push({ label: audio.muted ? 'SOUND: OFF' : 'SOUND: ON', action: () => this.hud.relabel(3, audio.toggleMute() ? 'SOUND: OFF' : 'SOUND: ON') });
+    this.hud.openMenu('title', 'titleMenu', items);
+    this.hud.select(this.slot, true);
+  }
+
+  pickSlot(i) {
+    this.slot = i;
+    this.save = loadSave(i);
+    if (!this.save.started) return this.begin(true);
+    // an occupied slot asks before anything is erased
+    this.hud.closeMenu();
+    let armed = false;
+    const items = [
+      { label: 'CONTINUE', action: () => this.begin(false) },
+      {
+        label: 'NEW JOURNEY',
+        action: () => {
+          if (!armed) {
+            armed = true;
+            this.hud.relabel(1, 'ERASE THIS SLOT? PRESS AGAIN');
+          } else this.begin(true);
+        },
+      },
+      { label: 'BACK', action: () => { this.hud.closeMenu(); this.titleMenu(); } },
+    ];
+    this.hud.openMenu('title', 'titleMenu', items);
   }
 
   begin(isNew) {
