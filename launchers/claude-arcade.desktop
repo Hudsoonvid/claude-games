@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Claude Arcade
+Comment=Open-source and original games
+# Edit this path to where you cloned the project.
+Exec=sh -c '"$HOME/claude-games/launchers/arcade.sh"'
+Icon=applications-games
+Categories=Game;
+Terminal=false

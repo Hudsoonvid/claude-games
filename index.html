@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude Arcade</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Open-source and original games that play on phone, tablet, laptop, desktop and Steam Deck.">
+<meta name="theme-color" content="#12142a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Arcade">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="shared/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="shared/icons/apple-touch-icon.png">
+<style>
+  :root { --bg: #12142a; --card: #1c1f3d; --line: rgba(255,255,255,.12); --ink: #f3f0e8; --dim: #a9acc6; --hot: #ffd27a; }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+             calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    background: radial-gradient(1200px 500px at 80% -10%, rgba(226,103,79,.28), transparent 60%), var(--bg);
+    min-height: 100vh; }
+  main { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+  header img { width: 52px; height: 52px; border-radius: 12px; }
+  h1 { font-size: clamp(26px, 5vw, 40px); margin: 0; letter-spacing: -.02em; }
+  .lede { color: var(--dim); margin: 0 0 22px; max-width: 60ch; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; list-style: none; padding: 0; margin: 0; }
+  .card { display: flex; flex-direction: column; height: 100%; background: var(--card); border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden; color: inherit; text-decoration: none;
+    transition: transform .12s ease, border-color .12s ease; }
+  .card:hover, .card:focus-visible { transform: translateY(-3px); border-color: var(--hot); outline: none; }
+  .card:focus-visible { box-shadow: 0 0 0 3px var(--hot); }
+  .shot { aspect-ratio: 16 / 10; width: 100%; object-fit: cover; display: block; background: #0c0d1c; }
+  .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .card h2 { font-size: 19px; margin: 0; }
+  .card p { margin: 0; color: var(--dim); font-size: 14px; flex: 1; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .tag { font-size: 11.5px; font-weight: 650; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--ink); }
+  .tag.orig { background: rgba(255,210,122,.18); color: var(--hot); }
+  section.how { margin-top: 30px; }
+  section.how h2 { font-size: 20px; margin: 0 0 8px; }
+  details { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; background: rgba(255,255,255,.03); }
+  summary { cursor: pointer; font-weight: 650; }
+  details p, details ol { color: var(--dim); margin: 8px 0 2px; font-size: 14.5px; }
+  details ol { padding-left: 20px; }
+  code { background: rgba(255,255,255,.1); padding: 1px 5px; border-radius: 5px; font-size: 13px; word-break: break-all; }
+  footer { margin-top: 26px; color: var(--dim); font-size: 13px; }
+  footer a { color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="shared/icons/icon.svg" alt="">
+    <h1>Claude Arcade</h1>
+  </header>
+  <p class="lede">Free, open-source and original games — every one playable with touch, mouse or trackpad, keyboard, and a controller. Works offline once installed.</p>
+
+  <ul class="grid" id="grid"></ul>
+
+  <section class="how">
+    <h2>Install on your device</h2>
+    <details>
+      <summary>iPhone &amp; iPad</summary>
+      <ol><li>Open this page in Safari.</li><li>Tap Share, then <b>Add to Home Screen</b>.</li><li>Launch from the home screen for full-screen play. On iPad a trackpad, mouse or paired controller all work.</li></ol>
+    </details>
+    <details>
+      <summary>Mac</summary>
+      <ol><li>Safari: File &rarr; <b>Add to Dock</b>. Chrome or Edge: the install icon in the address bar.</li><li>Trackpad gestures work in every game: two-finger swipe moves tiles in 2048, rotates in Hextris, and pans / pinch-zooms in Slingstone.</li></ol>
+    </details>
+    <details>
+      <summary>Steam Deck &amp; SteamOS devices</summary>
+      <ol><li>In Desktop Mode install Chrome or Chromium from Discover, then download <code>launchers/steam-deck.sh</code> from this project and make it executable.</li><li>In Steam choose <b>Add a Non-Steam Game</b> and pick that script. Set its launch option to this page's address.</li><li>It opens full-screen in Gaming Mode. D-pad or stick picks a game, <b>A</b> starts it, hold <b>View/Select</b> to come back here.</li></ol>
+    </details>
+    <details>
+      <summary>Linux &amp; Windows</summary>
+      <ol><li>Chrome, Chromium or Edge: use the install icon in the address bar to get a windowed app.</li><li>On Linux you can also run <code>launchers/arcade.sh &lt;address&gt;</code>, or copy <code>launchers/claude-arcade.desktop</code> into <code>~/.local/share/applications</code>.</li></ol>
+    </details>
+    <details>
+      <summary>Android</summary>
+      <ol><li>Open in Chrome and choose <b>Install app</b> (or Add to Home screen) from the menu.</li></ol>
+    </details>
+  </section>
+
+  <footer>
+    Bundled games keep their original licences — see <a href="CREDITS.md">credits &amp; licences</a>.
+  </footer>
+</main>
+
+<script>
+var GAMES = [
+  { id: 'slingstone', href: 'games/slingstone/', title: 'Slingstone', orig: true,
+    blurb: 'Pull back, let go, and topple towers to shatter every crystal. Physics slingshot with six levels.',
+    tags: ['Drag / touch', 'Trackpad pan + pinch', 'Controller'] },
+  { id: 'emberwake', href: 'emberwake/', title: 'Emberwake', orig: true,
+    blurb: 'Atmospheric action-platformer: two biomes, nine rooms, three bosses.',
+    tags: ['Keyboard', 'Touch', 'Controller'] },
+  { id: '2048', href: 'games/2048/', title: '2048',
+    blurb: 'Slide and merge tiles to reach 2048. By Gabriele Cirulli (MIT).',
+    tags: ['Swipe', 'Trackpad swipe', 'D-pad'] },
+  { id: 'hextris', href: 'games/hextris/', title: 'Hextris',
+    blurb: 'Fast hexagonal block puzzle. By Logan Engstrom and team (GPL-3.0).',
+    tags: ['Tap sides', 'Trackpad swipe', 'Controller'] },
+  { id: 'radius-raid', href: 'games/radius-raid/', title: 'Radius Raid',
+    blurb: 'Twin-stick space shooter with 13 enemy types. By Jack Rugile (MIT).',
+    tags: ['Mouse + keys', 'Touch twin-stick', 'Dual sticks'] },
+  { id: 'astray', href: 'games/astray/', title: 'Astray',
+    blurb: 'Roll a ball through ever-bigger 3D mazes. By Rye Terrell (public domain).',
+    tags: ['Keyboard', 'Touch stick', 'Analog stick'] }
+];
+
+var grid = document.getElementById('grid');
+GAMES.forEach(function (g) {
+  var li = document.createElement('li');
+  var a = document.createElement('a');
+  a.className = 'card'; a.href = g.href;
+  var img = document.createElement('img');
+  img.className = 'shot'; img.alt = ''; img.loading = 'lazy'; img.src = 'shared/shots/' + g.id + '.jpg';
+  var body = document.createElement('div'); body.className = 'body';
+  var h = document.createElement('h2'); h.textContent = g.title;
+  var p = document.createElement('p'); p.textContent = g.blurb;
+  var tags = document.createElement('div'); tags.className = 'tags';
+  if (g.orig) { var o = document.createElement('span'); o.className = 'tag orig'; o.textContent = 'Original'; tags.appendChild(o); }
+  g.tags.forEach(function (t) { var s = document.createElement('span'); s.className = 'tag'; s.textContent = t; tags.appendChild(s); });
+  body.appendChild(h); body.appendChild(p); body.appendChild(tags);
+  a.appendChild(img); a.appendChild(body); li.appendChild(a); grid.appendChild(li);
+});
+
+// Keyboard / controller navigation: arrows (or d-pad / stick) move between cards, Enter (or A) plays.
+var cards = Array.prototype.slice.call(document.querySelectorAll('.card'));
+function move(dx, dy) {
+  var cur = cards.indexOf(document.activeElement);
+  if (cur < 0) { cards[0].focus(); return; }
+  var r = cards[cur].getBoundingClientRect(), best = null, bestD = Infinity;
+  cards.forEach(function (c, i) {
+    if (i === cur) return;
+    var q = c.getBoundingClientRect();
+    var ox = (q.left + q.width / 2) - (r.left + r.width / 2), oy = (q.top + q.height / 2) - (r.top + r.height / 2);
+    if (dx && (Math.sign(ox) !== dx || Math.abs(oy) > r.height / 2)) return;
+    if (dy && (Math.sign(oy) !== dy || Math.abs(ox) > r.width / 2)) return;
+    var d = Math.abs(ox) + Math.abs(oy);
+    if (d < bestD) { bestD = d; best = c; }
+  });
+  // Wrap-around fallback so left/right always walks the whole list.
+  if (!best && dx) best = cards[(cur + dx + cards.length) % cards.length];
+  if (best) { best.focus(); best.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+}
+window.addEventListener('keydown', function (e) {
+  if (e.target.closest && e.target.closest('summary')) return;
+  var k = e.keyCode;
+  if (k === 37) { move(-1, 0); e.preventDefault(); }
+  else if (k === 39) { move(1, 0); e.preventDefault(); }
+  else if (k === 38) { move(0, -1); e.preventDefault(); }
+  else if (k === 40) { move(0, 1); e.preventDefault(); }
+  else if (k === 13 && !e.isTrusted && cards.indexOf(document.activeElement) >= 0) document.activeElement.click();
+});
+window.addEventListener('arcade-device', function (e) {
+  if (e.detail === 'gamepad' && cards.indexOf(document.activeElement) < 0) cards[0].focus();
+});
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+}
+</script>
+<script>window.ARCADE = { id: 'hub', hub: false, pad: { a: 13 } };</script>
+<script src="shared/arcade-input.js"></script>
+</body>
+</html>
