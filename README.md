@@ -48,7 +48,7 @@ launchers/arcade.sh
 ## Hosting
 
 `.github/workflows/pages.yml` builds and deploys the arcade to GitHub Pages on every
-push to `main` (enable Pages → "GitHub Actions" in the repository settings once).
+push to the default branch (enable Pages → "GitHub Actions" in the repository settings once).
 
 ## Adding a game
 

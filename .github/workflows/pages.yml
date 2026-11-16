@@ -2,7 +2,7 @@ name: Deploy arcade to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/focused-gauss-utq7ni]
   workflow_dispatch:
 
 permissions:
