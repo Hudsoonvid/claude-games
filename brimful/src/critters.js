@@ -1,6 +1,6 @@
 // The living things. Swimmers, walkers, hoppers, floaters, fliers — and villagers who fell trees and build huts.
 import * as THREE from 'three';
-import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, OPAQUE, rnd, ri } from './world.js';
+import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, CROP, OPAQUE, rnd, ri } from './world.js';
 
 export const KINDS = {
   minnow: { name: 'minnow', cap: 70, hint: 'WASD swim · Space up · Shift down' },
@@ -168,7 +168,7 @@ export class Critters {
   blast(x, y, z, r, color) { for (const c of this.list) if (!c.dead && Math.hypot(c.x - x, c.y - y, c.z - z) < r) this.remove(c, color); }
 
   update(dt, input, night) {
-    const w = this.world;
+    const w = this.world; this.night = night;
     for (const c of this.list) {
       if (c.dead) continue;
       c.age += dt; c.t += dt; c.eatCd -= dt; c.hopCd -= dt;
@@ -357,8 +357,18 @@ export class Critters {
 
   // villagers: gather wood, build huts near home, replant, and raise families beside a roof
   villagerPlan(c, ang) {
-    const w = this.world;
-    if (Math.hypot(c.hx - c.x, c.hz - c.z) > 16) return Math.atan2(c.hx - c.x, c.hz - c.z);
+    const w = this.world, home = Math.hypot(c.hx - c.x, c.hz - c.z);
+    if (home > 16) return Math.atan2(c.hx - c.x, c.hz - c.z);
+    if (this.night > 0.7) { // evenings are spent by the huts
+      if (home > 3.5) { c.walk = true; return Math.atan2(c.hx - c.x, c.hz - c.z); }
+      c.walk = rnd() < 0.15; return ang;
+    }
+    if ((c.meal || 0) < 2) { // hungry: look for a ripe field
+      for (let k = 0; k < 10; k++) {
+        const x = Math.floor(c.x) + ri(15) - 7, z = Math.floor(c.z) + ri(15) - 7, y = w.groundY(x, z) - 1;
+        if (w.get(x, y, z) === CROP && w.getAux(x, y, z) >= 3) { c.walk = true; return Math.atan2(x + 0.5 - c.x, z + 0.5 - c.z); }
+      }
+    }
     if (c.food < 3) {
       for (let k = 0; k < 14; k++) {
         const x = Math.floor(c.x) + ri(21) - 10, z = Math.floor(c.z) + ri(21) - 10, y = Math.floor(c.y) + ri(4) - 1;
@@ -370,7 +380,14 @@ export class Critters {
   }
   villagerWork(c, cx, cy, cz) {
     const w = this.world;
+    const here = w.get(cx, cy, cz);
+    if (here === CROP && w.getAux(cx, cy, cz) >= 3) { w.set(cx, cy, cz, CROP, 0); c.meal = (c.meal || 0) + 1; this.fx.burst(c.x, c.y + 0.4, c.z, 6, 0xe0b040, 1.5); }
     if (c.eatCd > 0) return;
+    // sow a field in rows near home
+    if (c.ground && rnd() < 0.02 && (here === AIR || here === TUFT) && ((cx + cz) & 1) === 0 && Math.hypot(c.hx - c.x, c.hz - c.z) < 9 && Math.hypot(c.hx - c.x, c.hz - c.z) > 2.5) {
+      const below = w.get(cx, cy - 1, cz);
+      if (below === TURF || below === SOIL) { w.set(cx, cy - 1, cz, SOIL); w.set(cx, cy, cz, CROP, 0); c.eatCd = 2; return; }
+    }
     if (c.job && Math.hypot(c.job[0] + 0.5 - c.x, c.job[2] + 0.5 - c.z) < 1.7) {
       const [x, y, z] = c.job; c.job = null; c.eatCd = 4;
       for (let k = 0; k < 9 && w.get(x, y + k, z) === WOOD; k++) w.set(x, y + k, z, AIR);
@@ -387,7 +404,7 @@ export class Critters {
       }
       return;
     }
-    if (c.age > 120 && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; } }
+    if (c.age > 120 && (c.meal || 0) >= 2 && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; c.meal = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; } }
   }
 
   flier(c, dt, ctl, night) {

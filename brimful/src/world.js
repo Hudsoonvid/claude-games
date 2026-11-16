@@ -16,26 +16,26 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20;
 
 export const OPAQUE = new Uint8Array(32);
-for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH]) OPAQUE[m] = 1;
+for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN]) OPAQUE[m] = 1;
 // what the water treats as ground
 const BED = new Uint8Array(32);
-for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH]) BED[m] = 1;
+for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH, SPRING, DRAIN]) BED[m] = 1;
 
 const ACTIVE = new Uint8Array(32);
-for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE]) ACTIVE[m] = 1;
+for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN]) ACTIVE[m] = 1;
 
 // What a falling powder may move into: 1 = replace, 2 = swap places
 const PP = new Uint8Array(32);
-PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1;
+PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1;
 PP[LAVA] = 2; PP[STEAM] = 2;
 
 const FLAM = new Float32Array(32);
-FLAM[WOOD] = 0.07; FLAM[LEAF] = 0.3; FLAM[TUFT] = 0.45; FLAM[SEED] = 0.3; FLAM[PLANK] = 0.1; FLAM[THATCH] = 0.35;
+FLAM[WOOD] = 0.07; FLAM[LEAF] = 0.3; FLAM[TUFT] = 0.45; FLAM[SEED] = 0.3; FLAM[PLANK] = 0.1; FLAM[THATCH] = 0.35; FLAM[CROP] = 0.4;
 const BURN = new Uint8Array(32);
-BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8;
+BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8; BURN[CROP] = 4;
 
 let seed = 0x9e3779b9 | 0;
 export function rnd() {
@@ -254,7 +254,7 @@ export class World {
         if (z > 0) v += fb[i - WW]; else if (ft[i] > 0.4 && rnd() < 0.02) this.ev('spill', x / WR | 0, RIM, -1);
         if (z < WH - 1) v += ft[i + WW]; else if (fb[i] > 0.4 && rnd() < 0.02) this.ev('spill', x / WR | 0, RIM, D);
         let d = wd[i] + v * WDT;
-        if (d < 0.03) d -= 0.00025;       // thin films soak into the ground
+        if (d < 0.015) d -= 0.0002;       // thin films soak into the ground
         wd[i] = d > 1e-5 ? d : 0;
       }
     }
@@ -316,6 +316,14 @@ export class World {
             continue;
           }
 
+          if (m === SPRING) { // wells up from the top of the block
+            if (y + 1 >= bed[x + z * W]) this.addWater(x, z, 0.14);
+            continue;
+          }
+          if (m === DRAIN) {
+            if (y + 1 >= bed[x + z * W] && cd[x + z * W] > 0) this.takeWater(x, z, 0.5);
+            continue;
+          }
           if (m === LAVA) {
             if ((t + i) & 3) continue;
             let a = aux[i]; const a0 = a, c = x + z * W;
@@ -488,6 +496,12 @@ export class World {
           } else if (below !== AIR && rnd() < 0.03) { mat[i] = AIR; this.markDirty(x, z); }
           break;
         }
+        case CROP: {
+          const below = y > 0 ? mat[i - WD] : STONE;
+          if ((below !== SOIL && below !== TURF) || (cd[c] > 0.2 && cs[c] > y + 0.3)) { mat[i] = AIR; this.markDirty(x, z); }
+          else if (aux[i] < 3 && rnd() < (this.moist(x, y, z) || this.raining ? 0.4 : 0.08)) { aux[i]++; this.markDirty(x, z); }
+          break;
+        }
         case ICE: {
           let hot = false;
           for (let d = 0; d < 4 && !hot; d++) { const nm = this.get(x + DX[d], y, z + DZ[d]); hot = nm === LAVA || nm === FIRE; }
@@ -516,6 +530,7 @@ export class World {
       if (this.get(x + dx, y - 1, z + dz) === TURF) this.set(x + dx, y - 1, z + dz, SOIL);
     }
     this.set(x, y + 3, z, THATCH);
+    if (this.get(x, y + 4, z) === AIR) this.set(x, y + 4, z, LAMP);
     return true;
   }
   setBiome(x, z, b) { if (x >= 0 && x < W && z >= 0 && z < D && this.biome[x + z * W] !== b) { this.biome[x + z * W] = b; this.markDirty(x, z); } }

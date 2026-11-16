@@ -1,7 +1,7 @@
 // Brimful — renderer, camera, tools and powers, graphics settings, saved worlds, UI and the main loop.
 import * as THREE from 'three';
 import * as WM from './world.js';
-import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, OPAQUE, rnd, ri } from './world.js';
+import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity } from './mesher.js';
 import { Critters, KINDS, KIND_IDS, setNightGlow } from './critters.js';
@@ -139,6 +139,8 @@ const TOOLS = [
   { id: 'water', tab: 'earth', label: 'Water', type: 'water', color: hex(WATER_COLOR) },
   { id: 'lava', tab: 'earth', label: 'Lava', type: 'pour', mat: LAVA, a: 8, p: 0.3, hz: 420 },
   { id: 'ice', tab: 'earth', label: 'Ice', type: 'build', mat: ICE },
+  { id: 'spring', tab: 'earth', label: 'Spring', type: 'build', mat: SPRING, glyph: '≀', gc: '#fff' },
+  { id: 'drain', tab: 'earth', label: 'Drain', type: 'build', mat: DRAIN, glyph: '▦', gc: '#ddd' },
   { id: 'seed', tab: 'earth', label: 'Seeds', type: 'pour', mat: SEED, p: 0.03, hz: 3000 },
   { id: 'raise', tab: 'earth', label: 'Raise', type: 'raise', color: '#d8c9a6', glyph: '▲' },
   { id: 'lower', tab: 'earth', label: 'Lower', type: 'lower', color: '#d8c9a6', glyph: '▼' },
@@ -198,7 +200,7 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add
 
 function setPaused(p) { state.paused = p; $('bPause').textContent = p ? 'Play' : 'Pause'; $('bPause').classList.toggle('on', p); }
 $('bPause').onclick = () => setPaused(!state.paused);
-$('bSpeed').onclick = () => { state.speed = state.speed === 1 ? 2 : state.speed === 2 ? 4 : 1; $('bSpeed').textContent = state.speed + '×'; $('bSpeed').classList.toggle('on', state.speed > 1); };
+$('bSpeed').onclick = () => { state.speed = state.speed >= 8 ? 1 : state.speed * 2; $('bSpeed').textContent = state.speed + '×'; $('bSpeed').classList.toggle('on', state.speed > 1); };
 function setRain(r) { world.raining = r; $('bRain').classList.toggle('on', r); }
 $('bRain').onclick = () => setRain(!world.raining);
 const TIME_MODES = { auto: 'Day cycle', noon: 'Noon', dusk: 'Dusk', night: 'Night' };
@@ -715,6 +717,7 @@ addEventListener('keydown', (e) => {
   else if (k === ']') setSize(state.size + 1);
   else if (k === 'p' || k === ' ') { e.preventDefault(); setPaused(!state.paused); }
   else if (k === 'r') setRain(!world.raining);
+  else if (k === 'u') { document.body.classList.toggle('hideui'); if (document.body.classList.contains('hideui')) toast('Photo mode: press U to bring the controls back'); }
   else if (k === 'h' || k === '?') showHelp(!$('help').classList.contains('open'));
 });
 addEventListener('keyup', (e) => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
@@ -837,7 +840,7 @@ function frame(now) {
   if (!state.paused) {
     acc += dt * state.speed;
     let n = 0;
-    while (acc >= TICK && n++ < 4) { world.step(); acc -= TICK; handleEvents(); }
+    while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
     if (state.timeMode === 'auto') state.tod = (state.tod + dt * state.speed / 300) % 1;
     if (world.raining) for (let k = 0; k < Math.ceil(3 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
@@ -855,7 +858,7 @@ function frame(now) {
   for (let i = transients.length - 1; i >= 0; i--) if (transients[i](dt)) transients.splice(i, 1);
 
   readInput();
-  if (!state.paused) critters.update(dt * Math.min(2, state.speed), input, night);
+  if (!state.paused) critters.update(dt * Math.min(3, state.speed), input, night);
   fx.update(dt);
   remesh(gfx.level === 0 ? 3 : 6);
   water.update(world);

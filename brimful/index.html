@@ -86,6 +86,7 @@
   #updown button { width:62px; height:56px; border-radius:16px; background:rgba(255,249,238,.8); font-size:20px; font-weight:700; touch-action:none; }
   body.riding.touch #stick { display:block; } body.riding.touch #updown { display:flex; }
   body.riding #dock { display:none; }
+  body.hideui #top, body.hideui #dock, body.hideui #ride { display:none; }
 
   #help { position:fixed; inset:0; display:none; place-items:center; background:rgba(30,20,14,.35); z-index:10; padding:16px; }
   #help.open { display:grid; }
@@ -168,7 +169,7 @@
       <li><b>Life</b><span>Plants need water nearby. Animals graze, hunt and multiply. Villagers fell trees, replant and build huts.</span></li>
       <li><b>Ride along</b><span>Choose Ride along and click any creature to steer it. V switches to first person.</span></li>
       <li><b>Worlds</b><span>Nine world types, any size, nine biomes. Save as many named worlds as you like.</span></li>
-      <li><b>Keys</b><span>1–9 tools · [ ] brush size · P pause · R rain · H help</span></li>
+      <li><b>Keys</b><span>1–9 tools · [ ] brush size · P pause · R rain · U photo mode · H help</span></li>
     </ul>
     <button class="cta" id="bStart">Start pottering</button>
   </div>
