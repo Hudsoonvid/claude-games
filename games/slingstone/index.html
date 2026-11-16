@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slingstone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b2440">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #1b2440;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #f4efe2;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #top { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 0; right: 0; display: flex;
+    justify-content: center; align-items: center; gap: 8px; pointer-events: none; }
+  #top > * { pointer-events: auto; }
+  .pill { background: rgba(14, 18, 34, .62); border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
+    padding: 7px 13px; font-weight: 650; font-size: 14px; color: inherit; }
+  button.pill { cursor: pointer; font-family: inherit; min-width: 40px; min-height: 36px; touch-action: manipulation; }
+  button.pill:disabled { opacity: .35; cursor: default; }
+  button.pill:focus-visible, .panel button:focus-visible { outline: 3px solid #ffd27a; outline-offset: 2px; }
+  #hint { position: fixed; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom)); text-align: center;
+    font-size: 13px; opacity: .8; pointer-events: none; padding: 0 16px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(14, 18, 34, .9);
+    border: 1px solid rgba(255,255,255,.22); border-radius: 18px; padding: 22px 26px; text-align: center;
+    min-width: 240px; max-width: calc(100vw - 48px); display: none; }
+  .panel.show { display: block; }
+  .panel h2 { margin: 0 0 6px; font-size: 26px; }
+  .panel p { margin: 0 0 16px; opacity: .85; }
+  .stars { font-size: 34px; letter-spacing: 6px; color: #ffd27a; margin-bottom: 12px; }
+  .panel button { font: inherit; font-weight: 700; padding: 11px 20px; margin: 4px; border-radius: 12px; border: 0;
+    background: #ffd27a; color: #2a1e08; cursor: pointer; touch-action: manipulation; }
+  .panel button.alt { background: rgba(255,255,255,.14); color: inherit; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top">
+  <button class="pill" id="prev" aria-label="Previous level">&lsaquo;</button>
+  <span class="pill" id="title">Level 1</span>
+  <button class="pill" id="next" aria-label="Next level">&rsaquo;</button>
+  <button class="pill" id="retry" aria-label="Restart level">&#8635;</button>
+</div>
+<div id="hint"></div>
+<div class="panel" id="panel">
+  <h2 id="ph"></h2>
+  <div class="stars" id="pstars"></div>
+  <p id="pp"></p>
+  <button id="pb1"></button><button id="pb2" class="alt"></button>
+</div>
+<script src="vendor/matter.min.js"></script>
+<script>window.ARCADE={id:"slingstone",stickKeys:false,pad:{}};</script>
+<script src="../../shared/arcade-input.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
