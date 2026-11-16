@@ -177,7 +177,26 @@ export class World {
     return false;
   }
 
+  // tree tops take their shape from the biome they grow in
   crown(x, y, z, r = 2.4) {
+    const b = this.inb(x, 0, z) ? this.biome[x + z * W] : 0;
+    const put = (px, py, pz) => { if (this.inb(px, py, pz) && this.get(px, py, pz) === AIR) this.set(px, py, pz, LEAF); };
+    if (b === 1 || b === 5) { // conifer: stacked rings narrowing to a point
+      for (let k = 0; k < 6; k++) {
+        const rr = k === 5 ? 0 : 2.6 - k * 0.5 + (k & 1 ? 0.5 : 0), q = Math.ceil(rr), py = y - 3 + k;
+        for (let dz = -q; dz <= q; dz++) for (let dx = -q; dx <= q; dx++) if (dx * dx + dz * dz <= rr * rr + 0.3) put(x + dx, py, z + dz);
+      }
+      return;
+    }
+    if (b === 4) { // flat-topped, wide
+      for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
+        const d = dx * dx + dz * dz;
+        if (d <= 9.5 + rnd() * 2) put(x + dx, y, z + dz);
+        if (d <= 3) put(x + dx, y + 1, z + dz);
+      }
+      return;
+    }
+    if (b === 7) r += 0.9;
     const R = Math.ceil(r);
     for (let dy = -1; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
       if (dx * dx + dy * dy * 1.4 + dz * dz > r * r + rnd() * 1.5) continue;

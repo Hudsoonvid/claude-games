@@ -62,7 +62,7 @@ const hash = (i) => (Math.imul(i ^ (i >>> 15), 0x2c1b3c6d) >>> 24) / 255;
 let hs = 1;
 const hr = () => { hs = Math.imul(hs ^ (hs >>> 13), 0x5bd1e995) + 0x6b43a9b5 | 0; return ((hs >>> 8) & 0xffff) / 65536; };
 
-let grassDensity = 9;
+let grassDensity = 12;
 export function setGrassDensity(n) { grassDensity = n; }
 
 let mat, aux, cd, cs, biome;
@@ -144,10 +144,10 @@ function grass(x, y, z, i, n, tall) {
   hs = (i * 2654435761) | 0 || 1;
   for (let k = 0; k < n; k++) {
     const bx = x + 0.06 + hr() * 0.88, bz = z + 0.06 + hr() * 0.88, t = hr();
-    const h = tall ? 0.55 + hr() * 0.55 : 0.2 + hr() * 0.32;
-    const c = t < 0.1 ? C_DRY : t < 0.55 ? bio.g1 : bio.g2, sh = 0.42 + hr() * 0.16;
-    const tip = t < 0.1 ? C_DRY : bio.tip, ts = 0.5 + hr() * 0.14;
-    blade(bx, y, bz, h, tall ? 0.07 : 0.055, hr() * 6.283, (hr() - 0.3) * h * 0.5, c[0] * sh, c[1] * sh, c[2] * sh, tip[0] * ts, tip[1] * ts, tip[2] * ts, 0.5);
+    const h = tall ? 0.55 + hr() * 0.55 : 0.16 + hr() * 0.3;
+    const c = t < 0.1 ? C_DRY : t < 0.55 ? bio.g1 : bio.g2, sh = 0.5 + hr() * 0.16;
+    const tip = t < 0.1 ? C_DRY : bio.tip, ts = 0.74 + hr() * 0.16;
+    blade(bx, y, bz, h, tall ? 0.055 : 0.042, hr() * 6.283, (hr() - 0.3) * h * 0.5, c[0] * sh, c[1] * sh, c[2] * sh, tip[0] * ts, tip[1] * ts, tip[2] * ts, 0.5);
   }
 }
 

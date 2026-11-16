@@ -219,10 +219,10 @@ $('bView').onclick = () => setFP(!state.fp);
 // ---------------------------------------------------------------- graphics settings
 const DPR = window.devicePixelRatio || 1;
 const LEVELS = [
-  { res: 1 / DPR, shadows: 0, grass: 3, bloom: false, rays: false, tilt: false, detail: false, aa: false, motes: false },
-  { res: Math.min(DPR, 1.25) / DPR, shadows: 1024, grass: 6, bloom: true, rays: false, tilt: false, detail: true, aa: false, motes: true },
-  { res: Math.min(DPR, 1.5) / DPR, shadows: 2048, grass: 9, bloom: true, rays: true, tilt: true, detail: true, aa: false, motes: true },
-  { res: Math.min(DPR, 2) / DPR, shadows: 4096, grass: 14, bloom: true, rays: true, tilt: true, detail: true, aa: true, motes: true },
+  { res: 1 / DPR, shadows: 0, grass: 4, bloom: false, rays: false, tilt: false, detail: false, aa: false, motes: false },
+  { res: Math.min(DPR, 1.25) / DPR, shadows: 1024, grass: 8, bloom: true, rays: false, tilt: false, detail: true, aa: false, motes: true },
+  { res: Math.min(DPR, 1.5) / DPR, shadows: 2048, grass: 12, bloom: true, rays: true, tilt: true, detail: true, aa: false, motes: true },
+  { res: Math.min(DPR, 2) / DPR, shadows: 4096, grass: 18, bloom: true, rays: true, tilt: true, detail: true, aa: true, motes: true },
 ];
 const LEVEL_NAMES = ['Low', 'Medium', 'High', 'Ultra'];
 const touchy = matchMedia('(pointer: coarse)').matches;

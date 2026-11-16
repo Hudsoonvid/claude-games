@@ -157,7 +157,8 @@ export function generate(world, preset) {
     for (let dz = -4; dz <= 4 && !near; dz++) for (let dx = -4; dx <= 4; dx++) if (world.get(x + dx, h + 1, z + dz) === WOOD) { near = true; break; }
     if (near) continue;
     world.set(x, h, z, AIR);
-    tree(world, x, h, z, 3 + ri(4));
+    const tb = world.biome[x + z * W];
+    tree(world, x, h, z, tb === 1 || tb === 5 ? 5 + ri(3) : tb === 7 ? 6 + ri(3) : tb === 4 ? 3 + ri(2) : 3 + ri(4));
     trees--;
   }
   world.fillTo(WL);

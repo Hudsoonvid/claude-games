@@ -50,7 +50,12 @@ const VERT_OUT = /* glsl */ `
   vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWNrm = normal;
 `;
 
+let patchId = 0;
 function patch(mat, { vertex = '', frag = {} }) {
+  // three caches programs by the text of onBeforeCompile, which is identical for every patched material;
+  // a unique key keeps each material's shader its own
+  const key = 'brimful-' + (patchId++);
+  mat.customProgramCacheKey = () => key;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader
