@@ -47,6 +47,15 @@ export class Sound {
     o.connect(g).connect(this.master); o.start(); o.stop(ctx.currentTime + dur + 0.02);
   }
 
+  // a low rumble: thunder, impacts, quakes
+  boom(vol = 0.5, dur = 1.4, freq = 180) {
+    const ctx = this.ctx; if (!ctx) return;
+    const s = ctx.createBufferSource(); s.buffer = this.noise;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(freq * 3, ctx.currentTime); f.frequency.exponentialRampToValueAtTime(freq * 0.4, ctx.currentTime + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    s.connect(f).connect(g).connect(this.master); s.start(ctx.currentTime, Math.random()); s.stop(ctx.currentTime + dur + 0.05);
+  }
+
   // called every frame; schedules an occasional chime. night = 0..1
   ambient(night) {
     const ctx = this.ctx; if (!ctx || ctx.currentTime < this.nextNote) return;

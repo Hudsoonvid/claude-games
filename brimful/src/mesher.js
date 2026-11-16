@@ -1,7 +1,8 @@
-// Turns one 16x16 column of the voxel grid into three meshes' worth of buffers:
-// solid (lit, shadowed), fluid (translucent water + steam) and glow (lava + fire).
+// Turns one 16x16 column of the voxel grid into buffers for four meshes:
+// solid (lit, shadowed cubes), flora (grass blades, flowers, waterweed), mist (steam) and
+// glow (lava + fire). Water is not meshed here: it is a simulated surface drawn by its own shader.
 import { Color } from 'three';
-import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, WATER, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, OPAQUE } from './world.js';
+import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, OPAQUE } from './world.js';
 
 class Buf {
   constructor(cap) {
@@ -31,22 +32,40 @@ class Buf {
   }
 }
 
-const S = new Buf(120000), F = new Buf(60000), G = new Buf(30000), L = new Buf(40000);
+const S = new Buf(120000), F = new Buf(20000), G = new Buf(30000), L = new Buf(90000);
 const Q = new Float32Array(12);
 const AOS = [0.5, 0.68, 0.85, 1];
 
 const lin = (hex) => { const c = new Color(hex); return [c.r, c.g, c.b]; };
 const COL = [];
-COL[STONE] = lin(0x9a9aa6); COL[SOIL] = lin(0x84593a); COL[TURF] = lin(0x74b84c); COL[SAND] = lin(0xecd79c);
-COL[WOOD] = lin(0x8f5c33); COL[LEAF] = lin(0x4a9f52); COL[BASALT] = lin(0x45434d); COL[SEED] = lin(0xd0a65c);
-const C_WATER = lin(0x45b4d8), C_DEEP = lin(0x1f6fb5), C_STEAM = lin(0xffffff);
-const C_LAVA1 = lin(0xff5a12), C_LAVA2 = lin(0xffc23a), C_FIRE = lin(0xffb028);
-const C_TUFT = lin(0x7cc452), C_TUFT2 = lin(0x63b04a), C_WEED = lin(0x2f9a72);
-const FLOWERS = [lin(0x9af0ff), lin(0xffd24a), lin(0xff8fc0), lin(0xb99cff)];
+COL[STONE] = lin(0x9d9ca6); COL[SOIL] = lin(0x7f5638); COL[TURF] = lin(0x6aa846); COL[SAND] = lin(0xecd79c);
+COL[WOOD] = lin(0x8a5a34); COL[LEAF] = lin(0x4f9f4c); COL[BASALT] = lin(0x45434d); COL[SEED] = lin(0xd0a65c);
+COL[ICE] = lin(0xbfe6f7); COL[PLANK] = lin(0xc79a62); COL[THATCH] = lin(0xd9b65a);
+const C_STEAM = lin(0xffffff), C_LAVA1 = lin(0xff5a12), C_LAVA2 = lin(0xffc23a), C_FIRE = lin(0xffb028);
+const C_G1 = lin(0x4f9a3c), C_G2 = lin(0x78bf4e), C_G3 = lin(0xa6d568), C_DRY = lin(0xb9b96a), C_WEED = lin(0x2f9a72);
+const FLOWERS = [lin(0x9af0ff), lin(0xffd24a), lin(0xff8fc0), lin(0xb99cff), lin(0xfff6f0)];
+// biome palettes: turf, grass base x2, grass tip, leaves x3
+export const BIOMES = [
+  ['Meadow', 0x6aa846, 0x4f9a3c, 0x78bf4e, 0xa6d568, [0x4f9f4c, 0x5fae4e, 0x3f8f52]],
+  ['Forest', 0x4c8a3c, 0x356f30, 0x4f9440, 0x7ab85a, [0x2f7a3c, 0x3a8a40, 0x276a38]],
+  ['Autumn', 0x9aa046, 0x8a8a34, 0xb7a640, 0xe0c860, [0xd9722a, 0xe3a02c, 0xb8442a]],
+  ['Blossom', 0x7cc05c, 0x5ea848, 0x8fd068, 0xc8ec90, [0xf5a8c8, 0xfbc4d8, 0xe88ab4]],
+  ['Savanna', 0xb0a04c, 0x9a8a3a, 0xc4b050, 0xe6d47a, [0x8a9a3c, 0x9aa648, 0x7a8a34]],
+  ['Tundra', 0xcfe0e0, 0x9fbfc0, 0xc8dede, 0xf4fbff, [0x3f7a6a, 0x4a8a78, 0x346a5c]],
+  ['Swamp', 0x5a7a3a, 0x3f5f2c, 0x5a7c36, 0x86a04c, [0x4a6a34, 0x58783a, 0x3c5a2e]],
+  ['Jungle', 0x3fae4a, 0x1f8a3a, 0x38b44a, 0x8ae05a, [0x1f9a44, 0x2cb04e, 0x148a3c]],
+  ['Heath', 0x8a8a5a, 0x6a7a44, 0x9a6aa0, 0xd08ad8, [0x6a8a4a, 0x7a9a54, 0x5a7a42]],
+].map(([name, t, a, b, c, lf]) => ({ name, hex: t, turf: lin(t), g1: lin(a), g2: lin(b), tip: lin(c), leaf: lf.map(lin) }));
+let bio = BIOMES[0];
 
 const hash = (i) => (Math.imul(i ^ (i >>> 15), 0x2c1b3c6d) >>> 24) / 255;
+let hs = 1;
+const hr = () => { hs = Math.imul(hs ^ (hs >>> 13), 0x5bd1e995) + 0x6b43a9b5 | 0; return ((hs >>> 8) & 0xffff) / 65536; };
 
-let mat, aux;
+let grassDensity = 9;
+export function setGrassDensity(n) { grassDensity = n; }
+
+let mat, aux, cd, cs, biome;
 function op(x, y, z) {
   if (y < 0) return 1;
   if (y >= H) return 0;
@@ -56,17 +75,16 @@ function op(x, y, z) {
 const P3 = [0, 0, 0], N3 = [0, 0, 0];
 
 function cube(x, y, z, m, i) {
-  const base = COL[m], j = 0.86 + 0.28 * hash(i);
+  let base = COL[m]; const j = 0.88 + 0.24 * hash(i);
+  if (m === LEAF) base = BIOMES[biome[x + z * W]].leaf[Math.min(2, (hash(i * 7 + 3) * 3) | 0)];
+  else if (m === TURF) base = BIOMES[biome[x + z * W]].turf;
   for (let f = 0; f < 6; f++) {
     const a = f >> 1, s = f & 1, u = (a + 1) % 3, v = (a + 2) % 3;
     N3[0] = x; N3[1] = y; N3[2] = z; N3[a] += s ? 1 : -1;
     if (op(N3[0], N3[1], N3[2])) continue;
-    // faces touching water are flagged (alpha 0) so the shader can paint caustics on them
-    let wet = 1;
-    if (N3[1] < H && N3[0] >= 0 && N3[0] < W && N3[2] >= 0 && N3[2] < D) { const nm = mat[N3[0] + W * (N3[2] + D * N3[1])]; if (nm === WATER || nm === WEED) wet = 0; }
     let r = base[0], g = base[1], b = base[2];
     if (m === TURF && f !== 3) { const so = COL[SOIL]; const k = f === 2 ? 0 : 0.22; r = so[0] + (r - so[0]) * k; g = so[1] + (g - so[1]) * k; b = so[2] + (b - so[2]) * k; }
-    else if (m === WOOD && a === 1) { r *= 1.35; g *= 1.3; b *= 1.15; }
+    else if ((m === WOOD || m === PLANK) && a === 1) { r *= 1.3; g *= 1.25; b *= 1.12; }
     r *= j; g *= j; b *= j;
     let sh0, sh1, sh2, sh3;
     for (let k = 0; k < 4; k++) {
@@ -83,7 +101,8 @@ function cube(x, y, z, m, i) {
       const sh = AOS[s1 && s2 ? 0 : 3 - s1 - s2 - cc];
       if (k === 0) sh0 = sh; else if (k === 1) sh1 = sh; else if (k === 2) sh2 = sh; else sh3 = sh;
     }
-    S.quad(Q, a === 0 ? (s ? 1 : -1) : 0, a === 1 ? (s ? 1 : -1) : 0, a === 2 ? (s ? 1 : -1) : 0, r, g, b, wet, sh0, sh1, sh2, sh3);
+    // alpha doubles as a material hint for the shader: 0.5 = ice
+    S.quad(Q, a === 0 ? (s ? 1 : -1) : 0, a === 1 ? (s ? 1 : -1) : 0, a === 2 ? (s ? 1 : -1) : 0, r, g, b, m === ICE ? 0.5 : 1, sh0, sh1, sh2, sh3);
   }
 }
 
@@ -101,38 +120,50 @@ function box(B, cx, cy, cz, hx, hy, hz, r, g, b, a) {
   setQ(x0, y0, z0, x0, y1, z0, x1, y1, z0, x1, y0, z0); B.quad(Q, 0, 0, -1, r, g, b, a, 1, 1, 1, 1);
 }
 
-// alpha channel: 0 = rooted, 0.5 = sways, 1 = sways and glows at night
-function cross(x, y, z, h, r, g, b, tr, tg, tb, wob, tipA) {
-  const a = 0.12 + wob * 0.1, c = 0.5;
+// One tapered blade. Vertex alpha tells the shader what to do: 0 = rooted, 0.5 = sways, 1 = sways + glows at night.
+function blade(bx, by, bz, h, w, ang, lean, r, g, b, tr, tg, tb, tipA) {
+  const dx = Math.cos(ang) * w, dz = Math.sin(ang) * w, lx = -Math.sin(ang) * lean, lz = Math.cos(ang) * lean;
+  setQ(bx - dx, by, bz - dz, bx + dx, by, bz + dz, bx + dx * 0.15 + lx, by + h, bz + dz * 0.15 + lz, bx - dx * 0.15 + lx, by + h, bz - dz * 0.15 + lz);
+  const v = L.v;
+  L.quad(Q, 0, 1, 0, r, g, b, 0, 1, 1, 1, 1);
+  if (L.v > v) { const cc = L.col; for (let q = 2; q < 4; q++) { const o = (v + q) * 4; cc[o] = tr; cc[o + 1] = tg; cc[o + 2] = tb; cc[o + 3] = tipA; } }
+}
+// a little upright flower head: two crossed quads
+function head(x, y, z, s, c) {
   for (let k = 0; k < 2; k++) {
-    const x0 = x + (k ? 1 - a : a), z0 = z + a, x1 = x + (k ? a : 1 - a), z1 = z + 1 - a;
-    setQ(x0, y, z0, x1, y, z1, x1 + (c - x1 + x) * 0.75, y + h, z1 + (c - z1 + z) * 0.75, x0 + (c - x0 + x) * 0.75, y + h, z0 + (c - z0 + z) * 0.75);
-    const v = L.v;
-    L.quad(Q, 0, 1, 0, r, g, b, 0, 1, 1, 1, 1);
-    if (L.v > v) { // tint the tips
-      const cc = L.col; for (let q = 2; q < 4; q++) { const o = (v + q) * 4; cc[o] = tr; cc[o + 1] = tg; cc[o + 2] = tb; cc[o + 3] = tipA; }
-    }
+    const dx = k ? s : 0, dz = k ? 0 : s;
+    setQ(x - dx, y - s, z - dz, x + dx, y - s, z + dz, x + dx, y + s, z + dz, x - dx, y + s, z - dz);
+    L.quad(Q, 0, 1, 0, c[0], c[1], c[2], 1, 1, 1, 1, 1);
+  }
+  setQ(x - s, y + s * 0.2, z - s, x - s, y + s * 0.2, z + s, x + s, y + s * 0.2, z + s, x + s, y + s * 0.2, z - s);
+  L.quad(Q, 0, 1, 0, c[0], c[1], c[2], 1, 1, 1, 1, 1);
+}
+
+function grass(x, y, z, i, n, tall) {
+  bio = BIOMES[biome[x + z * W]];
+  hs = (i * 2654435761) | 0 || 1;
+  for (let k = 0; k < n; k++) {
+    const bx = x + 0.06 + hr() * 0.88, bz = z + 0.06 + hr() * 0.88, t = hr();
+    const h = tall ? 0.55 + hr() * 0.55 : 0.2 + hr() * 0.32;
+    const c = t < 0.1 ? C_DRY : t < 0.55 ? bio.g1 : bio.g2, sh = 0.42 + hr() * 0.16;
+    const tip = t < 0.1 ? C_DRY : bio.tip, ts = 0.5 + hr() * 0.14;
+    blade(bx, y, bz, h, tall ? 0.07 : 0.055, hr() * 6.283, (hr() - 0.3) * h * 0.5, c[0] * sh, c[1] * sh, c[2] * sh, tip[0] * ts, tip[1] * ts, tip[2] * ts, 0.5);
   }
 }
 
-// cls 0 = water (and waterweed, which counts as full water), 1 = lava
-function same(cls, x, y, z) {
-  if (x < 0 || x >= W || z < 0 || z >= D || y < 0 || y >= H) return false;
-  const m = mat[x + W * (z + D * y)];
-  return cls ? m === LAVA : (m === WATER || m === WEED);
-}
-function hOf(cls, x, y, z) {
-  if (!same(cls, x, y, z)) return -1;
-  if (same(cls, x, y + 1, z)) return 1;
-  const i = x + W * (z + D * y);
-  return mat[i] === WEED ? 1 : Math.max(0.1, aux[i] / 8);
+function lavaTop(x, y, z) { return x >= 0 && x < W && z >= 0 && z < D && y >= 0 && y < H && mat[x + W * (z + D * y)] === LAVA; }
+function lavaH(x, y, z) {
+  if (!lavaTop(x, y, z)) return -1;
+  if (lavaTop(x, y + 1, z)) return 1;
+  return Math.max(0.1, aux[x + W * (z + D * y)] / 8);
 }
 const HC = [0, 0, 0, 0];
-function fluid(B, cls, x, y, z, i) {
+function lava(x, y, z, i) {
+  const B = G;
   for (let c = 0; c < 4; c++) {
     const ox = c & 1, oz = c >> 1; let sum = 0, n = 0, full = false;
     for (let k = 0; k < 4; k++) {
-      const h = hOf(cls, x + ox - (k & 1), y, z + oz - (k >> 1));
+      const h = lavaH(x + ox - (k & 1), y, z + oz - (k >> 1));
       if (h < 0) continue;
       if (h >= 1) full = true;
       sum += h; n++;
@@ -140,29 +171,18 @@ function fluid(B, cls, x, y, z, i) {
     HC[c] = full ? 1 : sum / n;
   }
   const h00 = HC[0], h10 = HC[1], h01 = HC[2], h11 = HC[3];
-  let r, g, b, a;
-  if (cls) { const k = hash(i + (aux[i] << 3)); r = C_LAVA1[0] + (C_LAVA2[0] - C_LAVA1[0]) * k * k; g = C_LAVA1[1] + (C_LAVA2[1] - C_LAVA1[1]) * k * k; b = C_LAVA1[2]; a = 1; }
-  else {
-    const thin = mat[i] === WATER && !same(0, x, y - 1, z) ? Math.min(1, aux[i] / 5) : 1;
-    let dep = 0; while (dep < 6 && same(0, x, y - 1 - dep, z)) dep++;
-    const k = dep / 6;
-    r = C_WATER[0] + (C_DEEP[0] - C_WATER[0]) * k; g = C_WATER[1] + (C_DEEP[1] - C_WATER[1]) * k; b = C_WATER[2] + (C_DEEP[2] - C_WATER[2]) * k;
-    a = (0.42 + 0.4 * k) * (0.45 + 0.55 * thin);
-  }
-  if (!same(cls, x, y + 1, z)) {
-    setQ(x, y + h00, z, x, y + h01, z + 1, x + 1, y + h11, z + 1, x + 1, y + h10, z);
-    B.quad(Q, 0, 1, 0, r, g, b, a, 1, 1, 1, 1);
-  }
-  const dr = cls ? r * 0.8 : C_DEEP[0], dg = cls ? g * 0.7 : C_DEEP[1], db = cls ? b : C_DEEP[2];
-  if (!same(cls, x + 1, y, z) && !op(x + 1, y, z)) { setQ(x + 1, y, z, x + 1, y + h10, z, x + 1, y + h11, z + 1, x + 1, y, z + 1); B.quad(Q, 1, 0, 0, dr, dg, db, a, 1, 1, 1, 1); }
-  if (!same(cls, x - 1, y, z) && !op(x - 1, y, z)) { setQ(x, y, z, x, y, z + 1, x, y + h01, z + 1, x, y + h00, z); B.quad(Q, -1, 0, 0, dr, dg, db, a, 1, 1, 1, 1); }
-  if (!same(cls, x, y, z + 1) && !op(x, y, z + 1)) { setQ(x, y, z + 1, x + 1, y, z + 1, x + 1, y + h11, z + 1, x, y + h01, z + 1); B.quad(Q, 0, 0, 1, dr, dg, db, a, 1, 1, 1, 1); }
-  if (!same(cls, x, y, z - 1) && !op(x, y, z - 1)) { setQ(x, y, z, x, y + h00, z, x + 1, y + h10, z, x + 1, y, z); B.quad(Q, 0, 0, -1, dr, dg, db, a, 1, 1, 1, 1); }
-  if (!same(cls, x, y - 1, z) && !op(x, y - 1, z)) { setQ(x, y, z, x + 1, y, z, x + 1, y, z + 1, x, y, z + 1); B.quad(Q, 0, -1, 0, dr, dg, db, a, 1, 1, 1, 1); }
+  const k = hash(i + (aux[i] << 3)), r = C_LAVA1[0] + (C_LAVA2[0] - C_LAVA1[0]) * k * k, g = C_LAVA1[1] + (C_LAVA2[1] - C_LAVA1[1]) * k * k, b = C_LAVA1[2];
+  if (!lavaTop(x, y + 1, z)) { setQ(x, y + h00, z, x, y + h01, z + 1, x + 1, y + h11, z + 1, x + 1, y + h10, z); B.quad(Q, 0, 1, 0, r, g, b, 1, 1, 1, 1, 1); }
+  const dr = r * 0.8, dg = g * 0.7, db = b;
+  if (!lavaTop(x + 1, y, z) && !op(x + 1, y, z)) { setQ(x + 1, y, z, x + 1, y + h10, z, x + 1, y + h11, z + 1, x + 1, y, z + 1); B.quad(Q, 1, 0, 0, dr, dg, db, 1, 1, 1, 1, 1); }
+  if (!lavaTop(x - 1, y, z) && !op(x - 1, y, z)) { setQ(x, y, z, x, y, z + 1, x, y + h01, z + 1, x, y + h00, z); B.quad(Q, -1, 0, 0, dr, dg, db, 1, 1, 1, 1, 1); }
+  if (!lavaTop(x, y, z + 1) && !op(x, y, z + 1)) { setQ(x, y, z + 1, x + 1, y, z + 1, x + 1, y + h11, z + 1, x, y + h01, z + 1); B.quad(Q, 0, 0, 1, dr, dg, db, 1, 1, 1, 1, 1); }
+  if (!lavaTop(x, y, z - 1) && !op(x, y, z - 1)) { setQ(x, y, z, x, y + h00, z, x + 1, y + h10, z, x + 1, y, z); B.quad(Q, 0, 0, -1, dr, dg, db, 1, 1, 1, 1, 1); }
+  if (!lavaTop(x, y - 1, z) && !op(x, y - 1, z)) { setQ(x, y, z, x + 1, y, z, x + 1, y, z + 1, x, y, z + 1); B.quad(Q, 0, -1, 0, dr, dg, db, 1, 1, 1, 1, 1); }
 }
 
 export function buildChunk(world, cx, cz) {
-  mat = world.mat; aux = world.aux;
+  mat = world.mat; aux = world.aux; cd = world.cd; cs = world.cs; biome = world.biome;
   S.reset(); F.reset(); G.reset(); L.reset();
   const x0 = cx * CH, z0 = cz * CH;
   for (let y = 0; y < H; y++) for (let z = z0; z < z0 + CH; z++) {
@@ -170,29 +190,47 @@ export function buildChunk(world, cx, cz) {
     for (let x = x0; x < x0 + CH; x++, i++) {
       const m = mat[i];
       if (m === AIR) continue;
-      if (OPAQUE[m]) { cube(x, y, z, m, i); continue; }
+      if (OPAQUE[m]) {
+        cube(x, y, z, m, i);
+        if (m === TURF && grassDensity > 0 && y < H - 1) {
+          const up = mat[i + W * D], c = x + z * W;
+          if ((up === AIR || up === TUFT) && !(cd[c] > 0.15 && cs[c] > y + 1.1)) grass(x, y + 1, z, i, grassDensity, false);
+        }
+        continue;
+      }
       switch (m) {
-        case WATER: fluid(F, 0, x, y, z, i); break;
         case WEED: {
-          fluid(F, 0, x, y, z, i);
-          const k = hash(i); cross(x, y, z, 1, C_WEED[0] * 0.7, C_WEED[1] * 0.7, C_WEED[2] * 0.7, C_WEED[0] * 0.6, C_WEED[1] * (1.1 + k * 0.4), C_WEED[2] * 1.3, k, 1);
+          hs = (i * 40503) | 0 || 1;
+          for (let k = 0; k < 3; k++) {
+            const s = 0.5 + hr() * 0.3;
+            blade(x + 0.2 + hr() * 0.6, y, z + 0.2 + hr() * 0.6, 0.85 + hr() * 0.3, 0.13, hr() * 6.283, (hr() - 0.5) * 0.4,
+              C_WEED[0] * s * 0.6, C_WEED[1] * s * 0.7, C_WEED[2] * s * 0.7, C_WEED[0] * 0.7, C_WEED[1] * 1.3, C_WEED[2] * 1.4, 1);
+          }
           break;
         }
-        case LAVA: fluid(G, 1, x, y, z, i); break;
+        case LAVA: lava(x, y, z, i); break;
         case STEAM: { const k = hash(i); box(F, x + 0.5, y + 0.5, z + 0.5, 0.3 + k * 0.15, 0.25, 0.3 + k * 0.15, C_STEAM[0], C_STEAM[1], C_STEAM[2], 0.28); break; }
         case FIRE: { const k = hash(i + aux[i]); box(G, x + 0.5, y + 0.4, z + 0.5, 0.36, 0.4, 0.36, C_FIRE[0], C_FIRE[1] * (0.6 + k * 0.6), C_FIRE[2], 1); break; }
         case SEED: box(S, x + 0.5, y + 0.14, z + 0.5, 0.16, 0.14, 0.16, COL[SEED][0], COL[SEED][1], COL[SEED][2], 1); break;
         case TUFT: {
-          const a = aux[i], k = hash(i), c = k < 0.5 ? C_TUFT : C_TUFT2;
-          let tr = c[0] * 1.25, tg = c[1] * 1.25, tb = c[2] * 1.25, h = 0.45 + k * 0.4, tip = 0.5;
-          if (a % 4 === 0) { const fl = FLOWERS[(a >> 2) & 3]; tr = fl[0]; tg = fl[1]; tb = fl[2]; h += 0.15; tip = 1; }
-          cross(x, y, z, h, c[0] * 0.8, c[1] * 0.8, c[2] * 0.8, tr, tg, tb, k, tip);
+          grass(x, y, z, i ^ 0x5a5a, Math.max(4, grassDensity), true);
+          const a = aux[i];
+          if (a % 3 === 0) { // flowers on stems
+            hs = (i * 9176 + a) | 0 || 1;
+            const fl = FLOWERS[(a >> 2) % 5], nf = 1 + (a & 1);
+            for (let k = 0; k < nf; k++) {
+              const fx = x + 0.25 + hr() * 0.5, fz = z + 0.25 + hr() * 0.5, fh = 0.6 + hr() * 0.4;
+              blade(fx, y, fz, fh, 0.03, hr() * 6.283, 0, C_G1[0] * 0.6, C_G1[1] * 0.6, C_G1[2] * 0.6, C_G2[0], C_G2[1], C_G2[2], 0.5);
+              head(fx, y + fh, fz, 0.11, fl);
+            }
+          }
           break;
         }
       }
     }
   }
-  return { solid: S.out(), fluid: F.out(), glow: G.out(), flora: L.out() };
+  return { solid: S.out(), mist: F.out(), glow: G.out(), flora: L.out() };
 }
 
-export const MATERIAL_COLORS = { [STONE]: 0x9a9aa6, [SOIL]: 0x84593a, [TURF]: 0x74b84c, [SAND]: 0xecd79c, [WATER]: 0x3fb0d6, [LAVA]: 0xff6a1a, [WOOD]: 0x8f5c33, [LEAF]: 0x4a9f52, [BASALT]: 0x45434d, [SEED]: 0xd0a65c, [TUFT]: 0x86cf58, [WEED]: 0x2f9a72 };
+export const MATERIAL_COLORS = { [STONE]: 0x9d9ca6, [SOIL]: 0x7f5638, [TURF]: 0x6aa846, [SAND]: 0xecd79c, [LAVA]: 0xff6a1a, [WOOD]: 0x8a5a34, [LEAF]: 0x4f9f4c, [BASALT]: 0x45434d, [SEED]: 0xd0a65c, [TUFT]: 0x86cf58, [WEED]: 0x2f9a72, [ICE]: 0xbfe6f7, [PLANK]: 0xc79a62, [THATCH]: 0xd9b65a };
+export const WATER_COLOR = 0x3fb0d6;

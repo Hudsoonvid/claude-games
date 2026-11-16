@@ -1,12 +1,19 @@
-// The living things: minnows (water), mossbacks (land grazers) and glimmers (night fliers).
+// The living things. Swimmers, walkers, hoppers, floaters, fliers — and villagers who fell trees and build huts.
 import * as THREE from 'three';
-import { W, H, D, AIR, WATER, LAVA, STEAM, TUFT, WEED, FIRE, OPAQUE, rnd, ri } from './world.js';
+import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, OPAQUE, rnd, ri } from './world.js';
 
 export const KINDS = {
-  minnow: { name: 'minnow', cap: 60, hint: 'WASD swim · Space up · Shift down' },
+  minnow: { name: 'minnow', cap: 70, hint: 'WASD swim · Space up · Shift down' },
+  duck: { name: 'duck', cap: 30, hint: 'WASD paddle or waddle · Space hop' },
+  frog: { name: 'frog', cap: 40, hint: 'WASD hop and swim · Space leap' },
   mossback: { name: 'mossback', cap: 45, hint: 'WASD walk · Space hop' },
-  glimmer: { name: 'glimmer', cap: 45, hint: 'WASD fly · Space up · Shift down' },
+  rabbit: { name: 'rabbit', cap: 45, hint: 'WASD hop · Space leap' },
+  villager: { name: 'villager', cap: 40, hint: 'WASD walk · Space jump' },
+  butterfly: { name: 'butterfly', cap: 45, hint: 'WASD fly · Space up · Shift down' },
+  songbird: { name: 'songbird', cap: 30, hint: 'WASD fly · Space up · Shift down' },
+  glimmer: { name: 'glimmer', cap: 50, hint: 'WASD fly · Space up · Shift down' },
 };
+export const KIND_IDS = Object.keys(KINDS);
 
 const std = (color, o = {}) => new THREE.MeshLambertMaterial({ color, ...o });
 const G = {
@@ -14,18 +21,24 @@ const G = {
   cone: new THREE.ConeGeometry(0.5, 1, 6),
   dome: new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
   wing: new THREE.PlaneGeometry(1, 1),
+  box: new THREE.BoxGeometry(1, 1, 1),
 };
 const M = {
   fish: [std(0xff9a4a), std(0xf4f1e6), std(0x6fd0d8), std(0xffd257)],
-  fin: std(0xfff3dc),
-  eye: std(0x1c1c22),
-  shell: [std(0x6a8f3c), std(0x8a6a3c), std(0x4f8a6a)],
-  skin: std(0xf2d9a8),
-  bug: std(0x2b2a33),
+  fin: std(0xfff3dc), eye: std(0x1c1c22), white: std(0xfbf7ee), orange: std(0xf29a2e),
+  shell: [std(0x6a8f3c), std(0x8a6a3c), std(0x4f8a6a)], skin: std(0xf2d9a8), bug: std(0x2b2a33),
+  frog: [std(0x5fae3c), std(0x7fbf4a), std(0x4a9a5a)], belly: std(0xe9efc0),
+  fur: [std(0xb89a78), std(0x8f8478), std(0xf1ece2), std(0x6f5a48)],
+  duck: [std(0xfbf7ee), std(0xf6d85a), std(0x8a6a48)],
+  bird: [std(0xd6553a), std(0x4a8ad0), std(0xe2b23a), std(0x6a6f7a)],
+  tunic: [std(0xc8553a), std(0x3f7fb0), std(0x5a9a4a), std(0xd9a53a), std(0x8a5aa8)],
+  face: [std(0xf2cfa8), std(0xd9a878), std(0xa8744a), std(0x7a5236)], hair: [std(0x3a2a22), std(0x8a5a2a), std(0xd9b65a), std(0x1c1c22)],
   wing: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
+  bfly: [0xff9a3a, 0x6ab8ff, 0xfff07a, 0xff7ab8, 0xffffff].map((c) => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide })),
   glow: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.8, 1.0) }),
 };
 export function setNightGlow(n) { for (const m of M.fish) m.emissive.copy(m.color).multiplyScalar(0.55 * n); }
+
 function glowTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -34,57 +47,92 @@ function glowTexture() {
   return new THREE.CanvasTexture(c);
 }
 let glowTex = null;
+const pickOf = (a) => a[ri(a.length)];
 
 function part(geo, mat, sx, sy, sz, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); m.castShadow = true; return m;
 }
+const eyes = (g, x, y, z, s = 0.08) => g.add(part(G.body, M.eye, s, s, s, x, y, z), part(G.body, M.eye, s, s, s, -x, y, z));
 
 function build(kind) {
-  const g = new THREE.Group(); // models face +Z
+  const g = new THREE.Group(), u = g.userData; // models face +Z
   if (kind === 'minnow') {
-    const mat = M.fish[ri(M.fish.length)];
-    g.add(part(G.body, mat, 0.34, 0.42, 0.95));
+    g.add(part(G.body, pickOf(M.fish), 0.34, 0.42, 0.95));
     const tail = new THREE.Group(); tail.position.z = -0.42;
     const t = part(G.cone, M.fin, 0.08, 0.36, 0.5, 0, 0, -0.14); t.rotation.x = Math.PI / 2; tail.add(t);
-    g.add(tail); g.userData.tail = tail;
-    g.add(part(G.body, M.eye, 0.08, 0.08, 0.08, 0.13, 0.06, 0.3), part(G.body, M.eye, 0.08, 0.08, 0.08, -0.13, 0.06, 0.3));
+    g.add(tail); u.tail = tail; eyes(g, 0.13, 0.06, 0.3);
     const fin = part(G.cone, M.fin, 0.05, 0.22, 0.3, 0, 0.22, -0.02); fin.rotation.x = -0.5; g.add(fin);
   } else if (kind === 'mossback') {
-    g.add(part(G.dome, M.shell[ri(M.shell.length)], 0.8, 0.95, 0.95, 0, 0.05, -0.05));
-    g.add(part(G.body, M.skin, 0.36, 0.3, 0.36, 0, 0.17, 0.42));
-    g.add(part(G.body, M.eye, 0.08, 0.08, 0.08, 0.1, 0.24, 0.57), part(G.body, M.eye, 0.08, 0.08, 0.08, -0.1, 0.24, 0.57));
-    g.add(part(G.body, M.skin, 0.62, 0.14, 0.8, 0, 0.07, 0));
+    g.add(part(G.dome, pickOf(M.shell), 0.8, 0.95, 0.95, 0, 0.05, -0.05), part(G.body, M.skin, 0.36, 0.3, 0.36, 0, 0.17, 0.42), part(G.body, M.skin, 0.62, 0.14, 0.8, 0, 0.07, 0));
+    eyes(g, 0.1, 0.24, 0.57);
+  } else if (kind === 'frog') {
+    const m = pickOf(M.frog);
+    g.add(part(G.body, m, 0.5, 0.34, 0.6, 0, 0.17, 0), part(G.body, M.belly, 0.42, 0.2, 0.5, 0, 0.1, 0.04));
+    g.add(part(G.body, m, 0.16, 0.16, 0.16, 0.14, 0.34, 0.2), part(G.body, m, 0.16, 0.16, 0.16, -0.14, 0.34, 0.2));
+    eyes(g, 0.16, 0.37, 0.25, 0.07);
+    g.add(part(G.body, m, 0.2, 0.16, 0.34, 0.27, 0.08, -0.18), part(G.body, m, 0.2, 0.16, 0.34, -0.27, 0.08, -0.18));
+  } else if (kind === 'rabbit') {
+    const m = pickOf(M.fur);
+    g.add(part(G.body, m, 0.46, 0.44, 0.66, 0, 0.26, -0.04), part(G.body, m, 0.34, 0.34, 0.36, 0, 0.5, 0.28));
+    const e1 = part(G.body, m, 0.09, 0.4, 0.13, 0.09, 0.82, 0.22), e2 = part(G.body, m, 0.09, 0.4, 0.13, -0.09, 0.82, 0.22);
+    e1.rotation.x = e2.rotation.x = -0.25; g.add(e1, e2); u.ears = [e1, e2];
+    g.add(part(G.body, M.white, 0.17, 0.17, 0.17, 0, 0.3, -0.38)); eyes(g, 0.14, 0.55, 0.38, 0.06);
+  } else if (kind === 'duck') {
+    const m = pickOf(M.duck);
+    g.add(part(G.body, m, 0.5, 0.4, 0.74, 0, 0.22, 0), part(G.body, m, 0.3, 0.3, 0.3, 0, 0.56, 0.3));
+    const beak = part(G.cone, M.orange, 0.15, 0.2, 0.08, 0, 0.53, 0.5); beak.rotation.x = Math.PI / 2; g.add(beak);
+    const tail = part(G.cone, m, 0.2, 0.26, 0.12, 0, 0.36, -0.4); tail.rotation.x = -1.0; g.add(tail);
+    eyes(g, 0.12, 0.62, 0.4, 0.05);
+  } else if (kind === 'villager') {
+    const tunic = pickOf(M.tunic), face = pickOf(M.face);
+    g.add(part(G.box, tunic, 0.42, 0.5, 0.28, 0, 0.6, 0), part(G.body, face, 0.36, 0.36, 0.36, 0, 1.03, 0), part(G.dome, pickOf(M.hair), 0.4, 0.34, 0.4, 0, 1.06, -0.02));
+    const l1 = part(G.box, M.bug, 0.14, 0.36, 0.16, 0.11, 0.18, 0), l2 = part(G.box, M.bug, 0.14, 0.36, 0.16, -0.11, 0.18, 0);
+    const a1 = part(G.box, face, 0.1, 0.36, 0.12, 0.27, 0.62, 0), a2 = part(G.box, face, 0.1, 0.36, 0.12, -0.27, 0.62, 0);
+    g.add(l1, l2, a1, a2); u.limbs = [l1, l2, a1, a2]; eyes(g, 0.08, 1.05, 0.17, 0.045);
+  } else if (kind === 'butterfly') {
+    g.add(part(G.body, M.bug, 0.07, 0.07, 0.32));
+    const m = pickOf(M.bfly), wl = new THREE.Group(), wr = new THREE.Group();
+    const a = part(G.wing, m, 0.42, 0.5, 1, 0.21, 0, 0), b = part(G.wing, m, 0.42, 0.5, 1, -0.21, 0, 0);
+    a.rotation.x = b.rotation.x = -Math.PI / 2; a.castShadow = b.castShadow = false; wl.add(a); wr.add(b); g.add(wl, wr); u.wings = [wl, wr];
+  } else if (kind === 'songbird') {
+    const m = pickOf(M.bird);
+    g.add(part(G.body, m, 0.3, 0.3, 0.46, 0, 0.16, 0), part(G.body, m, 0.24, 0.24, 0.24, 0, 0.32, 0.18), part(G.body, M.belly, 0.24, 0.2, 0.34, 0, 0.1, 0.04));
+    const beak = part(G.cone, M.orange, 0.07, 0.14, 0.07, 0, 0.31, 0.34); beak.rotation.x = Math.PI / 2; g.add(beak);
+    const tail = part(G.box, m, 0.16, 0.03, 0.3, 0, 0.16, -0.34); g.add(tail); eyes(g, 0.09, 0.36, 0.26, 0.04);
+    const wl = new THREE.Group(), wr = new THREE.Group(); wl.position.set(0.13, 0.22, 0); wr.position.set(-0.13, 0.22, 0);
+    wl.add(part(G.box, m, 0.36, 0.03, 0.26, 0.18, 0, 0)); wr.add(part(G.box, m, 0.36, 0.03, 0.26, -0.18, 0, 0)); g.add(wl, wr); u.wings = [wl, wr];
   } else {
     g.add(part(G.body, M.bug, 0.16, 0.16, 0.26));
     const lamp = part(G.body, M.glow, 0.17, 0.17, 0.2, 0, 0, -0.17); lamp.castShadow = false; g.add(lamp);
-    const wl = part(G.wing, M.wing, 0.34, 0.2, 1, 0.17, 0.1, 0), wr = part(G.wing, M.wing, 0.34, 0.2, 1, -0.17, 0.1, 0);
-    wl.rotation.x = wr.rotation.x = -Math.PI / 2; wl.castShadow = wr.castShadow = false;
-    g.add(wl, wr); g.userData.wings = [wl, wr];
+    const wl = new THREE.Group(), wr = new THREE.Group();
+    const a = part(G.wing, M.wing, 0.34, 0.2, 1, 0.17, 0.1, 0), b = part(G.wing, M.wing, 0.34, 0.2, 1, -0.17, 0.1, 0);
+    a.rotation.x = b.rotation.x = -Math.PI / 2; a.castShadow = b.castShadow = false; wl.add(a); wr.add(b); g.add(wl, wr); u.wings = [wl, wr];
     glowTex ||= glowTexture();
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-    sp.scale.setScalar(2.2); g.add(sp); g.userData.halo = sp;
+    sp.scale.setScalar(2.2); g.add(sp); u.halo = sp;
   }
   return g;
 }
 
+const lerpAngle = (a, b, t) => { let d = (b - a) % 6.2832; if (d > 3.1416) d -= 6.2832; else if (d < -3.1416) d += 6.2832; return a + d * t; };
+const FLY = { glimmer: 1, butterfly: 1, songbird: 1 };
+
 export class Critters {
   constructor(world, scene, fx) {
     this.world = world; this.scene = scene; this.fx = fx;
-    this.list = [];
-    this.counts = { minnow: 0, mossback: 0, glimmer: 0 };
-    this.possessed = null;
-    this.onEvent = () => {};
+    this.list = []; this.counts = {}; for (const k of KIND_IDS) this.counts[k] = 0;
+    this.possessed = null; this.onEvent = () => {};
   }
 
   spawn(kind, x, y, z, quiet) {
     if (this.counts[kind] >= KINDS[kind].cap) return null;
     const c = {
-      kind, x, y, z, vx: 0, vy: 0, vz: 0, yaw: rnd() * 6.28, food: 0, age: 0, dry: 0, t: rnd() * 10,
-      tx: x, ty: y, tz: z, retarget: 0, ground: false, eatCd: 0, mesh: build(kind), dead: false, size: quiet ? 1 : 0.2,
+      kind, x, y, z, vx: 0, vy: 0, vz: 0, yaw: rnd() * 6.28, food: 0, age: quiet ? rnd() * 40 : 0, dry: 0, t: rnd() * 10,
+      tx: x, ty: y, tz: z, retarget: 0, ground: false, eatCd: 1 + rnd() * 3, hopCd: 0, walk: false, heading: rnd() * 6.28, rest: 0,
+      hx: x, hz: z, mesh: build(kind), dead: false, size: quiet ? 1 : 0.2,
     };
     c.mesh.position.set(x, y, z);
-    this.scene.add(c.mesh);
-    this.list.push(c); this.counts[kind]++;
+    this.scene.add(c.mesh); this.list.push(c); this.counts[kind]++;
     return c;
   }
 
@@ -96,71 +144,80 @@ export class Critters {
     if (this.possessed === c) { this.possessed = null; this.onEvent('lost', c); }
   }
 
-  clear() { for (const c of this.list) { this.scene.remove(c.mesh); } this.list = []; this.counts = { minnow: 0, mossback: 0, glimmer: 0 }; this.possessed = null; }
+  clear() { for (const c of this.list) this.scene.remove(c.mesh); this.list = []; for (const k of KIND_IDS) this.counts[k] = 0; this.possessed = null; }
 
-  serialize() { return this.list.filter(c => !c.dead).map(c => [c.kind[1] === 'i' ? 0 : c.kind[1] === 'o' ? 1 : 2, +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), c.food]); }
+  serialize() { return this.list.filter((c) => !c.dead).map((c) => [KIND_IDS.indexOf(c.kind), +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), c.food]); }
   deserialize(arr) {
     this.clear();
-    for (const a of arr || []) { const c = this.spawn(['minnow', 'mossback', 'glimmer'][a[0]], a[1], a[2], a[3], true); if (c) c.food = a[4] || 0; }
+    for (const a of arr || []) { const k = KIND_IDS[a[0]]; if (!k) continue; const c = this.spawn(k, a[1], a[2], a[3], true); if (c) c.food = a[4] || 0; }
   }
 
   // nearest creature to a ray (grid space)
   pick(o, d) {
     let best = null, bt = 1e9;
     for (const c of this.list) {
-      const px = c.x - o.x, py = c.y + 0.2 - o.y, pz = c.z - o.z;
+      const px = c.x - o.x, py = c.y + 0.3 - o.y, pz = c.z - o.z;
       const t = px * d.x + py * d.y + pz * d.z; if (t < 0) continue;
-      const dx = px - d.x * t, dy = py - d.y * t, dz = pz - d.z * t;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist < 1.6 && t + dist * 6 < bt) { bt = t + dist * 6; best = c; }
+      const dist = Math.hypot(px - d.x * t, py - d.y * t, pz - d.z * t);
+      if (dist < 1.8 && t + dist * 6 < bt) { bt = t + dist * 6; best = c; }
     }
     return best;
   }
+
+  // everything within r of a point dies (meteors, lightning)
+  blast(x, y, z, r, color) { for (const c of this.list) if (!c.dead && Math.hypot(c.x - x, c.y - y, c.z - z) < r) this.remove(c, color); }
 
   update(dt, input, night) {
     const w = this.world;
     for (const c of this.list) {
       if (c.dead) continue;
-      c.age += dt; c.t += dt; c.eatCd -= dt;
+      c.age += dt; c.t += dt; c.eatCd -= dt; c.hopCd -= dt;
       if (c.size < 1) c.size = Math.min(1, c.size + dt * 0.25);
       const ctl = this.possessed === c ? input : null;
       const cx = Math.floor(c.x), cy = Math.floor(c.y + 0.2), cz = Math.floor(c.z);
       const here = w.get(cx, cy, cz);
       if (here === LAVA || here === FIRE) { this.remove(c, 0xff9a3a); continue; }
       if (c.kind === 'minnow') this.minnow(c, dt, ctl, here, cx, cy, cz);
-      else if (c.kind === 'mossback') this.mossback(c, dt, ctl, here, cx, cy, cz);
-      else this.glimmer(c, dt, ctl);
+      else if (FLY[c.kind]) this.flier(c, dt, ctl, night);
+      else this.lander(c, dt, ctl, here, cx, cy, cz, night);
       if (c.dead) continue;
-      const m = c.mesh;
-      m.position.set(c.x, c.y, c.z);
-      m.scale.setScalar(c.size * (c.kind === 'glimmer' ? 0.9 : 1));
-      if (c.kind === 'minnow') {
-        const sp = Math.hypot(c.vx, c.vz);
-        m.rotation.set(-Math.atan2(c.vy, Math.max(0.6, sp)) * 0.6, c.yaw, c.dry > 0.3 ? Math.PI / 2 : 0, 'YXZ');
-        m.userData.tail.rotation.y = Math.sin(c.t * (6 + sp * 4)) * 0.5;
-      } else if (c.kind === 'mossback') {
-        m.rotation.set(0, c.yaw, Math.sin(c.t * 9) * 0.05 * Math.min(1, Math.hypot(c.vx, c.vz)), 'YXZ');
-      } else {
-        m.rotation.set(0, c.yaw, 0);
-        const f = Math.sin(c.t * 60) * 0.7;
-        m.userData.wings[0].rotation.y = f; m.userData.wings[1].rotation.y = -f;
-        m.userData.halo.material.opacity = (0.12 + night * 0.88) * (0.65 + 0.35 * Math.sin(c.t * 2.3));
-      }
+      this.pose(c, night);
     }
-    if (this.list.some(c => c.dead)) this.list = this.list.filter(c => !c.dead);
+    if (this.list.some((c) => c.dead)) this.list = this.list.filter((c) => !c.dead);
   }
 
-  swimmable(x, y, z) {
-    const w = this.world; if (!w.inb(x, y, z)) return false;
-    const m = w.get(x, y, z);
-    return m === WEED || (m === WATER && (w.getAux(x, y, z) >= 4 || w.get(x, y + 1, z) === WATER));
+  pose(c, night) {
+    const m = c.mesh, u = m.userData, sp = Math.hypot(c.vx, c.vz);
+    m.position.set(c.x, c.y, c.z);
+    m.scale.setScalar(c.size);
+    if (c.kind === 'minnow') {
+      m.rotation.set(-Math.atan2(c.vy, Math.max(0.6, sp)) * 0.6, c.yaw, c.dry > 0.3 ? Math.PI / 2 : 0, 'YXZ');
+      u.tail.rotation.y = Math.sin(c.t * (6 + sp * 4)) * 0.5;
+    } else if (FLY[c.kind]) {
+      m.rotation.set(0, c.yaw, 0);
+      const resting = c.rest > 0;
+      const f = c.kind === 'glimmer' ? Math.sin(c.t * 60) * 0.7 : c.kind === 'butterfly' ? (resting ? 1.1 + Math.sin(c.t * 2) * 0.15 : Math.sin(c.t * 16) * 1.1) : (resting ? -1.2 : Math.sin(c.t * 22) * 0.9);
+      u.wings[0].rotation.z = f; u.wings[1].rotation.z = -f;
+      if (u.halo) u.halo.material.opacity = (0.12 + night * 0.88) * (0.65 + 0.35 * Math.sin(c.t * 2.3));
+    } else {
+      const air = c.ground ? 0 : Math.max(-0.5, Math.min(0.5, c.vy * 0.06));
+      m.rotation.set(c.kind === 'villager' ? 0 : -air, c.yaw, Math.sin(c.t * 9) * 0.05 * Math.min(1, sp), 'YXZ');
+      if (u.limbs) { const s = Math.sin(c.t * 10) * Math.min(1, sp) * 0.7; u.limbs[0].rotation.x = s; u.limbs[1].rotation.x = -s; u.limbs[2].rotation.x = -s; u.limbs[3].rotation.x = s; }
+      if (u.ears) { u.ears[0].rotation.x = u.ears[1].rotation.x = -0.25 - air; }
+    }
+  }
+
+  canSwim(fx, fy, fz) {
+    const w = this.world; if (fx < 0.3 || fz < 0.3 || fx > W - 0.3 || fz > D - 0.3) return false;
+    const s = w.surfAt(fx, fz);
+    return s > 0 && w.depthAt(fx, fz) > 0.55 && fy > w.bedAt(fx, fz) + 0.12 && fy < s - 0.14;
   }
 
   minnow(c, dt, ctl, here, cx, cy, cz) {
     const w = this.world;
     if (here === STEAM) { this.remove(c, 0xffffff); return; }
-    const wet = this.swimmable(cx, cy, cz);
-    if (wet) {
+    const surf = w.surfAt(c.x, c.z), bed = w.bedAt(c.x, c.z);
+    if (surf > 0 && surf - bed > 0.45 && c.y < surf + 0.1 && !w.solid(cx, cy, cz)) {
       c.dry = 0;
       let dx = 0, dy = 0, dz = 0, sp = 2.6;
       if (ctl) { dx = ctl.x; dz = ctl.z; dy = ctl.up; sp = 4.5; }
@@ -170,10 +227,10 @@ export class Critters {
         if (c.retarget <= 0 || dist < 0.5) {
           c.retarget = 1.5 + rnd() * 3;
           for (let k = 0; k < 10; k++) {
-            const x = cx + ri(13) - 6, y = cy + ri(7) - 3, z = cz + ri(13) - 6;
-            if (!this.swimmable(x, y, z)) continue;
-            c.tx = x + 0.5; c.ty = y + 0.3; c.tz = z + 0.5;
-            if (c.food < 3 && w.get(x, y, z) !== WEED && k < 6) continue; // keep looking for weed while hungry
+            const x = c.x + (rnd() - 0.5) * 13, z = c.z + (rnd() - 0.5) * 13, s = w.surfAt(x, z);
+            if (s < 0 || w.depthAt(x, z) < 0.7) continue;
+            const b = w.bedAt(x, z); c.tx = x; c.tz = z; c.ty = b + 0.3 + rnd() * Math.max(0, s - b - 0.6);
+            if (c.food < 4 && k < 6) { if (w.get(Math.floor(x), Math.floor(b), Math.floor(z)) !== WEED) continue; c.ty = b + 0.4; }
             break;
           }
         } else { dx = tdx / dist; dy = tdy / dist; dz = tdz / dist; }
@@ -181,22 +238,18 @@ export class Critters {
       }
       const k = Math.min(1, dt * 4);
       c.vx += (dx * sp - c.vx) * k; c.vy += (dy * sp - c.vy) * k; c.vz += (dz * sp - c.vz) * k;
-      const nx = c.x + c.vx * dt, ny = c.y + c.vy * dt, nz = c.z + c.vz * dt;
-      if (this.swimmable(Math.floor(nx), cy, cz)) c.x = nx; else { c.vx *= -0.3; c.retarget = 0; }
-      if (this.swimmable(Math.floor(c.x), Math.floor(ny + 0.2), cz)) c.y = ny; else { c.vy = 0; if (!ctl) c.retarget = Math.min(c.retarget, 0.3); }
-      if (this.swimmable(Math.floor(c.x), Math.floor(c.y + 0.2), Math.floor(nz))) c.z = nz; else { c.vz *= -0.3; c.retarget = 0; }
+      // the current carries fish along
+      const nx = c.x + c.vx * dt, nz = c.z + c.vz * dt;
+      if (this.canSwim(nx, c.y, c.z) && !w.solid(Math.floor(nx), cy, cz)) c.x = nx; else { c.vx *= -0.3; c.retarget = 0; }
+      if (this.canSwim(c.x, c.y, nz) && !w.solid(Math.floor(c.x), cy, Math.floor(nz))) c.z = nz; else { c.vz *= -0.3; c.retarget = 0; }
+      const s2 = w.surfAt(c.x, c.z), b2 = w.bedAt(c.x, c.z);
+      c.y = Math.max(b2 + 0.15, Math.min(s2 > 0 ? s2 - 0.18 : c.y, c.y + c.vy * dt));
       if (Math.hypot(c.vx, c.vz) > 0.2) c.yaw = lerpAngle(c.yaw, Math.atan2(c.vx, c.vz), Math.min(1, dt * 8));
-      if (here === WEED && c.eatCd <= 0 && c.food < 6) {
-        w.set(cx, cy, cz, WATER, 8); c.food++; c.eatCd = 4; this.fx.burst(c.x, c.y, c.z, 4, 0x58c08a, 1);
-      }
-      if (c.food >= 4 && c.age > 70 && c.eatCd <= 0 && this.counts.minnow < KINDS.minnow.cap) {
-        c.food = 0; c.age = 0; this.spawn('minnow', c.x, c.y, c.z);
-      }
+      if (here === WEED && c.eatCd <= 0 && c.food < 6) { w.set(cx, cy, cz, AIR); c.food++; c.eatCd = 4; this.fx.burst(c.x, c.y, c.z, 4, 0x58c08a, 1); }
+      if (c.food >= 5 && c.age > 150 && c.eatCd <= 0) { c.food = 0; c.age = 0; this.spawn('minnow', c.x, c.y, c.z); }
     } else {
-      // stranded: flop about and hope for water
       if (w.solid(cx, cy, cz)) { c.y += 3 * dt; return; }
-      c.dry += dt;
-      c.vy -= 22 * dt;
+      c.dry += dt; c.vy -= 22 * dt;
       const ny = c.y + c.vy * dt;
       if (w.solid(cx, Math.floor(ny), cz)) {
         c.y = Math.floor(ny) + 1.02; c.vy = rnd() < 0.5 ? 3 + rnd() * 2 : 0;
@@ -209,39 +262,65 @@ export class Critters {
     }
   }
 
-  mossback(c, dt, ctl, here, cx, cy, cz) {
-    const w = this.world;
+  // sample for something nearby; returns [x, y, z] of a matching cell or null
+  find(c, mat, r, tries = 8) {
+    const w = this.world, cx = Math.floor(c.x), cy = Math.floor(c.y + 0.2), cz = Math.floor(c.z);
+    for (let k = 0; k < tries; k++) {
+      const x = cx + ri(r * 2 + 1) - r, z = cz + ri(r * 2 + 1) - r, y = cy + ri(5) - 2;
+      if (w.get(x, y, z) === mat) return [x, y, z];
+    }
+    return null;
+  }
+
+  lander(c, dt, ctl, here, cx, cy, cz, night) {
+    const w = this.world, kind = c.kind;
     if (w.solid(cx, cy, cz)) { c.y += 4 * dt; c.vy = 0; return; } // dig out when buried
-    const inWater = here === WATER && w.getAux(cx, cy, cz) >= 4 || here === WEED;
-    let dx = 0, dz = 0, sp = 1.3;
+    const surf = w.surfAt(c.x, c.z), inWater = surf > c.y + 0.3;
+    const hops = kind === 'frog' || kind === 'rabbit';
+    let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7 }[kind], jump = false;
     if (ctl) {
-      dx = ctl.x; dz = ctl.z; sp = 3.2;
-      if (ctl.up > 0 && (c.ground || inWater)) { c.vy = 7.5; c.ground = false; }
+      dx = ctl.x; dz = ctl.z; sp *= kind === 'mossback' ? 2.4 : 1.6; jump = ctl.up > 0;
     } else {
       c.retarget -= dt;
       if (c.retarget <= 0) {
-        c.retarget = 2 + rnd() * 4;
-        c.walk = rnd() < 0.8;
-        let ang = c.yaw + (rnd() - 0.5) * 2.4;
-        if (c.food < 4) {
-          for (let k = 0; k < 8; k++) {
-            const x = cx + ri(11) - 5, z = cz + ri(11) - 5, y = cy + ri(5) - 2;
-            if (w.get(x, y, z) === TUFT) { ang = Math.atan2(x + 0.5 - c.x, z + 0.5 - c.z); c.walk = true; break; }
+        c.retarget = 2 + rnd() * 4; c.walk = rnd() < (kind === 'frog' ? 0.45 : 0.8);
+        let ang = c.heading + (rnd() - 0.5) * 2.4, t = null;
+        if (kind === 'mossback' || kind === 'rabbit') { if (c.food < 5) t = this.find(c, TUFT, 6); }
+        else if (kind === 'duck' || kind === 'frog') {
+          // drawn to water
+          if (!inWater || rnd() < 0.5) for (let k = 0; k < 8 && !t; k++) {
+            const x = c.x + (rnd() - 0.5) * 18, z = c.z + (rnd() - 0.5) * 18;
+            if (w.surfAt(x, z) > 0 && w.depthAt(x, z) > (kind === 'duck' ? 0.6 : 0.2)) t = [x, 0, z];
           }
-        }
+          if (kind === 'frog' && inWater && rnd() < 0.5) c.walk = false;
+        } else if (kind === 'villager') ang = this.villagerPlan(c, ang);
+        if (t) { ang = Math.atan2(t[0] + 0.5 - c.x, t[2] + 0.5 - c.z); c.walk = true; }
         c.heading = ang;
       }
       if (c.walk) { dx = Math.sin(c.heading); dz = Math.cos(c.heading); }
     }
-    if (inWater) { sp *= 0.6; c.vy += (2.2 - c.vy) * Math.min(1, dt * 5); }
-    else c.vy -= 24 * dt;
-    c.vx = dx * sp; c.vz = dz * sp;
+    // vertical
+    if (inWater) {
+      const sink = kind === 'duck' ? 0.16 : kind === 'frog' ? 0.22 : 0.3;
+      const want = Math.max(-3, Math.min(4, (surf - sink - c.y) * 9));
+      c.vy += (want - c.vy) * Math.min(1, dt * 7);
+      sp *= kind === 'duck' ? 1.5 : kind === 'frog' ? 0.7 : 0.55;
+      if (jump && kind !== 'duck') c.vy = 5;
+    } else {
+      c.vy -= 24 * dt;
+      if (c.ground) {
+        if (jump) { c.vy = kind === 'frog' ? 9 : 7.5; c.ground = false; }
+        else if (hops && (dx || dz) && c.hopCd <= 0) { c.vy = kind === 'frog' ? 6.5 : 5; c.ground = false; c.hopCd = kind === 'frog' ? 0.5 + rnd() * 1.2 : 0.12; }
+      }
+    }
+    const moving = !hops || !c.ground || inWater;
+    c.vx = moving ? dx * sp : 0; c.vz = moving ? dz * sp : 0;
     // horizontal with one-block step-up
     for (let axis = 0; axis < 2; axis++) {
       const v = axis ? c.vz : c.vx; if (!v) continue;
       const n = (axis ? c.z : c.x) + v * dt, pad = n + Math.sign(v) * 0.3;
       const px = Math.floor(axis ? c.x : pad), pz = Math.floor(axis ? pad : c.z), fy = Math.floor(c.y + 0.1);
-      if (pad < 0.2 || pad > (axis ? D : W) - 0.2) { if (!ctl) c.heading = (c.heading || 0) + Math.PI; continue; }
+      if (pad < 0.2 || pad > (axis ? D : W) - 0.2) { if (!ctl) c.heading += Math.PI; continue; }
       if (!w.solid(px, fy, pz)) { if (axis) c.z = n; else c.x = n; }
       else if ((c.ground || inWater) && !w.solid(px, fy + 1, pz) && !w.solid(Math.floor(c.x), fy + 1, Math.floor(c.z))) {
         c.y = fy + 1.02; if (axis) c.z = n; else c.x = n;
@@ -254,42 +333,108 @@ export class Critters {
     else c.y = ny;
     if (c.y > H - 1) c.y = H - 1;
     if (dx || dz) c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 7));
-    if (here === TUFT && c.eatCd <= 0 && c.food < 6) {
-      w.set(cx, cy, cz, AIR); c.food++; c.eatCd = 3; this.fx.burst(c.x, c.y + 0.3, c.z, 4, 0x86cf58, 1);
-    }
-    if (c.food >= 5 && c.age > 80 && this.counts.mossback < KINDS.mossback.cap) {
-      c.food = 0; c.age = 0; this.spawn('mossback', c.x, c.y + 0.2, c.z);
-    }
+
+    // appetites
+    if (kind === 'mossback' || kind === 'rabbit') {
+      if (here === TUFT && c.eatCd <= 0 && c.food < 6) { w.set(cx, cy, cz, AIR); c.food++; c.eatCd = kind === 'rabbit' ? 2 : 3; this.fx.burst(c.x, c.y + 0.3, c.z, 4, 0x86cf58, 1); }
+      if (c.food >= 5 && c.age > 140) { c.food = 0; c.age = 0; this.spawn(kind, c.x, c.y + 0.2, c.z); }
+    } else if (kind === 'frog') {
+      if (c.eatCd <= 0) {
+        c.eatCd = 1.5;
+        for (const o of this.list) if (!o.dead && (o.kind === 'glimmer' || o.kind === 'butterfly') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.6) {
+          this.remove(o, 0xe9ff8a); c.food++; c.eatCd = 12; c.vy = 5; break;
+        }
+      }
+      if (c.food >= 3 && c.age > 90 && inWater) { c.food = 0; c.age = 0; this.spawn('frog', c.x, c.y, c.z); }
+    } else if (kind === 'duck') {
+      if (inWater && c.eatCd <= 0) {
+        c.eatCd = 3; const b = Math.floor(w.bedAt(c.x, c.z));
+        for (let y = b + 2; y >= b; y--) if (w.get(cx, y, cz) === WEED) { w.set(cx, y, cz, AIR); c.food++; c.eatCd = 8; this.fx.burst(c.x, c.y, c.z, 5, 0x9fe0f0, 1.5); break; }
+      }
+      if (c.food >= 4 && c.age > 110) { c.food = 0; c.age = 0; this.spawn('duck', c.x, c.y + 0.2, c.z); }
+    } else if (kind === 'villager') this.villagerWork(c, cx, cy, cz);
   }
 
-  glimmer(c, dt, ctl) {
+  // villagers: gather wood, build huts near home, replant, and raise families beside a roof
+  villagerPlan(c, ang) {
     const w = this.world;
-    let dx = 0, dy = 0, dz = 0, sp = 2.2;
-    if (ctl) { dx = ctl.x; dz = ctl.z; dy = ctl.up; sp = 6; }
-    else {
+    if (Math.hypot(c.hx - c.x, c.hz - c.z) > 16) return Math.atan2(c.hx - c.x, c.hz - c.z);
+    if (c.food < 3) {
+      for (let k = 0; k < 14; k++) {
+        const x = Math.floor(c.x) + ri(21) - 10, z = Math.floor(c.z) + ri(21) - 10, y = Math.floor(c.y) + ri(4) - 1;
+        if (w.get(x, y, z) === WOOD && w.get(x, y - 1, z) !== WOOD && w.get(x, y + 1, z) === WOOD) { c.job = [x, y, z]; c.walk = true; return Math.atan2(x + 0.5 - c.x, z + 0.5 - c.z); }
+      }
+    }
+    c.job = null;
+    return ang;
+  }
+  villagerWork(c, cx, cy, cz) {
+    const w = this.world;
+    if (c.eatCd > 0) return;
+    if (c.job && Math.hypot(c.job[0] + 0.5 - c.x, c.job[2] + 0.5 - c.z) < 1.7) {
+      const [x, y, z] = c.job; c.job = null; c.eatCd = 4;
+      for (let k = 0; k < 9 && w.get(x, y + k, z) === WOOD; k++) w.set(x, y + k, z, AIR);
+      c.food += 3; this.fx.burst(x + 0.5, y + 0.6, z + 0.5, 10, 0x8a5a34, 2.5); this.onEvent('chop', c);
+      if (w.get(x + 1, y, z) === AIR && rnd() < 0.8) w.set(x + 1, y, z, SEED);
+      return;
+    }
+    if (c.food >= 3 && c.ground) {
+      c.eatCd = 3;
+      const a = rnd() * 6.283, r = 3 + rnd() * 4, hx = Math.round(c.x + Math.cos(a) * r), hz = Math.round(c.z + Math.sin(a) * r), hy = w.groundY(hx, hz);
+      const top = w.get(hx, hy - 1, hz);
+      if ((top === TURF || top === SOIL) && Math.abs(hy - c.y) < 2.5 && w.hut(hx, hy, hz)) {
+        c.food = 0; c.hx = hx; c.hz = hz; this.fx.burst(hx + 0.5, hy + 1.5, hz + 0.5, 16, 0xd9b65a, 3); this.onEvent('build', c);
+      }
+      return;
+    }
+    if (c.age > 120 && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; } }
+  }
+
+  flier(c, dt, ctl, night) {
+    const w = this.world, kind = c.kind;
+    let dx = 0, dy = 0, dz = 0, sp = kind === 'songbird' ? 5 : kind === 'butterfly' ? 1.7 : 2.2;
+    const sleepy = (kind === 'butterfly' && night > 0.6) || (kind === 'songbird' && night > 0.75);
+    if (ctl) { dx = ctl.x; dz = ctl.z; dy = ctl.up; sp = kind === 'songbird' ? 8 : 6; c.rest = 0; }
+    else if (c.rest > 0) {
+      c.rest -= dt; c.vx = c.vy = c.vz = 0;
+      if (sleepy) c.rest = Math.max(c.rest, 1);
+      if (kind === 'songbird' && rnd() < dt * 0.25 && !sleepy) this.onEvent('chirp', c);
+      // the perch may have gone
+      if (!w.solid(Math.floor(c.x), Math.floor(c.y - 0.3), Math.floor(c.z))) c.rest = 0;
+      return;
+    } else {
       c.retarget -= dt;
       const tx = c.tx - c.x, ty = c.ty - c.y, tz = c.tz - c.z, dist = Math.hypot(tx, ty, tz);
+      if (dist < 0.6 && c.land) { c.rest = kind === 'songbird' ? 3 + rnd() * 7 : 2 + rnd() * 4; c.land = false; c.retarget = 0; return; }
       if (c.retarget <= 0 || dist < 0.6) {
-        c.retarget = 2 + rnd() * 4;
-        c.tx = Math.min(W - 2, Math.max(2, c.x + (rnd() - 0.5) * 18));
-        c.tz = Math.min(D - 2, Math.max(2, c.z + (rnd() - 0.5) * 18));
-        c.ty = Math.min(H - 2, w.groundY(c.tx, c.tz) + 1.5 + rnd() * 3.5);
+        c.retarget = 2 + rnd() * 4; c.land = false;
+        const range = kind === 'songbird' ? 30 : 18;
+        c.tx = Math.min(W - 2, Math.max(2, c.x + (rnd() - 0.5) * range));
+        c.tz = Math.min(D - 2, Math.max(2, c.z + (rnd() - 0.5) * range));
+        const gy = Math.max(w.groundY(c.tx, c.tz), w.surfAt(c.tx, c.tz));
+        c.ty = Math.min(H - 2, gy + (kind === 'butterfly' ? 0.8 + rnd() * 1.6 : kind === 'songbird' ? 3 + rnd() * 6 : 1.5 + rnd() * 3.5));
+        if (kind !== 'glimmer' && (sleepy || rnd() < (kind === 'songbird' ? 0.6 : 0.3))) {
+          // pick somewhere to settle: birds like treetops, butterflies like flowers
+          const t = this.find(c, kind === 'songbird' ? LEAF : TUFT, 9, 12);
+          if (t && w.get(t[0], t[1] + 1, t[2]) === AIR) { c.tx = t[0] + 0.5; c.ty = t[1] + (kind === 'songbird' ? 1.02 : 0.9); c.tz = t[2] + 0.5; c.land = kind === 'songbird' || sleepy; c.retarget = 8; }
+          else if (sleepy && w.surfAt(c.tx, c.tz) < 0) { c.ty = w.groundY(c.tx, c.tz) + 0.05; c.land = true; c.retarget = 8; }
+        }
       } else { dx = tx / dist; dy = ty / dist; dz = tz / dist; }
-      dx += Math.sin(c.t * 2.1) * 0.5; dz += Math.cos(c.t * 1.7) * 0.5; dy += Math.sin(c.t * 3.3) * 0.4;
+      const wob = kind === 'butterfly' ? 1.3 : kind === 'songbird' ? 0.15 : 0.5;
+      dx += Math.sin(c.t * 2.1) * wob; dz += Math.cos(c.t * 1.7) * wob; dy += Math.sin(c.t * (kind === 'butterfly' ? 7 : 3.3)) * wob * 0.8;
     }
     const k = Math.min(1, dt * 3);
     c.vx += (dx * sp - c.vx) * k; c.vy += (dy * sp - c.vy) * k; c.vz += (dz * sp - c.vz) * k;
     const nx = c.x + c.vx * dt, ny = c.y + c.vy * dt, nz = c.z + c.vz * dt;
-    const free = (x, y, z) => { if (x < 0.5 || z < 0.5 || x > W - 0.5 || z > D - 0.5 || y < 0.3 || y > H - 0.5) return false; const m = w.get(Math.floor(x), Math.floor(y), Math.floor(z)); return !OPAQUE[m] && m !== WATER && m !== WEED; };
+    const free = (x, y, z) => { if (x < 0.5 || z < 0.5 || x > W - 0.5 || z > D - 0.5 || y < 0.3 || y > H - 0.5) return false; return !OPAQUE[w.get(Math.floor(x), Math.floor(y), Math.floor(z))] && !(w.surfAt(x, z) > y); };
     if (free(nx, c.y, c.z)) c.x = nx; else { c.vx *= -0.5; c.retarget = 0; }
     if (free(c.x, ny, c.z)) c.y = ny; else { c.vy = Math.abs(c.vy) * 0.5 + 0.5; c.retarget = 0; if (!free(c.x, c.y, c.z)) c.y += 3 * dt; }
     if (free(c.x, c.y, nz)) c.z = nz; else { c.vz *= -0.5; c.retarget = 0; }
     if (Math.hypot(c.vx, c.vz) > 0.3) c.yaw = lerpAngle(c.yaw, Math.atan2(c.vx, c.vz), Math.min(1, dt * 6));
+    if (kind === 'songbird' && c.eatCd <= 0) { // birds carry seeds about
+      c.eatCd = 20 + rnd() * 30;
+      const gy = w.groundY(c.x, c.z);
+      if (w.get(Math.floor(c.x), gy, Math.floor(c.z)) === AIR && w.get(Math.floor(c.x), gy - 1, Math.floor(c.z)) === TURF && rnd() < 0.3) w.set(Math.floor(c.x), gy, Math.floor(c.z), SEED);
+    }
   }
-}
-
-function lerpAngle(a, b, t) {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2; else if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
 }
