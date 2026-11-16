@@ -47,6 +47,19 @@ export class Sound {
     o.connect(g).connect(this.master); o.start(); o.stop(ctx.currentTime + dur + 0.02);
   }
 
+  // running water: a second noise bed whose level follows how much water is flowing
+  babble(level) {
+    const ctx = this.ctx; if (!ctx) return;
+    if (!this.babGain) {
+      const src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true; src.playbackRate.value = 0.7;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.5;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.35; const lg = ctx.createGain(); lg.gain.value = 500; lfo.connect(lg).connect(f.frequency); lfo.start();
+      this.babGain = ctx.createGain(); this.babGain.gain.value = 0;
+      src.connect(f).connect(this.babGain).connect(this.master); src.start();
+    }
+    this.babGain.gain.setTargetAtTime(Math.min(0.11, level), ctx.currentTime, 0.4);
+  }
+
   // a low rumble: thunder, impacts, quakes
   boom(vol = 0.5, dur = 1.4, freq = 180) {
     const ctx = this.ctx; if (!ctx) return;

@@ -38,15 +38,17 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Water** is not voxels. It is a virtual-pipes shallow-water simulation on a grid twice as fine as the terrain:
   it has momentum, makes waves, runs downhill as streams, pools, is displaced by anything dropped in and spills
   over the rim. It is drawn as one smooth surface with reflections, depth colour, foam and caustics beneath.
-- **Earth**: sand, soil, stone, lava, ice, seeds; raise, lower and smooth the land; paint any of nine biomes.
+- **Earth**: sand, soil, stone, lava, ice, seeds, springs that well up water and drains that swallow it; raise, lower and smooth the land; paint any of nine biomes.
 - **Reactions**: lava boils water to steam and freezes to basalt; steam condenses and rains back; fire spreads
   through trees, grass and huts; water puts it out; ice melts by heat.
 - **Growth**: soil near water turns to turf with real blade grass, flowers and trees in each biome's colours;
   waterweed takes root on lake beds.
-- **Life**: minnows, ducks, frogs, mossbacks, rabbits, butterflies, songbirds, glimmers and villagers. Animals graze,
-  hunt and multiply; villagers fell trees, replant, build huts and raise families. Ride along with any of them in
+- **Life**: minnows, ducks, frogs, crabs, mossbacks, rabbits, deer, foxes, bees, butterflies, songbirds, glimmers and
+  villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
+  lantern-lit huts and raise families. Ride along with any of them in
   third or first person.
-- **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut.
+- **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Rain can be stepped
+  up to a storm with overcast skies and lightning. U hides the interface for photos.
 - **Worlds**: ten world types (valley, atoll, archipelago, canyon, highlands, marsh, dunes, patchwork, volcano, bare
   tray) at any size from 32 to 160 blocks a side, with generated villages. Save as many named worlds as the
   browser's storage holds; the current one also autosaves.

@@ -258,6 +258,8 @@ export class World {
         wd[i] = d > 1e-5 ? d : 0;
       }
     }
+    let fsum = 0; for (let i = 0; i < fr.length; i += 3) fsum += fr[i] + fb[i];
+    this.flow = fsum * 3 / fr.length;       // how much water is on the move (for sound)
     this.aggregate();
   }
 
@@ -416,7 +418,7 @@ export class World {
             if ((t + i) & 1) continue;
             let a = aux[i] - 1;
             const c = x + z * W;
-            if (cd[c] > 0.05 && cs[c] > y + 0.2) a = 0;
+            if ((cd[c] > 0.05 && cs[c] > y + 0.2) || (this.raining && rnd() < 0.06)) a = 0;
             for (let k = 0; k < 6; k++) {
               let n, nx = x, nz = z;
               if (k < 4) { nx += DX[k]; nz += DZ[k]; if (nx < 0 || nx >= W || nz < 0 || nz >= D) continue; n = i + DI[k]; }

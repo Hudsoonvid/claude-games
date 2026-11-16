@@ -149,8 +149,8 @@ const TOOLS = [
   { id: 'dig', tab: 'earth', label: 'Scoop', type: 'dig', color: '#efe7d8', glyph: '⌣' },
   // life
   ...KIND_IDS.map((k) => ({ id: k, tab: 'life', label: k[0].toUpperCase() + k.slice(1), type: 'critter',
-    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', villager: '#f3c9b0', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158' }[k],
-    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', villager: '☺', butterfly: '⋈', songbird: '♪', glimmer: '✦' }[k], gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
+    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158' }[k],
+    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦' }[k], gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
   { id: 'possess', tab: 'life', label: 'Ride along', type: 'possess', color: '#f6d9c9', glyph: '⌖' },
   // powers
   { id: 'fire', tab: 'powers', label: 'Spark', type: 'fire', color: '#ffb028', glyph: '♨' },
@@ -167,12 +167,24 @@ const TOOLS = [
 const toolById = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
 const TABS = [['earth', 'Earth'], ['life', 'Life'], ['powers', 'Powers']];
 
+const TIPS = {
+  look: 'Drag to look around', sand: 'Pour sand: it slides into dunes', soil: 'Pour soil: holds steeper slopes and grows turf near water',
+  stone: 'Build solid stone', water: 'Pour water: it flows, pools and spills', lava: 'Pour lava: sets things alight and turns to basalt in water',
+  ice: 'Build ice: melts next to heat', spring: 'A block that wells up water forever', drain: 'A block that swallows water',
+  seed: 'Scatter seeds: they sprout on damp soil', raise: 'Raise the land', lower: 'Lower the land', smooth: 'Even out the land',
+  biome: 'Paint a biome: changes grass, leaves and tree shapes', dig: 'Scoop away anything, water included',
+  possess: 'Click a creature to steer it yourself', fire: 'Set things alight', bolt: 'Call down lightning', meteor: 'Drop a meteor',
+  quake: 'Shake and crack the ground', cloud: 'A local downpour', dry: 'Boil water off into steam', freeze: 'Turn standing water to ice',
+  thaw: 'Melt ice back to water', bloom: 'Make everything nearby grow', hut: 'Raise a hut and a villager to live in it',
+};
+
 // ---------------------------------------------------------------- toolbar UI
 const toolsEl = $('tools');
 for (const t of TOOLS) {
   const b = document.createElement('button'); b.className = 'tool'; b.dataset.tool = t.id; b.dataset.tab = t.tab;
   const col = t.color || hex(MATERIAL_COLORS[t.mat]);
   b.innerHTML = `<span class="sw" style="background:${col};color:${t.gc || '#3a2a22'}">${t.glyph || ''}</span>${t.label}`;
+  b.title = TIPS[t.id] || (t.type === 'critter' ? `Place a ${t.id}` : t.label);
   b.onclick = () => setTool(t.id);
   toolsEl.append(b);
 }
@@ -201,8 +213,8 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add
 function setPaused(p) { state.paused = p; $('bPause').textContent = p ? 'Play' : 'Pause'; $('bPause').classList.toggle('on', p); }
 $('bPause').onclick = () => setPaused(!state.paused);
 $('bSpeed').onclick = () => { state.speed = state.speed >= 8 ? 1 : state.speed * 2; $('bSpeed').textContent = state.speed + '×'; $('bSpeed').classList.toggle('on', state.speed > 1); };
-function setRain(r) { world.raining = r; $('bRain').classList.toggle('on', r); }
-$('bRain').onclick = () => setRain(!world.raining);
+function setRain(r, storm = false) { world.raining = !!r; state.storm = !!r && storm; $('bRain').classList.toggle('on', !!r); $('bRain').textContent = state.storm ? 'Storm' : 'Rain'; }
+$('bRain').onclick = () => { if (!world.raining) setRain(true); else if (!state.storm) setRain(true, true); else setRain(false); };
 const TIME_MODES = { auto: 'Day cycle', noon: 'Noon', dusk: 'Dusk', night: 'Night' };
 function setTimeMode(m) { state.timeMode = m; $('bTime').textContent = TIME_MODES[m]; }
 $('bTime').onclick = () => { const k = Object.keys(TIME_MODES); setTimeMode(k[(k.indexOf(state.timeMode) + 1) % k.length]); };
@@ -284,7 +296,7 @@ const perf = {
 function populate(villages) {
   if (state.preset === 'bare') return;
   const area = (W * D) / 4096, n = (k) => Math.max(1, Math.round(k * area));
-  const left = { minnow: n(8), duck: n(2), frog: n(3), mossback: n(4), rabbit: n(4), butterfly: n(5), songbird: n(3), glimmer: n(6) };
+  const left = { minnow: n(8), duck: n(2), frog: n(3), crab: n(3), mossback: n(4), rabbit: n(4), deer: n(2), fox: n(1), bee: n(4), butterfly: n(5), songbird: n(3), glimmer: n(6) };
   let tries = 6000 * area;
   while (tries-- > 0 && Object.values(left).some((v) => v > 0)) {
     const x = 3 + rnd() * (W - 6), z = 3 + rnd() * (D - 6), gy = world.groundY(x, z), top = world.get(x | 0, gy - 1, z | 0);
@@ -292,9 +304,10 @@ function populate(villages) {
     if (s > 0 && dep > 1.5 && left.minnow > 0) { critters.spawn('minnow', x, s - dep * 0.5, z, true); left.minnow--; }
     else if (s > 0 && dep > 0.7 && left.duck > 0) { critters.spawn('duck', x, s, z, true); left.duck--; }
     else if (s > 0 && dep > 0.2 && dep < 1.5 && left.frog > 0) { critters.spawn('frog', x, s, z, true); left.frog--; }
+    else if (s > 0 && dep < 1.2 && left.crab > 0) { critters.spawn('crab', x, s, z, true); left.crab--; }
     else if (top === TURF && s < 0) {
-      const k = ['mossback', 'rabbit', 'butterfly', 'glimmer', 'songbird'].find((q) => left[q] > 0 && rnd() < 0.4);
-      if (k) { critters.spawn(k, x, gy + (k === 'mossback' || k === 'rabbit' ? 0.1 : 2 + rnd() * 3), z, true); left[k]--; }
+      const k = ['mossback', 'rabbit', 'deer', 'fox', 'bee', 'butterfly', 'glimmer', 'songbird'].find((q) => left[q] > 0 && rnd() < 0.3);
+      if (k) { critters.spawn(k, x, gy + (['mossback', 'rabbit', 'deer', 'fox'].includes(k) ? 0.1 : 2 + rnd() * 3), z, true); left[k]--; }
     }
   }
   for (const v of villages || []) for (let k = 0; k < 2 + v.huts; k++) {
@@ -313,13 +326,13 @@ function newWorld(preset, w = W, d = D) {
   setRain(false); syncName();
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, name: state.name });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, name: state.name });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; setRain(!!s.rain);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; setRain(!!s.rain, !!s.storm);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -605,7 +618,7 @@ function useTool(first) {
       critterCd = 0.22;
       const k = tool.id; let y = p.y + 0.1;
       if (k === 'minnow' && hit.m === -1) y = Math.max(world.bed[at.x + at.z * W] + 0.3, world.cs[at.x + at.z * W] - 1);
-      if (k === 'glimmer' || k === 'butterfly' || k === 'songbird') y += 2;
+      if (k === 'glimmer' || k === 'butterfly' || k === 'songbird' || k === 'bee') y += 2;
       const c = critters.spawn(k, p.x + 0.5, y, p.z + 0.5);
       if (c) { sound.blip(500 + KIND_IDS.indexOf(k) * 110, 0.14); fx.burst(c.x, c.y, c.z, 6, 0xffffff, 1.5); }
       else if (first) toast(`The world is full of ${KINDS[k].name === 'butterfly' ? 'butterflies' : KINDS[k].name + 's'}`);
@@ -762,19 +775,20 @@ const SKY = {
 };
 const cTop = U.uSkyTop.value, cBot = U.uSkyBot.value, cTmp = new THREE.Color(), cWhite = new THREE.Color(0xffffff);
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-let night = 0;
+let night = 0, overcast = 0;
 function updateSky() {
   const ang = (state.tod - 0.25) * Math.PI * 2, sy = Math.sin(ang), cx = Math.cos(ang);
   const day = smooth(-0.12, 0.3, sy), dusk = Math.max(0, 1 - Math.abs(sy) / 0.32) * 0.85;
   night = 1 - day;
-  cTop.copy(SKY.night[0]).lerp(SKY.day[0], day).lerp(SKY.dusk[0], dusk);
-  cBot.copy(SKY.night[1]).lerp(SKY.day[1], day).lerp(SKY.dusk[1], dusk);
+  overcast += ((world.raining ? (state.storm ? 1 : 0.6) : 0) - overcast) * 0.02;
+  cTop.copy(SKY.night[0]).lerp(SKY.day[0], day).lerp(SKY.dusk[0], dusk).lerp(cTmp.set(0x55606e).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
+  cBot.copy(SKY.night[1]).lerp(SKY.day[1], day).lerp(SKY.dusk[1], dusk).lerp(cTmp.set(0x9aa4ae).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
   const su = sky.material.uniforms;
   su.uSunDir.value.set(cx * 70, 25 + sy * 95, 45).normalize();
   su.uSunCol.value.set(0xffb070).lerp(cTmp.set(0xfff4e0), smooth(0.05, 0.5, sy));
   if (sy > -0.02) {
     sun.position.set(cx * 70, 25 + sy * 95, 45).multiplyScalar(SF);
-    sun.intensity = 2.9 * smooth(-0.02, 0.28, sy);
+    sun.intensity = 2.9 * smooth(-0.02, 0.28, sy) * (1 - overcast * 0.6);
     sun.color.set(0xffc38a).lerp(cTmp.set(0xfff6e6), smooth(0.05, 0.5, sy));
   } else {
     sun.position.set(-40, 100, -30).multiplyScalar(SF);
@@ -843,6 +857,7 @@ function frame(now) {
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
     if (state.timeMode === 'auto') state.tod = (state.tod + dt * state.speed / 300) % 1;
+    if (state.storm && Math.random() < dt * 0.22) { const x = 2 + ri(W - 4), z = 2 + ri(D - 4); strike({ x, y: Math.max(world.groundY(x, z), Math.ceil(world.cs[x + z * W])), z }); }
     if (world.raining) for (let k = 0; k < Math.ceil(3 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
   }
   if (state.timeMode !== 'auto') {
@@ -864,6 +879,7 @@ function frame(now) {
   water.update(world);
   updateSky();
   sound.ambient(night);
+  sound.babble(state.paused ? 0 : (world.flow || 0) * 0.5 + (world.raining ? 0.035 : 0));
   glowT -= dt; if (glowT <= 0) { glowT = 0.4; trackGlow(); }
   ember.position.lerp(glowPos, Math.min(1, dt * 3));
   ember.intensity += (glowGoal * (50 + night * 90) * (0.9 + 0.1 * Math.sin(now * 0.011)) - ember.intensity) * Math.min(1, dt * 4);
