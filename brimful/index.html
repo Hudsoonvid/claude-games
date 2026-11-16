@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Brimful</title>
+<style>
+  :root { --ink:#3a2a22; --paper:rgba(255,249,238,.88); --line:rgba(58,42,34,.14); --clay:#c8643c; --clay-d:#a94f2c; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#bfe0f2; color:var(--ink);
+    font: 14px/1.35 ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+    user-select:none; -webkit-user-select:none; overscroll-behavior:none; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+  .panel { background:var(--paper); border:1px solid var(--line); border-radius:16px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 6px 22px rgba(40,25,15,.14); }
+  button { font:inherit; color:inherit; border:0; background:none; cursor:pointer; padding:0; }
+
+  #top { position:fixed; top:max(10px, env(safe-area-inset-top)); left:10px; right:10px; display:flex; gap:10px; align-items:flex-start; justify-content:space-between; pointer-events:none; }
+  #brand { pointer-events:auto; padding:8px 14px; }
+  #brand b { font-size:17px; letter-spacing:.02em; }
+  #brand span { display:block; font-size:12px; opacity:.72; min-height:16px; }
+  #ctl { pointer-events:auto; display:flex; gap:4px; padding:5px; flex-wrap:wrap; justify-content:flex-end; position:relative; }
+  #ctl button { padding:7px 11px; border-radius:11px; font-weight:600; font-size:13px; white-space:nowrap; }
+  #ctl button:hover { background:rgba(58,42,34,.08); }
+  #ctl button.on { background:var(--clay); color:#fff; }
+
+  #menu { position:fixed; top:64px; right:10px; padding:10px; display:none; width:210px; z-index:5; }
+  #menu.open { display:block; }
+  #menu h4 { margin:2px 6px 8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.6; }
+  #menu button { display:block; width:100%; text-align:left; padding:9px 10px; border-radius:10px; font-weight:600; }
+  #menu button small { display:block; font-weight:400; opacity:.65; }
+  #menu button:hover { background:rgba(58,42,34,.08); }
+
+  #bar { position:fixed; left:50%; transform:translateX(-50%); bottom:max(10px, env(safe-area-inset-bottom)); max-width:calc(100vw - 20px);
+    display:flex; align-items:stretch; gap:6px; padding:6px; }
+  #size { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:0 4px 0 2px; border-right:1px solid var(--line); }
+  #size button { width:30px; height:22px; border-radius:8px; font-size:17px; font-weight:700; line-height:1; }
+  #size button:hover { background:rgba(58,42,34,.08); }
+  #size i { font-style:normal; font-size:11px; opacity:.7; }
+  #dot { width:20px; height:20px; display:grid; place-items:center; }
+  #dot::after { content:""; width:var(--s,8px); height:var(--s,8px); border-radius:50%; background:var(--ink); opacity:.75; }
+  #tools { display:flex; gap:3px; overflow-x:auto; scrollbar-width:none; }
+  #tools::-webkit-scrollbar { display:none; }
+  .tool { flex:0 0 auto; width:58px; padding:6px 2px 5px; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; font-weight:600; }
+  .tool:hover { background:rgba(58,42,34,.07); }
+  .tool.on { background:#fff; box-shadow: inset 0 0 0 2px var(--clay); }
+  .sw { width:26px; height:26px; border-radius:9px; box-shadow: inset 0 -4px 0 rgba(0,0,0,.14), inset 0 0 0 1px rgba(0,0,0,.08); display:grid; place-items:center; }
+  .sw svg { width:18px; height:18px; }
+  .sep { flex:0 0 1px; background:var(--line); margin:4px 3px; }
+
+  #ride { position:fixed; left:50%; transform:translateX(-50%); bottom:max(10px, env(safe-area-inset-bottom)); padding:10px 12px 10px 16px; display:none; align-items:center; gap:14px; max-width:calc(100vw - 20px); }
+  #ride.on { display:flex; }
+  #ride b { display:block; }
+  #ride small { opacity:.7; }
+  #ride button, .cta { background:var(--clay); color:#fff; font-weight:700; padding:9px 14px; border-radius:11px; white-space:nowrap; }
+  #ride button:hover, .cta:hover { background:var(--clay-d); }
+  #stick { position:fixed; left:22px; bottom:96px; width:120px; height:120px; border-radius:50%; background:rgba(255,249,238,.35); border:2px solid rgba(255,255,255,.6); display:none; touch-action:none; }
+  #stick i { position:absolute; left:35px; top:35px; width:50px; height:50px; border-radius:50%; background:rgba(255,255,255,.85); box-shadow:0 2px 8px rgba(0,0,0,.2); }
+  #updown { position:fixed; right:22px; bottom:96px; display:none; flex-direction:column; gap:10px; }
+  #updown button { width:62px; height:56px; border-radius:16px; background:rgba(255,249,238,.8); font-size:20px; font-weight:700; touch-action:none; }
+  body.riding.touch #stick { display:block; } body.riding.touch #updown { display:flex; }
+  body.riding #bar { display:none; }
+
+  #help { position:fixed; inset:0; display:none; place-items:center; background:rgba(30,20,14,.35); z-index:10; padding:16px; }
+  #help.open { display:grid; }
+  #help .panel { max-width:520px; width:100%; max-height:90vh; overflow:auto; padding:22px 24px 20px; }
+  #help h1 { margin:0 0 2px; font-size:26px; }
+  #help p { margin:6px 0 12px; opacity:.85; }
+  #help ul { margin:0 0 14px; padding:0; list-style:none; display:grid; gap:7px; }
+  #help li { display:grid; grid-template-columns:118px 1fr; gap:10px; }
+  #help li b { font-weight:700; }
+  #help .cta { width:100%; padding:12px; font-size:15px; }
+  #toast { position:fixed; left:50%; top:74px; transform:translateX(-50%); padding:8px 14px; font-weight:600; opacity:0; transition:opacity .25s; pointer-events:none; }
+  #toast.on { opacity:1; }
+  @media (max-width:640px) { #ctl button { padding:7px 8px; font-size:12px; } #brand b { font-size:15px; } .tool { width:52px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="top">
+  <div id="brand" class="panel"><b>Brimful</b><span id="stats"></span></div>
+  <div id="ctl" class="panel">
+    <button id="bPause" title="Pause (P)">Pause</button>
+    <button id="bSpeed" title="Simulation speed">1×</button>
+    <button id="bRain" title="Rain (R)">Rain</button>
+    <button id="bTime" title="Time of day">Day cycle</button>
+    <button id="bFx" title="Bloom, light shafts and grading">Effects on</button>
+    <button id="bSound" title="Sound">Sound on</button>
+    <button id="bWorld">New world</button>
+    <button id="bHelp" title="Help (H)">?</button>
+  </div>
+</div>
+
+<div id="menu" class="panel">
+  <h4>Start a new world</h4>
+  <button data-preset="valley">Valley<small>A pond, a hill and a few trees</small></button>
+  <button data-preset="atoll">Atoll<small>A sand ring around a lagoon</small></button>
+  <button data-preset="volcano">Volcano<small>A lava crater above a plain</small></button>
+  <button data-preset="bare">Bare tray<small>Nothing but a little sand</small></button>
+</div>
+
+<div id="bar" class="panel">
+  <div id="size"><button id="szUp" title="Bigger brush (])">+</button><div id="dot"></div><button id="szDn" title="Smaller brush ([)">−</button></div>
+  <div id="tools"></div>
+</div>
+
+<div id="ride" class="panel"><div><b id="rideName"></b><small id="rideHint"></small></div><button id="bRelease">Let go</button></div>
+<div id="stick"><i></i></div>
+<div id="updown"><button id="bUp">▲</button><button id="bDown">▼</button></div>
+
+<div id="toast" class="panel"></div>
+
+<div id="help">
+  <div class="panel">
+    <h1>Brimful</h1>
+    <p>A pocket world in a clay planter. Pour things in, watch them settle, grow and collide — and mind the rim: whatever piles above it spills over the side.</p>
+    <ul>
+      <li><b>Pour &amp; build</b><span>Pick a material and hold the left button (or one finger) on the world.</span></li>
+      <li><b>Look around</b><span>Right-drag to orbit, scroll to zoom, Shift-drag to pan. Touch: two fingers, or the Look tool.</span></li>
+      <li><b>Life</b><span>Grass and trees need water nearby. Mossbacks graze tufts, minnows nibble waterweed, glimmers light up at night.</span></li>
+      <li><b>Ride along</b><span>Choose Ride along and click any creature to steer it yourself.</span></li>
+      <li><b>Keys</b><span>1–9 tools · [ ] brush size · P pause · R rain · H help</span></li>
+    </ul>
+    <button class="cta" id="bStart">Start pottering</button>
+  </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

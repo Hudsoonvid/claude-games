@@ -1,0 +1,273 @@
+// Shader work: sky dome, material shader patches (caustics, living water, molten lava,
+// swaying luminous plants), drifting motes and the post-processing chain.
+import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+
+// uniforms shared by every patched material
+export const U = {
+  uTime: { value: 0 },
+  uNight: { value: 0 },
+  uCaustic: { value: 1 },
+  uSky: { value: new THREE.Color(0x9fd0f0) },
+  uUnder: { value: 0 },
+};
+
+const NOISE = /* glsl */ `
+  float h21(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+  float h31(vec3 p){ p = fract(p*vec3(.1031,.1030,.0973)); p += dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
+  float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+    return mix(mix(h21(i),h21(i+vec2(1,0)),f.x), mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x), f.y); }
+  float fbm(vec2 p){ float a=.5, s=0.; for(int i=0;i<4;i++){ s+=a*vn(p); p=p*2.03+17.1; a*=.5; } return s; }
+  float caustic(vec2 uv, float t){
+    vec2 p = mod(uv*6.28318, 6.28318) - 250.0, i = p; float c = 1.0;
+    for (int n = 0; n < 4; n++) {
+      float tt = t * (1.0 - (3.5 / float(n + 1)));
+      i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+      c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / .005), p.y / (cos(i.y + tt) / .005)));
+    }
+    c = 1.17 - pow(c / 4.0, 1.4);
+    return pow(abs(c), 8.0);
+  }
+`;
+const DECL = /* glsl */ `
+  uniform float uTime, uNight, uCaustic, uUnder; uniform vec3 uSky;
+  varying vec3 vWPos; varying vec3 vWNrm;
+`;
+const VERT_OUT = /* glsl */ `
+  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vWNrm = normal;
+`;
+
+function patch(mat, { vertex = '', frag = {} }) {
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\n' + DECL)
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + vertex + VERT_OUT);
+    let f = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + DECL + NOISE);
+    for (const [chunk, code] of Object.entries(frag)) {
+      const before = chunk[0] === '^'; const name = `#include <${before ? chunk.slice(1) : chunk}>`;
+      if (!f.includes(name)) console.warn('shader chunk missing', name);
+      f = f.replace(name, before ? code + '\n' + name : name + '\n' + code);
+    }
+    sh.fragmentShader = f;
+  };
+  return mat;
+}
+
+// Terrain: texel grain, caustics on anything touching water, cool rim light at night.
+export function patchSolid(mat) {
+  return patch(mat, {
+    frag: {
+      color_fragment: /* glsl */ `
+        float wetFace = 1.0 - vColor.a;
+        vec3 texel = floor((vWPos - vWNrm * 0.02) * 4.0);
+        diffuseColor.rgb *= 0.93 + 0.14 * h31(texel);
+        diffuseColor.rgb *= mix(vec3(1.0), vec3(0.72, 0.9, 1.0), wetFace * 0.6);
+      `,
+      emissivemap_fragment: /* glsl */ `
+        if (wetFace > 0.5) {
+          vec2 cuv = vWPos.xz * 0.085 + vWPos.y * 0.04;
+          float ca = caustic(cuv, uTime * 0.55) + 0.5 * caustic(cuv * 1.7 + 3.1, uTime * 0.4);
+          totalEmissiveRadiance += diffuseColor.rgb * ca * (0.75 * uCaustic + 0.08) * vec3(0.75, 1.0, 0.95)
+            * (0.35 + 0.65 * clamp(vWNrm.y + 0.6, 0.0, 1.0));
+        }
+      `,
+    },
+  });
+}
+
+// Water: rippling normals, fresnel sheen that picks up the sky, glints for the bloom to catch.
+export function patchFluid(mat) {
+  return patch(mat, {
+    frag: {
+      normal_fragment_maps: /* glsl */ `
+        float topFace = step(0.5, vWNrm.y);
+        vec2 wp = vWPos.xz * 0.9;
+        float e = 0.18;
+        vec2 wt = vec2(uTime * 0.35, uTime * 0.22);
+        float n0 = fbm(wp + wt), nx = fbm(wp + vec2(e, 0.) + wt), nz = fbm(wp + vec2(0., e) + wt);
+        vec3 bump = vec3(n0 - nx, 0.0, n0 - nz) * 3.2 * topFace;
+        normal = normalize(normal + (viewMatrix * vec4(bump, 0.0)).xyz * (gl_FrontFacing ? 1.0 : -1.0));
+        float fres = pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0);
+        diffuseColor.a = mix(diffuseColor.a, 0.96, fres * 0.75);
+        diffuseColor.rgb *= 0.8 + 0.4 * n0;
+      `,
+      emissivemap_fragment: /* glsl */ `
+        totalEmissiveRadiance += uSky * fres * 0.55;
+        // faint living shimmer after dark
+        totalEmissiveRadiance += vec3(0.05, 0.5, 0.6) * uNight * smoothstep(0.55, 0.8, n0) * 0.5 * topFace;
+      `,
+    },
+  });
+}
+
+// Lava and fire: churning, pulsing, HDR so it blooms.
+export function patchGlow(mat) {
+  return patch(mat, {
+    frag: {
+      color_fragment: /* glsl */ `
+        vec2 lp = vWPos.xz * 0.55 + vWPos.y * 0.35;
+        float flow = fbm(lp + vec2(uTime * 0.12, -uTime * 0.09) + fbm(lp * 1.7 - uTime * 0.1) * 1.4);
+        float veins = smoothstep(0.42, 0.72, flow);
+        diffuseColor.rgb = mix(diffuseColor.rgb * vec3(0.55, 0.2, 0.15), diffuseColor.rgb * vec3(1.5, 1.35, 1.0) + vec3(0.25, 0.1, 0.0), veins);
+        diffuseColor.rgb *= 1.05 + 0.2 * sin(uTime * 2.3 + flow * 9.0);
+      `,
+    },
+  });
+}
+
+// Plants: sway in the breeze; blossoms and waterweed tips light up at night.
+export function patchFlora(mat) {
+  return patch(mat, {
+    vertex: /* glsl */ `
+      float swayAmt = step(0.25, color.a);
+      float ph = position.x * 0.7 + position.z * 0.9;
+      transformed.x += swayAmt * (sin(uTime * 1.6 + ph) * 0.13 + sin(uTime * 3.7 + ph * 2.1) * 0.04);
+      transformed.z += swayAmt * cos(uTime * 1.3 + ph * 1.3) * 0.11;
+    `,
+    frag: {
+      '^opaque_fragment': /* glsl */ `
+        float lum = step(0.75, vColor.a);
+        float pulse = 0.7 + 0.3 * sin(uTime * 1.5 + vWPos.x * 0.8 + vWPos.z * 0.6);
+        outgoingLight += vColor.rgb * lum * uNight * 2.2 * pulse;
+        outgoingLight += vColor.rgb * (1.0 - lum) * smoothstep(0.2, 0.6, vColor.a) * uNight * 0.12;
+      `,
+    },
+  });
+}
+
+// ---------------------------------------------------------------- sky
+export function makeSky() {
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: {
+      uTop: { value: new THREE.Color() }, uBot: { value: new THREE.Color() },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) },
+      uMoonDir: { value: new THREE.Vector3(-0.35, 0.87, -0.26).normalize() },
+      uTime: U.uTime, uNight: U.uNight,
+    },
+    vertexShader: /* glsl */ `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight; varying vec3 vDir;
+      ${NOISE}
+      void main(){
+        vec3 d = normalize(vDir);
+        vec3 col = mix(uBot, uTop, smoothstep(-0.75, 0.6, d.y));
+        float sd = max(dot(d, uSunDir), 0.0);
+        col += uSunCol * (pow(sd, 900.0) * 14.0 + pow(sd, 40.0) * 0.35 + pow(sd, 5.0) * 0.12) * (1.0 - uNight);
+        float md = max(dot(d, uMoonDir), 0.0);
+        col += vec3(0.75, 0.85, 1.0) * (smoothstep(0.9992, 0.9996, md) * 2.2 + pow(md, 60.0) * 0.18) * uNight;
+        // stars
+        vec3 sp = d * 140.0; vec3 cell = floor(sp);
+        float st = h31(cell); float tw = 0.6 + 0.4 * sin(uTime * 2.0 + st * 60.0);
+        col += vec3(0.9, 0.95, 1.0) * step(0.9988, st) * smoothstep(0.32, 0.05, length(fract(sp) - 0.5)) * uNight * tw * 2.2 * smoothstep(0.0, 0.25, d.y);
+        // clouds
+        vec2 cp = d.xz / (d.y + 0.35) * 1.6 + vec2(uTime * 0.008, uTime * 0.004);
+        float cl = smoothstep(0.52, 0.85, fbm(cp + fbm(cp * 2.0) * 0.6)) * smoothstep(0.02, 0.3, d.y);
+        vec3 cc = mix(vec3(1.0, 0.98, 0.95) + uSunCol * 0.15, vec3(0.12, 0.15, 0.3), uNight);
+        col = mix(col, cc, cl * 0.6);
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(420, 32, 20), mat);
+  mesh.renderOrder = -10; mesh.frustumCulled = false;
+  return mesh;
+}
+
+// ---------------------------------------------------------------- motes
+export function makeMotes(count = 420) {
+  const geo = new THREE.BufferGeometry();
+  const seed = new Float32Array(count * 4);
+  for (let i = 0; i < seed.length; i++) seed[i] = Math.random();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+  geo.setAttribute('seed', new THREE.BufferAttribute(seed, 4));
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    uniforms: { uTime: U.uTime, uNight: U.uNight, uScale: { value: 600 } },
+    vertexShader: /* glsl */ `
+      attribute vec4 seed; uniform float uTime, uNight, uScale; varying float vA; varying float vS;
+      void main(){
+        float t = uTime * (0.015 + seed.w * 0.02);
+        vec3 p = vec3(fract(seed.x + sin(t * 3.0 + seed.y * 6.28) * 0.03 + t * 0.3) * 96.0 - 48.0,
+                      fract(seed.y + t) * 46.0 + 1.0,
+                      fract(seed.z + cos(t * 2.6 + seed.x * 6.28) * 0.03) * 96.0 - 48.0);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        float tw = 0.5 + 0.5 * sin(uTime * (1.0 + seed.w * 2.0) + seed.x * 40.0);
+        vS = seed.w; vA = tw * smoothstep(1.0, 6.0, p.y) * smoothstep(47.0, 38.0, p.y);
+        gl_PointSize = (0.25 + seed.w * 0.45 + uNight * 0.25) * uScale / -mv.z;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uNight; varying float vA; varying float vS;
+      void main(){
+        float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, d);
+        vec3 day = vec3(1.0, 0.96, 0.85) * 0.22;
+        vec3 night = mix(vec3(0.25, 1.0, 0.8), vec3(0.45, 0.6, 1.0), vS) * 1.5;
+        gl_FragColor = vec4(mix(day, night, uNight) * a * a * vA, 1.0);
+      }`,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false; pts.renderOrder = 4;
+  return pts;
+}
+
+// ---------------------------------------------------------------- post
+const GradeShader = {
+  uniforms: {
+    tDiffuse: { value: null }, uTime: U.uTime, uNight: U.uNight, uUnder: U.uUnder,
+    uSunPos: { value: new THREE.Vector2(0.5, 1.2) }, uRays: { value: 0 }, uRayCol: { value: new THREE.Color(1, 0.9, 0.7) },
+    uAspect: { value: 1.6 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse; uniform float uTime, uNight, uUnder, uRays, uAspect; uniform vec2 uSunPos; uniform vec3 uRayCol;
+    varying vec2 vUv;
+    float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+    void main(){
+      vec2 uv = vUv;
+      uv += uUnder * 0.0045 * vec2(sin(uv.y * 38.0 + uTime * 2.1), cos(uv.x * 31.0 + uTime * 1.7));
+      vec2 d = uv - 0.5; float r2 = dot(d, d);
+      vec2 ca = d * r2 * (0.008 + uUnder * 0.012);
+      vec3 col = vec3(texture2D(tDiffuse, uv + ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - ca).b);
+      // light shafts: march toward the sun, gathering whatever is bright
+      if (uRays > 0.001) {
+        const int N = 20;
+        vec2 stp = (uSunPos - uv) / float(N) * 0.85;
+        vec2 p = uv + stp * hash(uv * 311.0 + uTime);
+        float acc = 0.0, w = 1.0;
+        for (int i = 0; i < N; i++) {
+          p += stp;
+          vec3 s = texture2D(tDiffuse, clamp(p, 0.0, 1.0)).rgb;
+          acc += min(3.0, max(0.0, dot(s, vec3(0.3, 0.6, 0.1)) - 1.0)) * w; w *= 0.94;
+        }
+        col += uRayCol * acc / float(N) * uRays;
+      }
+      // submerged: cool tint, soft haze toward the edges
+      vec3 sea = col * vec3(0.32, 0.78, 0.95) + vec3(0.0, 0.035, 0.06);
+      col = mix(col, mix(sea, vec3(0.02, 0.16, 0.24), r2 * 1.3), uUnder);
+      // grade: lift shadows toward teal at night, warm highlights by day
+      float l = dot(col, vec3(0.3, 0.6, 0.1));
+      col = mix(col, col * vec3(0.86, 0.98, 1.14) + vec3(0.0, 0.006, 0.014), uNight * 0.6);
+      col = mix(vec3(l), col, 1.1);
+      col *= 1.0 - r2 * (0.55 + uNight * 0.35);
+      col += (hash(vUv * vec2(1920.0, 1080.0) + fract(uTime) * 91.0) - 0.5) * 0.012;
+      gl_FragColor = vec4(max(col, 0.0), 1.0);
+    }`,
+};
+
+export function makePost(renderer, scene, camera) {
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+  const composer = new EffectComposer(renderer, target);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.6, 0.7, 1.0);
+  composer.addPass(bloom);
+  const grade = new ShaderPass(GradeShader);
+  composer.addPass(grade);
+  composer.addPass(new OutputPass());
+  return { composer, bloom, grade };
+}
