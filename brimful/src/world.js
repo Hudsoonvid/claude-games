@@ -16,7 +16,7 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23;
 
 export const OPAQUE = new Uint8Array(32);
 for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN]) OPAQUE[m] = 1;
@@ -29,13 +29,13 @@ for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN]) ACTI
 
 // What a falling powder may move into: 1 = replace, 2 = swap places
 const PP = new Uint8Array(32);
-PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1; PP[SNOW] = 1;
+PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1; PP[SNOW] = 1; PP[REED] = 1; PP[MUSH] = 1;
 PP[LAVA] = 2; PP[STEAM] = 2;
 
 const FLAM = new Float32Array(32);
-FLAM[WOOD] = 0.07; FLAM[LEAF] = 0.3; FLAM[TUFT] = 0.45; FLAM[SEED] = 0.3; FLAM[PLANK] = 0.1; FLAM[THATCH] = 0.35; FLAM[CROP] = 0.4;
+FLAM[WOOD] = 0.07; FLAM[LEAF] = 0.3; FLAM[TUFT] = 0.45; FLAM[SEED] = 0.3; FLAM[PLANK] = 0.1; FLAM[THATCH] = 0.35; FLAM[CROP] = 0.4; FLAM[REED] = 0.35;
 const BURN = new Uint8Array(32);
-BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8; BURN[CROP] = 4;
+BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8; BURN[CROP] = 4; BURN[REED] = 5;
 
 let seed = 0x9e3779b9 | 0;
 export function rnd() {
@@ -167,6 +167,14 @@ export class World {
   }
   totalWater() { let s = 0; for (let i = 0; i < this.wd.length; i++) s += this.wd[i]; return s / (WR * WR); }
 
+  shaded(x, y, z) { for (let k = 2; k < 8; k++) if (this.get(x, y + k, z) === LEAF) return true; return false; }
+  // a small volume-neutral disturbance: swimmers and splashes send rings across the water
+  ripple(fx, fz, a) {
+    const i = this.wcell(fx, fz), wd = this.wd; if (wd[i] < 0.3) return;
+    const x = i % WW, z = (i / WW) | 0; let n = 0;
+    for (const j of [x > 0 ? i - 1 : -1, x < WW - 1 ? i + 1 : -1, z > 0 ? i - WW : -1, z < WH - 1 ? i + WW : -1]) if (j >= 0 && wd[j] > a) { wd[j] -= a * 0.25; n++; }
+    wd[i] += a * 0.25 * n;
+  }
   moist(x, y, z) {
     for (let k = 0; k < 4; k++) {
       const mx = x + ri(9) - 4, mz = z + ri(9) - 4;
@@ -463,14 +471,17 @@ export class World {
       const under = cd[c] > 0.25 && cs[c] > y + 1.2;       // this cell's top is under water
       switch (m) {
         case SOIL:
+          if (up === AIR && y + 1 >= bed[c] && cd[c] > 0.08 && cd[c] < 1.3 && rnd() < 0.05) { mat[i + WD] = REED; aux[i + WD] = ri(256); this.markDirty(x, z); break; }
           if (under) this.growWeed(i, x, y, z, 1);
           else if ((up === AIR || up === TUFT) && rnd() < 0.2 && this.moist(x, y, z)) { mat[i] = TURF; this.markDirty(x, z); }
           break;
         case SAND:
+          if (up === AIR && y + 1 >= bed[c] && cd[c] > 0.08 && cd[c] < 1.3 && rnd() < 0.03) { mat[i + WD] = REED; aux[i + WD] = ri(256); this.markDirty(x, z); break; }
           if (under && rnd() < 0.5) this.growWeed(i, x, y, z, 1);
           break;
         case TURF:
           if (OPAQUE[up] || up === LAVA || under) { if (rnd() < 0.4) { mat[i] = SOIL; this.markDirty(x, z); } }
+          else if (up === AIR && rnd() < 0.012 && (this.biome[c] === 1 || this.biome[c] === 6 || this.biome[c] === 7) && this.shaded(x, y, z)) { mat[i + WD] = MUSH; aux[i + WD] = ri(256); this.markDirty(x, z); }
           else if (up === AIR && rnd() < 0.05 && this.moist(x, y, z)) { mat[i + WD] = TUFT; aux[i + WD] = ri(256); this.markDirty(x, z); }
           break;
         case TUFT:
@@ -512,6 +523,14 @@ export class World {
           } else if (below !== AIR && rnd() < 0.03) { mat[i] = AIR; this.markDirty(x, z); }
           break;
         }
+        case REED: {
+          const below = y > 0 ? mat[i - WD] : STONE;
+          if (!OPAQUE[below] || cd[c] > 1.8 || (cd[c] < 0.02 && rnd() < 0.15)) { mat[i] = AIR; this.markDirty(x, z); }
+          break;
+        }
+        case MUSH:
+          if (y === 0 || mat[i - WD] !== TURF || (cd[c] > 0.2 && cs[c] > y + 0.2) || (!this.shaded(x, y, z) && rnd() < 0.3)) { mat[i] = AIR; this.markDirty(x, z); }
+          break;
         case SNOW: {
           const below = y > 0 ? mat[i - WD] : STONE, cold = this.snowing || this.biome[c] === 5;
           if (!OPAQUE[below]) { mat[i] = AIR; this.markDirty(x, z); }

@@ -432,6 +432,7 @@ export class Critters {
       if (c.walk) { dx = Math.sin(c.heading); dz = Math.cos(c.heading); }
     }
     if (c.flee > 0) { c.flee -= dt; sp *= 1.6; }
+    if (inWater && (dx || dz) && rnd() < dt * 6) w.ripple(c.x, c.z, kind === 'deer' || kind === 'villager' ? 0.09 : 0.05);
     if (kind === 'frog' && this.night > 0.6 && inWater && rnd() < dt * 0.04) this.onEvent('croak', c);
     // vertical
     if (inWater && (kind === 'crab' || kind === 'heron')) { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom

@@ -42,7 +42,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Reactions**: lava boils water to steam and freezes to basalt; steam condenses and rains back; fire spreads
   through trees, grass and huts; water puts it out; ice melts by heat.
 - **Growth**: soil near water turns to turf with real blade grass, flowers and trees in each biome's colours;
-  waterweed takes root on lake beds.
+  waterweed takes root on lake beds, cattails stand in the shallows and mushrooms come up in forest shade.
 - **Life**: eighteen creatures — minnows, koi, ducks, turtles, herons, frogs, crabs, mossbacks, rabbits, sheep, deer,
   foxes, bees, butterflies, songbirds, owls, glimmers and villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
   lantern-lit huts and raise families. Ride along with any of them in

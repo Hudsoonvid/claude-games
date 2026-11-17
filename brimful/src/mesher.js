@@ -2,7 +2,7 @@
 // solid (lit, shadowed cubes), flora (grass blades, flowers, waterweed), mist (steam) and
 // glow (lava + fire). Water is not meshed here: it is a simulated surface drawn by its own shader.
 import { Color } from 'three';
-import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, OPAQUE } from './world.js';
+import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, OPAQUE } from './world.js';
 
 class Buf {
   constructor(cap) {
@@ -210,6 +210,27 @@ export function buildChunk(world, cx, cz) {
           break;
         }
         case LAVA: lava(x, y, z, i); break;
+        case REED: { // cattails standing in the shallows
+          hs = (i * 6151 + aux[i]) | 0 || 1;
+          for (let k = 0; k < 4; k++) {
+            const bx = x + 0.15 + hr() * 0.7, bz = z + 0.15 + hr() * 0.7, h = 1.0 + hr() * 0.9, s = 0.55 + hr() * 0.25;
+            blade(bx, y, bz, h, 0.045, hr() * 6.283, (hr() - 0.5) * 0.25, 0.2 * s, 0.34 * s, 0.1 * s, 0.42 * s, 0.6 * s, 0.2 * s, 0.5);
+            if (k < 2) { const hy = y + h * 0.86; box(L, bx, hy, bz, 0.045, 0.14, 0.045, 0.24, 0.13, 0.06, 0.5); }
+          }
+          break;
+        }
+        case MUSH: {
+          hs = (i * 4073 + aux[i]) | 0 || 1;
+          const glow = biome[x + z * W] === 6, n = 1 + (aux[i] & 1);
+          for (let k = 0; k < n; k++) {
+            const bx = x + 0.25 + hr() * 0.5, bz = z + 0.25 + hr() * 0.5, h = 0.14 + hr() * 0.14, r = 0.09 + hr() * 0.07;
+            box(L, bx, y + h * 0.5, bz, 0.035, h * 0.5, 0.035, 0.85, 0.8, 0.7, 0);
+            if (glow) box(L, bx, y + h + 0.045, bz, r, 0.045, r, 0.3, 0.85, 0.8, 1);
+            else if (aux[i] & 2) box(L, bx, y + h + 0.045, bz, r, 0.045, r, 0.62, 0.42, 0.26, 0);
+            else box(L, bx, y + h + 0.045, bz, r, 0.045, r, 0.8, 0.16, 0.12, 0);
+          }
+          break;
+        }
         case SNOW: { const h = 0.06 + aux[i] * 0.07, k = 0.92 + hash(i) * 0.08; box(S, x + 0.5, y + h, z + 0.5, 0.5, h, 0.5, 0.93 * k, 0.96 * k, 1.0 * k, 1); break; }
         case LAMP: box(G, x + 0.5, y + 0.22, z + 0.5, 0.16, 0.2, 0.16, 2.6, 1.5, 0.5, 1); break;
         case CROP: {
@@ -245,5 +266,5 @@ export function buildChunk(world, cx, cz) {
   return { solid: S.out(), mist: F.out(), glow: G.out(), flora: L.out() };
 }
 
-export const MATERIAL_COLORS = { [STONE]: 0x9d9ca6, [SOIL]: 0x7f5638, [TURF]: 0x6aa846, [SAND]: 0xecd79c, [LAVA]: 0xff6a1a, [WOOD]: 0x8a5a34, [LEAF]: 0x4f9f4c, [BASALT]: 0x45434d, [SEED]: 0xd0a65c, [TUFT]: 0x86cf58, [WEED]: 0x2f9a72, [ICE]: 0xbfe6f7, [PLANK]: 0xc79a62, [THATCH]: 0xd9b65a, [SPRING]: 0x6fb6d6, [DRAIN]: 0x55565e, [CROP]: 0xd9a53a, [SNOW]: 0xf2f6ff };
+export const MATERIAL_COLORS = { [STONE]: 0x9d9ca6, [SOIL]: 0x7f5638, [TURF]: 0x6aa846, [SAND]: 0xecd79c, [LAVA]: 0xff6a1a, [WOOD]: 0x8a5a34, [LEAF]: 0x4f9f4c, [BASALT]: 0x45434d, [SEED]: 0xd0a65c, [TUFT]: 0x86cf58, [WEED]: 0x2f9a72, [ICE]: 0xbfe6f7, [PLANK]: 0xc79a62, [THATCH]: 0xd9b65a, [SPRING]: 0x6fb6d6, [DRAIN]: 0x55565e, [CROP]: 0xd9a53a, [SNOW]: 0xf2f6ff, [REED]: 0x6a8a3a, [MUSH]: 0xcc2a1e };
 export const WATER_COLOR = 0x3fb0d6;

@@ -164,6 +164,7 @@ export function generate(world, preset) {
     trees--;
   }
   world.fillTo(WL);
+  world.randomTicks(W * D * 160);          // let reeds, mushrooms and waterweed settle in before anyone looks
 
   // villages: a few huts around a hearth on flat, dry ground. Returned so the caller can add the villagers.
   const villages = [];
