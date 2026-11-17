@@ -60,6 +60,9 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   and surge. U hides the interface for photos.
 - **Containers**: keep the clay planter, or switch to a glass tank that shows the ground and water in cross-section,
   a wooden crate, or nothing at all (Settings).
+- **Sound**: everything is synthesised. A soundscape follows the camera: wind over high ground and in storms, waves by
+  big water, rain, crackling fire and lava, and birdsong among trees by day and loudest at dawn; plus running water,
+  crickets, croaking frogs, hooting owls and howling wolves at night.
 - **Seasons**: the year turns through spring, summer, autumn and winter, tinting grass and broadleaf trees, and
   weather comes and goes by itself (showers, summer storms, winter snow). It can be switched off in Settings.
 - **Worlds**: 60 world types in five groups (gentle, water, rugged, wild and special), from orchard hills and lake

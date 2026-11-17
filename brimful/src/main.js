@@ -1148,7 +1148,7 @@ function handleEvents() {
   world.events.length = 0;
 }
 
-let glowT = 0, glowGoal = 0;
+let glowT = 0, glowGoal = 0, scapeT = 0;
 const glowPos = new THREE.Vector3(0, 12, 0);
 function trackGlow() {
   const mat = world.mat; let n = 0, sx = 0, sy = 0, sz = 0;
@@ -1239,6 +1239,30 @@ function frame(now) {
   updateSky();
   sound.ambient(night);
   sound.babble(state.paused ? 0 : (world.flow || 0) * 0.5 + (world.raining ? 0.035 : 0));
+  scapeT -= dt;
+  if (scapeT <= 0 && sound.ctx) { // what is around the point the camera looks at
+    scapeT = 0.5;
+    const cx = cam.tx + W / 2, cz = cam.tz + D / 2, r = Math.min(24, Math.max(8, cam.dist * 0.25)), near = Math.max(0, 1 - cam.dist / (220 * SF));
+    let wet = 0, leaf = 0, hot = 0, hi = 0, n = 0;
+    for (let k = 0; k < 40; k++) {
+      const x = Math.floor(cx + (Math.random() - 0.5) * r * 2), z = Math.floor(cz + (Math.random() - 0.5) * r * 2);
+      if (x < 0 || z < 0 || x >= W || z >= D) continue;
+      n++; const c = x + z * W, g = world.groundY(x, z);
+      if (world.cd[c] > 0.6) wet++;
+      if (world.get(x, g - 1, z) === 9) leaf++;
+      for (let y = g - 2; y <= g; y++) { const m = world.get(x, y, z); if (m === LAVA || m === FIRE || m === 24) { hot++; break; } }
+      hi += Math.max(0, g - 16) / 14;
+    }
+    n = Math.max(1, n);
+    const day = 1 - night, dawn = Math.max(0, 1 - Math.abs(state.tod - 0.27) / 0.08);
+    sound.scape({
+      wind: Math.min(1, 0.25 + hi / n + overcast * 0.5 + (state.storm ? 0.4 : 0)) * (0.5 + 0.5 * near),
+      waves: Math.min(1, (wet / n) * 1.6) * near * (0.6 + 0.4 * (world.flow > 0.01 ? 1 : 0.5)),
+      rain: world.raining ? (state.storm ? 1 : 0.6) : 0,
+      fire: Math.min(1, (hot / n) * 6) * near,
+      birds: world.raining || world.snowing ? 0 : Math.min(1, (leaf / n) * 5) * (day * 0.5 + dawn * 1.2) * near,
+    });
+  }
   glowT -= dt; if (glowT <= 0) { glowT = 0.4; trackGlow(); }
   ember.position.lerp(glowPos, Math.min(1, dt * 3));
   ember.intensity += (glowGoal * (50 + night * 90) * (0.9 + 0.1 * Math.sin(now * 0.011)) - ember.intensity) * Math.min(1, dt * 4);
@@ -1329,4 +1353,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };

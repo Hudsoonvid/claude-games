@@ -60,6 +60,46 @@ export class Sound {
     this.babGain.gain.setTargetAtTime(Math.min(0.11, level), ctx.currentTime, 0.4);
   }
 
+  // ---- the soundscape: wind, water, rain, fire and birds, mixed from what is near the camera
+  bed(name, type, freq, q, rate = 1) {
+    const ctx = this.ctx, src = ctx.createBufferSource(); src.buffer = this.noise; src.loop = true; src.playbackRate.value = rate;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(f).connect(g).connect(this.master); src.start(0, Math.random() * 1.5);
+    return (this.beds ||= {})[name] = { f, g };
+  }
+  scape(m) {   // m: { wind, waves, rain, fire, birds } each 0..1
+    const ctx = this.ctx; if (!ctx) return;
+    if (!this.beds) {
+      this.bed('wind', 'lowpass', 500, 0.6, 0.5); this.bed('waves', 'bandpass', 600, 0.4, 0.6); this.bed('rain', 'highpass', 2200, 0.3, 1);
+      this.windT = 0; this.nextCrackle = 0; this.nextBird = ctx.currentTime + 2;
+    }
+    const t = ctx.currentTime, B = this.beds;
+    this.windT += 0.5;
+    const gust = 0.6 + 0.4 * Math.sin(this.windT * 0.21) * Math.sin(this.windT * 0.13 + 1);
+    B.wind.g.gain.setTargetAtTime(0.09 * m.wind * gust, t, 1.2); B.wind.f.frequency.setTargetAtTime(300 + 500 * gust * m.wind, t, 1.5);
+    const swell = 0.55 + 0.45 * Math.sin(this.windT * 0.9);       // waves come in and go out
+    B.waves.g.gain.setTargetAtTime(0.07 * m.waves * swell, t, 0.6);
+    B.rain.g.gain.setTargetAtTime(0.06 * m.rain, t, 1.5);
+    if (m.fire > 0.05 && t > this.nextCrackle) { // pops and crackles
+      this.nextCrackle = t + 0.05 + Math.random() * 0.35 / m.fire;
+      const s = ctx.createBufferSource(); s.buffer = this.noise;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 2500; f.Q.value = 3;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.09 * m.fire, t); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.04);
+      s.connect(f).connect(g).connect(this.master); s.start(t, Math.random()); s.stop(t + 0.05);
+    }
+    if (m.birds > 0.05 && t > this.nextBird) { // a little phrase of birdsong
+      this.nextBird = t + 1.5 + Math.random() * 6 / m.birds;
+      const base = 2200 + Math.random() * 1600, notes = 2 + ((Math.random() * 5) | 0);
+      for (let k = 0; k < notes; k++) {
+        const o = ctx.createOscillator(); o.type = 'sine'; const s0 = t + k * (0.08 + Math.random() * 0.06);
+        o.frequency.setValueAtTime(base * (0.9 + Math.random() * 0.3), s0); o.frequency.exponentialRampToValueAtTime(base * (0.7 + Math.random() * 0.7), s0 + 0.07);
+        const g = ctx.createGain(); g.gain.setValueAtTime(0, s0); g.gain.linearRampToValueAtTime(0.025 * m.birds, s0 + 0.01); g.gain.linearRampToValueAtTime(0, s0 + 0.08);
+        o.connect(g).connect(this.master); o.start(s0); o.stop(s0 + 0.1);
+      }
+    }
+  }
+
   // a low rumble: thunder, impacts, quakes
   boom(vol = 0.5, dur = 1.4, freq = 180) {
     const ctx = this.ctx; if (!ctx) return;
