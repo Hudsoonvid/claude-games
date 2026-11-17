@@ -360,7 +360,11 @@ export class Critters {
         const tdx = c.tx - c.x, tdy = c.ty - c.y, tdz = c.tz - c.z, dist = Math.hypot(tdx, tdy, tdz);
         if (c.retarget <= 0 || dist < 0.5) {
           c.retarget = 1.5 + rnd() * 3;
-          for (let k = 0; k < 10; k++) {
+          // schooling: more often than not, swim where a neighbour of the same kind is heading
+          let mate = null;
+          if (rnd() < 0.65) for (const o of this.list) if (o !== c && o.kind === c.kind && !o.dead && Math.hypot(o.x - c.x, o.z - c.z) < 5.5) { mate = o; if (rnd() < 0.4) break; }
+          if (mate && this.canSwim(mate.tx + (rnd() - 0.5), mate.ty, mate.tz + (rnd() - 0.5))) { c.tx = mate.tx + (rnd() - 0.5) * 1.2; c.ty = mate.ty + (rnd() - 0.5) * 0.5; c.tz = mate.tz + (rnd() - 0.5) * 1.2; }
+          else for (let k = 0; k < 10; k++) {
             const x = c.x + (rnd() - 0.5) * 13, z = c.z + (rnd() - 0.5) * 13, s = w.surfAt(x, z);
             if (s < 0 || w.depthAt(x, z) < 0.7) continue;
             const b = w.bedAt(x, z); c.tx = x; c.tz = z; c.ty = b + 0.3 + rnd() * Math.max(0, s - b - 0.6);
@@ -422,7 +426,15 @@ export class Critters {
       if (c.retarget <= 0) {
         c.retarget = 2 + rnd() * 4; c.walk = rnd() < (kind === 'frog' ? 0.45 : 0.8);
         let ang = c.heading + (rnd() - 0.5) * 2.4, t = null;
-        if (GRAZE[kind]) { if (c.food < 5) t = this.find(c, TUFT, 6); if (kind === 'sheep' && !t && Math.hypot(c.hx - c.x, c.hz - c.z) > 10) { ang = Math.atan2(c.hx - c.x, c.hz - c.z); c.walk = true; } }
+        const herd = kind === 'sheep' || kind === 'deer' || kind === 'duck', dayAnimal = herd || kind === 'rabbit' || kind === 'mossback' || kind === 'heron';
+        if (dayAnimal && this.night > 0.7 && !c.flee) c.walk = rnd() < 0.12;        // settle down after dark
+        let herdAng = null;
+        if (herd && rnd() < 0.75) { // keep with the herd: drift toward the nearest of its own kind when it strays
+          let near = null, nd = 32;
+          for (const o of this.list) if (o !== c && o.kind === kind && !o.dead) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < nd) { nd = d; near = o; } }
+          if (near && nd > 2.6) herdAng = Math.atan2(near.x - c.x, near.z - c.z) + (rnd() - 0.5) * 0.5;
+        }
+        if (GRAZE[kind]) { if (c.food < 5) t = this.find(c, TUFT, 6); if (kind === 'sheep' && !t && Math.hypot(c.hx - c.x, c.hz - c.z) > 15) { ang = Math.atan2(c.hx - c.x, c.hz - c.z); c.walk = true; } }
         if (kind === 'rabbit' || kind === 'deer' || kind === 'duck' || kind === 'sheep') { // bolt from a fox that gets close
           for (const o of this.list) if (o.kind === 'fox' && !o.dead && Math.hypot(o.x - c.x, o.z - c.z) < 5.5) { t = null; ang = Math.atan2(c.x - o.x, c.z - o.z) + (rnd() - 0.5) * 0.6; c.walk = true; c.flee = 2.5; c.retarget = 1; break; }
         }
@@ -441,6 +453,7 @@ export class Critters {
           if (kind === 'frog' && inWater && rnd() < 0.5) c.walk = false;
         } else if (kind === 'villager') ang = this.villagerPlan(c, ang);
         if (t) { ang = Math.atan2(t[0] + 0.5 - c.x, t[2] + 0.5 - c.z); c.walk = true; }
+        if (herdAng !== null && !c.flee && (!t || rnd() < 0.5)) { ang = herdAng; c.walk = true; }
         c.heading = ang;
       }
       if (c.walk) { dx = Math.sin(c.heading); dz = Math.cos(c.heading); }
