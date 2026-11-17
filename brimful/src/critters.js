@@ -240,6 +240,10 @@ const GRAZE = { mossback: 1, rabbit: 1, deer: 1, sheep: 1 };
 
 const NAME_A = ['Al', 'Bri', 'Cor', 'Del', 'El', 'Fen', 'Gar', 'Hal', 'Is', 'Jor', 'Kes', 'Lin', 'Mar', 'Nel', 'Or', 'Per', 'Ros', 'Sil', 'Tam', 'Wil'];
 const NAME_B = ['a', 'an', 'da', 'den', 'en', 'eth', 'ia', 'in', 'is', 'la', 'ley', 'lo', 'mund', 'na', 'ra', 'ric', 'sa', 'ton', 'wyn', 'y'];
+const TOWN_A = ['Ash', 'Brook', 'Elm', 'Fern', 'Holly', 'Mill', 'Oak', 'Thorn', 'Willow', 'Stone', 'Clay', 'Marsh', 'Pine', 'Red', 'Wind', 'Hazel', 'Bram', 'Lark', 'Moss', 'Sedge'];
+const TOWN_B = ['ford', 'ham', 'by', 'wick', 'stead', 'field', 'ton', 'dale', 'mere', 'well', 'bury', 'combe', 'hollow', 'gate', 'stow'];
+const COLOURS = [0xc8553a, 0x3f7fb0, 0x5a9a4a, 0xd9a53a, 0x8a5aa8, 0x2a9a9a, 0xd06a90, 0x6a6a7a];
+export const townName = () => TOWN_A[(Math.random() * TOWN_A.length) | 0] + TOWN_B[(Math.random() * TOWN_B.length) | 0];
 const personName = () => NAME_A[(Math.random() * NAME_A.length) | 0] + NAME_B[(Math.random() * NAME_B.length) | 0];
 
 // a few words on what a creature is up to, for the inspect card
@@ -270,7 +274,23 @@ export class Critters {
     this.world = world; this.scene = scene; this.fx = fx;
     this.list = []; this.counts = {}; for (const k of KIND_IDS) this.counts[k] = 0;
     this.possessed = null; this.onEvent = () => {};
+    this.villages = [];   // { name, x, z, colour }: villagers belong to one by index
   }
+
+  found(x, z, name) {
+    const used = new Set(this.villages.map((v) => v.name));
+    let n = name || townName(); for (let k = 0; k < 8 && used.has(n); k++) n = townName();
+    this.villages.push({ name: n, x: Math.round(x), z: Math.round(z), colour: COLOURS[this.villages.length % COLOURS.length] });
+    this.onEvent('founded', this.villages[this.villages.length - 1]);
+    return this.villages.length - 1;
+  }
+  // the village a new settler near (x, z) belongs to; settlers far from every village found their own
+  villageAt(x, z) {
+    let best = -1, bd = 22;
+    this.villages.forEach((v, i) => { const d = Math.hypot(v.x - x, v.z - z); if (d < bd) { bd = d; best = i; } });
+    return best >= 0 ? best : this.found(x, z);
+  }
+  population(i) { let n = 0; for (const c of this.list) if (c.kind === 'villager' && !c.dead && c.vid === i) n++; return n; }
 
   spawn(kind, x, y, z, quiet) {
     if (this.counts[kind] >= KINDS[kind].cap) return null;
@@ -292,16 +312,16 @@ export class Critters {
     if (this.possessed === c) { this.possessed = null; this.onEvent('lost', c); }
   }
 
-  clear() { for (const c of this.list) this.scene.remove(c.mesh); this.list = []; for (const k of KIND_IDS) this.counts[k] = 0; this.possessed = null; }
+  clear() { for (const c of this.list) this.scene.remove(c.mesh); this.list = []; this.villages = []; for (const k of KIND_IDS) this.counts[k] = 0; this.possessed = null; }
 
-  serialize() { return this.list.filter((c) => !c.dead).map((c) => [c.kind, +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), c.food, +c.hx.toFixed(0), +c.hz.toFixed(0), c.meal || 0, c.name]); }
+  serialize() { return this.list.filter((c) => !c.dead).map((c) => [c.kind, +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), c.food, +c.hx.toFixed(0), +c.hz.toFixed(0), c.meal || 0, c.name, c.vid ?? -1]); }
   deserialize(arr) {
     this.clear();
     const OLD = ['minnow', 'duck', 'frog', 'mossback', 'rabbit', 'villager', 'butterfly', 'songbird', 'glimmer'];
     for (const a of arr || []) {
       const k = typeof a[0] === 'number' ? OLD[a[0]] : a[0]; if (!KINDS[k]) continue;
       const c = this.spawn(k, a[1], a[2], a[3], true);
-      if (c) { c.food = a[4] || 0; if (a.length > 5) { c.hx = a[5]; c.hz = a[6]; c.meal = a[7] || 0; if (a[8]) c.name = a[8]; } }
+      if (c) { c.food = a[4] || 0; if (a.length > 5) { c.hx = a[5]; c.hz = a[6]; c.meal = a[7] || 0; if (a[8]) c.name = a[8]; if (a[9] >= 0) c.vid = a[9]; } }
     }
   }
 
@@ -561,7 +581,11 @@ export class Critters {
         for (let y = b + 2; y >= b; y--) if (w.get(cx, y, cz) === WEED) { w.set(cx, y, cz, AIR); c.food++; c.eatCd = 8; this.fx.burst(c.x, c.y, c.z, 5, 0x9fe0f0, 1.5); break; }
       }
       if (c.food >= 4 && c.age > (kind === 'turtle' ? 260 : 110)) { c.food = 0; c.age = 0; this.spawn(kind, c.x, c.y + 0.2, c.z); }
-    } else if (kind === 'villager') this.villagerWork(c, cx, cy, cz);
+    } else if (kind === 'villager') {
+      if (c.vid === undefined || c.vid < 0 || !this.villages[c.vid]) c.vid = this.villageAt(c.hx, c.hz);
+      if (c.ground && (dx || dz) && rnd() < dt * 5) w.wear(Math.floor(c.x), Math.floor(c.y - 0.5), Math.floor(c.z));
+      this.villagerWork(c, cx, cy, cz);
+    }
   }
 
   // villagers: gather wood, build huts near home, replant, and raise families beside a roof
@@ -621,7 +645,7 @@ export class Critters {
       }
       return;
     }
-    if (c.age > 120 && (c.meal || 0) >= 2 && this.counts.villager < 2 + 3 * (this.roofs || 0) && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; c.meal = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; } }
+    if (c.age > 120 && (c.meal || 0) >= 2 && this.counts.villager < 2 + 3 * (this.roofs || 0) && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; c.meal = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; k.vid = c.vid; this.onEvent('born', k); } }
   }
 
   flier(c, dt, ctl, night) {

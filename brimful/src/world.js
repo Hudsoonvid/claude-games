@@ -17,13 +17,13 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24, LILY = 25;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24, LILY = 25, PATH = 26;
 
 export const OPAQUE = new Uint8Array(32);
-for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN]) OPAQUE[m] = 1;
+for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN, PATH]) OPAQUE[m] = 1;
 // what the water treats as ground
 const BED = new Uint8Array(32);
-for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH, SPRING, DRAIN]) BED[m] = 1;
+for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH, SPRING, DRAIN, PATH]) BED[m] = 1;
 
 const ACTIVE = new Uint8Array(32);
 for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN, HEARTH]) ACTIVE[m] = 1;
@@ -603,6 +603,11 @@ export class World {
           }
           break;
         }
+        case PATH: // a footpath grows back over if nobody walks it
+          if (OPAQUE[up] || under) { mat[i] = SOIL; aux[i] = 0; this.markDirty(x, z); }
+          else if (aux[i] > 0) aux[i]--;
+          else if (rnd() < 0.05) { mat[i] = TURF; this.markDirty(x, z); }
+          break;
         case CROP: {
           const below = y > 0 ? mat[i - WD] : STONE;
           if ((below !== SOIL && below !== TURF) || (cd[c] > 0.2 && cs[c] > y + 0.3)) { mat[i] = AIR; this.markDirty(x, z); }
@@ -685,6 +690,16 @@ export class World {
     const b = this.bed[c] | 0;
     this.takeWater(x, z, n * 0.5);
     for (let k = 0; k < n; k++) if (this.get(x, b + k, z) === AIR || this.get(x, b + k, z) === WEED) this.set(x, b + k, z, ICE);
+  }
+
+  // feet wear grass into paths: each step on turf adds wear, and enough of it leaves bare earth
+  wear(x, y, z, n = 1) {
+    if (!this.inb(x, y, z)) return;
+    const i = x + W * (z + D * y), m = this.mat[i];
+    if (m === TURF) {
+      if (this.aux[i] + n >= 24) { this.mat[i] = PATH; this.aux[i] = 60; if (this.mat[i + WD] === TUFT) this.mat[i + WD] = AIR; this.quiet = true; this.markDirty(x, z); this.quiet = false; }
+      else this.aux[i] += n;
+    } else if (m === PATH) this.aux[i] = Math.min(255, this.aux[i] + 20);
   }
 
   growLily(x, z, c) {

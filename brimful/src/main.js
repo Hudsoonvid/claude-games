@@ -5,7 +5,7 @@ import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, W
 import { generate, WORLD_TYPES } from './gen.js';
 import { BIO } from './biomes.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity, setEdgeSolid } from './mesher.js';
-import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe } from './critters.js';
+import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe, townName } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
 import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makePost } from './gfx.js';
@@ -82,6 +82,33 @@ function remesh(budget) {
     budget--; meshCursor = k + 1;
   }
 }
+
+// a pennant on a pole beside each village's hearth, in that village's colour
+const banners = {
+  group: new THREE.Group(), count: -1,
+  sync(force) {
+    if (!force && this.count === critters.villages.length) return;
+    this.count = critters.villages.length;
+    for (const m of [...this.group.children]) { this.group.remove(m); m.traverse((o) => o.geometry && o.geometry.dispose()); }
+    const pole = new THREE.MeshLambertMaterial({ color: 0x6a4a2e });
+    for (const v of critters.villages) {
+      const g = new THREE.Group(), x = v.x + 1.5, z = v.z + 0.5, y = world.groundY(x, z);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 0.1), pole); p.position.y = 1.6; p.castShadow = true; g.add(p);
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55, 6, 1), new THREE.MeshLambertMaterial({ color: v.colour, side: THREE.DoubleSide }));
+      flag.geometry.translate(0.45, 0, 0); flag.position.y = 2.85; flag.castShadow = true; g.add(flag); g.userData.flag = flag;
+      g.position.set(x, y, z); this.group.add(g);
+    }
+  },
+  wave(t) {
+    for (const g of this.group.children) {
+      const pa = g.userData.flag.geometry.attributes.position;
+      for (let i = 0; i < pa.count; i++) { const x = pa.getX(i); pa.setZ(i, Math.sin(t * 4 + x * 5 + g.position.x) * 0.08 * x); }
+      pa.needsUpdate = true;
+    }
+  },
+};
+grid.add(banners.group);
+let booted = false;
 
 // the container the world sits in: clay planter, glass tank, wooden crate, or nothing at all
 function buildContainer() {
@@ -259,6 +286,7 @@ function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
   $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
+  $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name}</label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
   $('censusWorld').innerHTML = (state.seasons ? row('Season', ['Spring', 'Summer', 'Autumn', 'Winter'][Math.floor(state.year * 4)]) : '') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
 $('bWorld').onclick = (e) => { e.stopPropagation(); openSheet('worlds'); };
@@ -360,9 +388,9 @@ function populate(villages) {
       if (k) { critters.spawn(k, x, gy + (['mossback', 'rabbit', 'deer', 'fox'].includes(k) ? 0.1 : 2 + rnd() * 3), z, true); left[k]--; }
     }
   }
-  for (const v of villages || []) for (let k = 0; k < 2 + v.huts; k++) {
+  for (const v of villages || []) for (let k = 0, vid = critters.found(v.x, v.z); k < 2 + v.huts; k++) {
     const x = v.x + 0.5 + (rnd() - 0.5) * 5, z = v.z + 0.5 + (rnd() - 0.5) * 5;
-    const c = critters.spawn('villager', x, world.groundY(x, z) + 0.1, z, true); if (c) { c.hx = v.x; c.hz = v.z; }
+    const c = critters.spawn('villager', x, world.groundY(x, z) + 0.1, z, true); if (c) { c.hx = v.x; c.hz = v.z; c.vid = vid; }
     if (k < 2) { const sx = v.x + (rnd() - 0.5) * 9, sz = v.z + (rnd() - 0.5) * 9, sh = critters.spawn('sheep', sx, world.groundY(sx, sz) + 0.1, sz, true); if (sh) { sh.hx = v.x; sh.hz = v.z; } }   // each village keeps a few sheep
   }
 }
@@ -373,17 +401,18 @@ function newWorld(preset, w = W, d = D) {
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset);
   buildStage();
-  populate(villages);
+  const was = booted; booted = false; populate(villages); booted = was;   // no announcements for the villages a world starts with
+  banners.sync(true);
   setRain(false); syncName();
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, villages: critters.villages });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
-    world.deserialize(s.w); buildStage(); critters.deserialize(s.c); remesh(9999); water.update(world);
+    world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
     state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
@@ -799,6 +828,7 @@ critters.onEvent = (t, c) => {
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') sound.blip(392, 0.25, 'triangle', 0.07);
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
+  else if (t === 'founded' && booted) toast(`A new village: ${c.name}`);
   else if (t === 'plop') sound.blip(520 + Math.random() * 200, 0.08, 'sine', 0.035);
   else if (t === 'hoot') { sound.blip(330, 0.3, 'sine', 0.05); setTimeout(() => sound.blip(290, 0.45, 'sine', 0.05), 380); }
   else if (t === 'croak') { sound.blip(150 + Math.random() * 50, 0.12, 'square', 0.03); setTimeout(() => sound.blip(170, 0.1, 'square', 0.025), 160); }
@@ -854,7 +884,8 @@ function inspect(c) {
 function syncCard() {
   if (!selected || selected.dead) { inspect(null); return; }
   const k = selected.kind, an = /^[aeiou]/.test(k) ? 'An ' : 'A ';
-  $('cardName').textContent = selected.name ? `${selected.name}, a villager` : an + k;
+  const vil = selected.kind === 'villager' && critters.villages[selected.vid];
+  $('cardName').textContent = selected.name ? `${selected.name} of ${vil ? vil.name : 'nowhere yet'}` : an + k;
   $('cardWhat').textContent = describe(selected, world, night);
 }
 $('cardRide').onclick = () => { if (selected && !selected.dead) { const c = selected; inspect(null); possess(c); } };
@@ -1078,6 +1109,7 @@ function frame(now) {
     state.tod = (state.tod + d * Math.min(1, dt * 2.5) + 1) % 1;
   }
 
+  if (gfx.level > 0) banners.wave(now / 1000);
   // smoke curls from a few roofs
   if (!state.paused && gfx.motes && Math.random() < 0.35) {
     const x = ri(W), z = ri(D), y = world.groundY(x, z) - 1;
@@ -1174,7 +1206,7 @@ function frame(now) {
 
   statT += dt;
   if (statT > 0.5) {
-    statT = 0; if (selected) syncCard();
+    statT = 0; if (selected) syncCard(); banners.sync();
     renderCensus();
     $('fps').textContent = `${Math.round(perf.fps)} frames per second · ${gfx.mode === 'auto' ? 'Auto: ' + LEVEL_NAMES[gfx.level] : gfx.mode === 'custom' ? 'Custom' : LEVEL_NAMES[gfx.level]} · ${Math.round(innerWidth * renderer.getPixelRatio())}×${Math.round(innerHeight * renderer.getPixelRatio())}`;
   }
@@ -1192,6 +1224,7 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   resize();
   remesh(999);
   updateSky();
+  banners.sync(true); booted = true;
   requestAnimationFrame(frame);
 });
 

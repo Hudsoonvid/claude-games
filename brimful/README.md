@@ -46,7 +46,9 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   waterweed takes root on lake beds, cattails stand in the shallows and mushrooms come up in forest shade.
 - **Life**: eighteen creatures — minnows, koi, ducks, turtles, herons, frogs, crabs, mossbacks, rabbits, sheep, deer,
   foxes, bees, butterflies, songbirds, owls, glimmers and villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
-  lantern-lit huts and raise families. Ride along with any of them in
+  lantern-lit huts and raise families. Every village has a name and a coloured pennant by its hearth, its people wear
+  footpaths into the grass, and settlers who build far from home found new villages. The menu under the title lists
+  each village and its population. Ride along with any of them in
   third or first person.
 - **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Weather steps from clear
   to rain, storm (overcast, lightning) and snow, which settles in drifts and skins lakes with ice. Also tornado
