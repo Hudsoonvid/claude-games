@@ -709,6 +709,7 @@ critters.onEvent = (t, c) => {
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') sound.blip(392, 0.25, 'triangle', 0.07);
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
+  else if (t === 'croak') { sound.blip(150 + Math.random() * 50, 0.12, 'square', 0.03); setTimeout(() => sound.blip(170, 0.1, 'square', 0.025), 160); }
 };
 
 // ---------------------------------------------------------------- input
@@ -731,7 +732,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (looking) drag = 'orbit'; else { state.painting = true; useTool(true); }
     return;
   }
-  if (e.button === 2) drag = 'orbit';
+  if (e.button === 2 || (e.button === 0 && (e.altKey || e.ctrlKey || e.metaKey))) drag = 'orbit';   // Option/Ctrl/Cmd-drag works on a trackpad
   else if (e.button === 1 || (e.button === 0 && e.shiftKey)) drag = 'pan';
   else if (e.button === 0) { if (looking) drag = 'orbit'; else { state.painting = true; useTool(true); } }
 });
@@ -759,7 +760,15 @@ const endPointer = (e) => {
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !pointers.size) state.pointerIn = false; });
-canvas.addEventListener('wheel', (e) => { e.preventDefault(); camGoal.dist = clampDist(camGoal.dist * Math.exp(e.deltaY * 0.0012)); }, { passive: false });
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  // trackpads: pinch (reported with ctrlKey) or a vertical swipe zooms, a sideways swipe turns the view
+  if (e.ctrlKey) camGoal.dist = clampDist(camGoal.dist * Math.exp(e.deltaY * 0.01));
+  else {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2) camGoal.yaw -= e.deltaX * 0.004;
+    else camGoal.dist = clampDist(camGoal.dist * Math.exp(e.deltaY * 0.0012));
+  }
+}, { passive: false });
 
 const clampDist = (d) => Math.max(critters.possessed ? 3 : 24, Math.min(300 * SF, d));
 function orbit(dx, dy) {
@@ -808,6 +817,21 @@ addEventListener('blur', () => keys.clear());
     b.addEventListener('pointerdown', () => { touchUp = v; });
     b.addEventListener('pointerup', () => { touchUp = 0; }); b.addEventListener('pointercancel', () => { touchUp = 0; });
   }
+}
+
+// keyboard camera when not riding: WASD / arrows pan, Q E turn, Z X zoom, T G tilt
+function keyCamera(dt) {
+  if (critters.possessed || !keys.size) return;
+  const has = (...k) => k.some((q) => keys.has(q));
+  const f = (has('w', 'ArrowUp') ? 1 : 0) - (has('s', 'ArrowDown') ? 1 : 0), s = (has('d', 'ArrowRight') ? 1 : 0) - (has('a', 'ArrowLeft') ? 1 : 0);
+  if (f || s) {
+    const k = camGoal.dist * 0.6 * dt, sy = Math.sin(camGoal.yaw), cy = Math.cos(camGoal.yaw);
+    camGoal.tx = Math.max(-W * 0.6, Math.min(W * 0.6, camGoal.tx + (-sy * f + cy * s) * k));
+    camGoal.tz = Math.max(-D * 0.6, Math.min(D * 0.6, camGoal.tz + (-cy * f - sy * s) * k));
+  }
+  if (has('q')) camGoal.yaw += dt * 1.6; if (has('e')) camGoal.yaw -= dt * 1.6;
+  if (has('z')) camGoal.dist = clampDist(camGoal.dist * (1 - dt * 1.4)); if (has('x')) camGoal.dist = clampDist(camGoal.dist * (1 + dt * 1.4));
+  if (has('t')) camGoal.pitch = Math.min(1.5, camGoal.pitch + dt); if (has('g')) camGoal.pitch = Math.max(0.06, camGoal.pitch - dt);
 }
 
 function readInput() {
@@ -939,7 +963,7 @@ function frame(now) {
   if (pourLevel <= 0) sound.pour(0);
   for (let i = transients.length - 1; i >= 0; i--) if (transients[i](dt)) transients.splice(i, 1);
 
-  readInput();
+  readInput(); keyCamera(dt);
   if (!state.paused) critters.update(dt * Math.min(3, state.speed), input, night);
   fx.update(dt);
   remesh(gfx.level === 0 ? 3 : 6);

@@ -560,6 +560,36 @@ export class World {
     if (this.get(x, y + 4, z) === AIR) this.set(x, y + 4, z, LAMP);
     return true;
   }
+  clearFor(x, y, z, h) { // a 3x3 patch of solid dry ground with h cells of room above
+    if (x < 2 || z < 2 || x > W - 3 || z > D - 3 || y < 1 || y > H - h - 2) return false;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (!OPAQUE[this.get(x + dx, y - 1, z + dz)] || this.wet(x + dx, y, z + dz)) return false;
+      for (let dy = 0; dy < h; dy++) { const m = this.get(x + dx, y + dy, z + dz); if (m !== AIR && m !== TUFT && m !== SEED && m !== SNOW && m !== CROP) return false; }
+    }
+    return true;
+  }
+  // a stone-ringed well that keeps the ground around it damp
+  well(x, y, z) {
+    if (!this.clearFor(x, y, z, 2)) return false;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (dx || dz) this.set(x + dx, y, z + dz, STONE); else { this.set(x, y, z, AIR); this.set(x, y - 1, z, STONE); }
+    }
+    this.updateBeds(); this.addWater(x, z, 0.85);
+    return true;
+  }
+  // a tall plank lookout with a lantern on top
+  tower(x, y, z) {
+    if (!this.clearFor(x, y, z, 8)) return false;
+    for (let k = 0; k < 6; k++) for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const corner = dx && dz, edge = dx || dz;
+      if (k < 4) this.set(x + dx, y + k, z + dz, corner ? PLANK : edge && !(k < 2 && dz === 1 && !dx) && k !== 2 ? PLANK : AIR);
+      else if (k === 4) this.set(x + dx, y + k, z + dz, PLANK);
+      else this.set(x + dx, y + k, z + dz, corner ? PLANK : AIR);
+    }
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.set(x + dx, y + 6, z + dz, THATCH);
+    this.set(x, y + 7, z, LAMP);
+    return true;
+  }
   setBiome(x, z, b) { if (x >= 0 && x < W && z >= 0 && z < D && this.biome[x + z * W] !== b) { this.biome[x + z * W] = b; this.markDirty(x, z); } }
 
   melt(x, y, z) {

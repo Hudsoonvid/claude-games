@@ -73,6 +73,14 @@ export class Sound {
   ambient(night) {
     const ctx = this.ctx; if (!ctx || ctx.currentTime < this.nextNote) return;
     this.nextNote = ctx.currentTime + 2.2 + Math.random() * 4.5;
+    if (night > 0.6) { // crickets
+      const t0 = ctx.currentTime + Math.random() * 1.5, f0 = 4200 + Math.random() * 900;
+      for (let k = 0; k < 3 + ((Math.random() * 4) | 0); k++) {
+        const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f0; const g = ctx.createGain(), s = t0 + k * 0.075;
+        g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(0.012, s + 0.01); g.gain.linearRampToValueAtTime(0, s + 0.045);
+        o.connect(g).connect(this.master); o.start(s); o.stop(s + 0.06);
+      }
+    }
     const scale = [0, 2, 4, 7, 9, 12, 14, 16], base = night > 0.5 ? 196 : 261.6;
     const f = base * 2 ** (scale[(Math.random() * scale.length) | 0] / 12);
     const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f;

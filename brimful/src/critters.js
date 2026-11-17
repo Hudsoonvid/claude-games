@@ -245,6 +245,8 @@ export class Critters {
 
   update(dt, input, night) {
     const w = this.world; this.night = night;
+    this.censusT = (this.censusT || 0) - dt;
+    if (this.censusT <= 0) { this.censusT = 6; this.roofs = w.count(19); }   // lanterns = roofed buildings: villages only grow as fast as they build
     for (const c of this.list) {
       if (c.dead) continue;
       c.age += dt; c.t += dt; c.eatCd -= dt; c.hopCd -= dt;
@@ -362,6 +364,9 @@ export class Critters {
         c.retarget = 2 + rnd() * 4; c.walk = rnd() < (kind === 'frog' ? 0.45 : 0.8);
         let ang = c.heading + (rnd() - 0.5) * 2.4, t = null;
         if (kind === 'mossback' || kind === 'rabbit' || kind === 'deer') { if (c.food < 5) t = this.find(c, TUFT, 6); }
+        if (kind === 'rabbit' || kind === 'deer' || kind === 'duck') { // bolt from a fox that gets close
+          for (const o of this.list) if (o.kind === 'fox' && !o.dead && Math.hypot(o.x - c.x, o.z - c.z) < 5.5) { t = null; ang = Math.atan2(c.x - o.x, c.z - o.z) + (rnd() - 0.5) * 0.6; c.walk = true; c.flee = 2.5; c.retarget = 1; break; }
+        }
         else if (kind === 'fox') {
           if (c.eatCd <= 0) { let bd = 11; for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback')) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < bd) { bd = d; t = [o.x - 0.5, 0, o.z - 0.5]; } } if (t) c.retarget = 0.6; }
         } else if (kind === 'crab') {
@@ -380,6 +385,8 @@ export class Critters {
       }
       if (c.walk) { dx = Math.sin(c.heading); dz = Math.cos(c.heading); }
     }
+    if (c.flee > 0) { c.flee -= dt; sp *= 1.6; }
+    if (kind === 'frog' && this.night > 0.6 && inWater && rnd() < dt * 0.04) this.onEvent('croak', c);
     // vertical
     if (inWater && kind === 'crab') { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom
     else if (inWater) {
@@ -418,8 +425,8 @@ export class Critters {
 
     // appetites
     if (kind === 'fox') {
-      if (c.eatCd <= 0) for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.3) { this.remove(o, 0xffffff); c.food++; c.eatCd = 30; break; }
-      if (c.food >= 3 && c.age > 200) { c.food = 0; c.age = 0; this.spawn('fox', c.x, c.y + 0.2, c.z); }
+      if (c.eatCd <= 0) for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.3) { this.remove(o, 0xffffff); c.food++; c.eatCd = 70; break; }
+      if (c.food >= 4 && c.age > 320 && this.counts.fox < 5) { c.food = 0; c.age = 0; this.spawn('fox', c.x, c.y + 0.2, c.z); }
     } else if (kind === 'crab') {
       if (c.age > 220 && inWater && rnd() < 0.01) { c.age = 0; this.spawn('crab', c.x, c.y + 0.2, c.z); }
     } else if (kind === 'mossback' || kind === 'rabbit' || kind === 'deer') {
@@ -492,12 +499,14 @@ export class Critters {
       c.eatCd = 3;
       const a = rnd() * 6.283, r = 3 + rnd() * 4, hx = Math.round(c.x + Math.cos(a) * r), hz = Math.round(c.z + Math.sin(a) * r), hy = w.groundY(hx, hz);
       const top = w.get(hx, hy - 1, hz);
-      if ((top === TURF || top === SOIL) && Math.abs(hy - c.y) < 2.5 && w.hut(hx, hy, hz)) {
+      const nHuts = this.find(c, THATCH, 9, 30) ? 1 : 0, roll = rnd();
+      const made = (top === TURF || top === SOIL) && Math.abs(hy - c.y) < 2.5 && (nHuts && roll < 0.2 ? w.well(hx, hy, hz) : nHuts && roll < 0.38 ? w.tower(hx, hy, hz) : w.hut(hx, hy, hz));
+      if (made) {
         c.food = 0; c.hx = hx; c.hz = hz; this.fx.burst(hx + 0.5, hy + 1.5, hz + 0.5, 16, 0xd9b65a, 3); this.onEvent('build', c);
       }
       return;
     }
-    if (c.age > 120 && (c.meal || 0) >= 2 && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; c.meal = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; } }
+    if (c.age > 120 && (c.meal || 0) >= 2 && this.counts.villager < 2 + 3 * (this.roofs || 0) && rnd() < 0.02 && this.find(c, THATCH, 4, 6)) { c.age = 0; c.meal = 0; const k = this.spawn('villager', c.x, c.y + 0.2, c.z); if (k) { k.hx = c.hx; k.hz = c.hz; } }
   }
 
   flier(c, dt, ctl, night) {
