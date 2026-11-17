@@ -51,6 +51,8 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Weather steps from clear
   to rain, storm (overcast, lightning) and snow, which settles in drifts and skins lakes with ice. Also tornado
   and surge. U hides the interface for photos.
+- **Containers**: keep the clay planter, or switch to a glass tank that shows the ground and water in cross-section,
+  a wooden crate, or nothing at all (Settings).
 - **Seasons**: the year turns through spring, summer, autumn and winter, tinting grass and broadleaf trees, and
   weather comes and goes by itself (showers, summer storms, winter snow). It can be switched off in Settings.
 - **Worlds**: 42 world types in five groups (gentle, water, rugged, wild and special), from orchard hills and lake

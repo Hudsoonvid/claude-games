@@ -58,10 +58,12 @@ let grassDensity = 12;
 export function setGrassDensity(n) { grassDensity = n; }
 
 let mat, aux, cd, cs, biome;
+let edgeSolid = 1;   // 0 when the container is see-through, so the sides of the world are drawn in cross-section
+export function setEdgeSolid(v) { edgeSolid = v ? 1 : 0; }
 function op(x, y, z) {
   if (y < 0) return 1;
   if (y >= H) return 0;
-  if (x < 0 || x >= W || z < 0 || z >= D) return y < RIM ? 1 : 0;
+  if (x < 0 || x >= W || z < 0 || z >= D) return y < RIM ? edgeSolid : 0;
   return OPAQUE[mat[x + W * (z + D * y)]];
 }
 const P3 = [0, 0, 0], N3 = [0, 0, 0];

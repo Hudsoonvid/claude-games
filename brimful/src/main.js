@@ -4,7 +4,7 @@ import * as WM from './world.js';
 import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
 import { BIO } from './biomes.js';
-import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity } from './mesher.js';
+import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity, setEdgeSolid } from './mesher.js';
 import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
@@ -49,7 +49,7 @@ const glowMat = patchGlow(new THREE.MeshBasicMaterial({ vertexColors: true, side
 const mistMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, opacity: 0.9 });
 const sky = makeSky(); scene.add(sky);
 const motes = makeMotes(); scene.add(motes);
-const water = makeWater(renderer); grid.add(water.mesh);
+const water = makeWater(renderer); grid.add(water.mesh, water.skirt);
 let post = null;
 
 const world = new World();
@@ -83,6 +83,43 @@ function remesh(budget) {
   }
 }
 
+// the container the world sits in: clay planter, glass tank, wooden crate, or nothing at all
+function buildContainer() {
+  for (const m of [...stage.children]) { stage.remove(m); m.geometry.dispose(); }
+  const kind = gfx.container || 'planter', glassy = kind === 'glass' || kind === 'none';
+  setEdgeSolid(!glassy); water.skirt.visible = glassy; world.dirty.fill(1);
+  const T = 1.8, y0 = -1.4, h = RIM - y0, L = 0.7;
+  const add = (sx, sy, sz, x, y, z, mat, cast = true) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat); m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; stage.add(m); return m; };
+  const lamb = (c) => new THREE.MeshLambertMaterial({ color: c });
+  if (kind === 'planter') {
+    const clay = lamb(0xc9704a), clayDark = lamb(0xa9583a);
+    add(W + T * 2, h, T, 0, y0 + h / 2, -D / 2 - T / 2, clay); add(W + T * 2, h, T, 0, y0 + h / 2, D / 2 + T / 2, clay);
+    add(T, h, D, -W / 2 - T / 2, y0 + h / 2, 0, clay); add(T, h, D, W / 2 + T / 2, y0 + h / 2, 0, clay);
+    add(W + T * 2 + L * 2, 1.1, L, 0, RIM - 0.55, -D / 2 - T - L / 2, clayDark); add(W + T * 2 + L * 2, 1.1, L, 0, RIM - 0.55, D / 2 + T + L / 2, clayDark);
+    add(L, 1.1, D + T * 2, -W / 2 - T - L / 2, RIM - 0.55, 0, clayDark); add(L, 1.1, D + T * 2, W / 2 + T + L / 2, RIM - 0.55, 0, clayDark);
+    add(W + T * 2, 1.4, D + T * 2, 0, y0 - 0.7, 0, clayDark, false);
+  } else if (kind === 'crate') {
+    const wood = lamb(0xa77a4a), dark = lamb(0x7a5432), t = 1.0;
+    for (let k = 0; k < 4; k++) { // boards with a gap line between each
+      const y = y0 + (h / 4) * (k + 0.5), hh = h / 4 - 0.12;
+      add(W + t * 2, hh, t, 0, y, -D / 2 - t / 2, wood); add(W + t * 2, hh, t, 0, y, D / 2 + t / 2, wood);
+      add(t, hh, D, -W / 2 - t / 2, y, 0, wood); add(t, hh, D, W / 2 + t / 2, y, 0, wood);
+    }
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) add(1.4, h + 0.4, 1.4, x * (W / 2 + 0.5), y0 + h / 2, z * (D / 2 + 0.5), dark);
+    add(W + t * 2, 1.2, D + t * 2, 0, y0 - 0.6, 0, dark, false);
+  } else if (kind === 'glass') {
+    const glass = new THREE.MeshPhongMaterial({ color: 0xdff0ff, transparent: true, opacity: 0.13, shininess: 220, specular: 0xffffff, depthWrite: false, side: THREE.DoubleSide });
+    const frame = lamb(0x3a3430), t = 0.12, g = h + 0.4;
+    for (const m of [add(W, g, t, 0, y0 + g / 2, -D / 2 - t / 2, glass, false), add(W, g, t, 0, y0 + g / 2, D / 2 + t / 2, glass, false),
+      add(t, g, D, -W / 2 - t / 2, y0 + g / 2, 0, glass, false), add(t, g, D, W / 2 + t / 2, y0 + g / 2, 0, glass, false)]) { m.renderOrder = 6; m.receiveShadow = false; }
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) add(0.5, g, 0.5, x * (W / 2 + 0.1), y0 + g / 2, z * (D / 2 + 0.1), frame);
+    for (const s of [-1, 1]) { add(W + 1, 0.4, 0.5, 0, y0 + g, s * (D / 2 + 0.1), frame); add(0.5, 0.4, D + 1, s * (W / 2 + 0.1), y0 + g, 0, frame); }
+    add(W + 2, 1.6, D + 2, 0, y0 - 0.8, 0, frame, false);
+  } else add(W, 1.2, D, 0, -0.6, 0, lamb(0x4a3a2c), false);
+  const table = new THREE.Mesh(new THREE.CylinderGeometry(Math.hypot(W, D) / 2 + 16, Math.hypot(W, D) / 2 + 16, 2.4, 64), lamb(0xead9bd));
+  table.position.y = y0 - 2.6; table.receiveShadow = true; stage.add(table);
+}
+
 function buildStage() {
   W = WM.W; D = WM.D; H = WM.H; SF = Math.max(W, D) / 64;
   for (const c of chunks) for (const m of [c.solid, c.flora, c.glow, c.mist]) { grid.remove(m); m.geometry.dispose(); }
@@ -95,18 +132,7 @@ function buildStage() {
   }
   grid.position.set(-W / 2, 0, -D / 2);
   water.rebuild();
-  // planter
-  for (const m of [...stage.children]) { stage.remove(m); m.geometry.dispose(); }
-  const clay = new THREE.MeshLambertMaterial({ color: 0xc9704a }), clayDark = new THREE.MeshLambertMaterial({ color: 0xa9583a });
-  const T = 1.8, y0 = -1.4, h = RIM - y0, L = 0.7;
-  const add = (sx, sy, sz, x, y, z, mat, cast = true) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat); m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; stage.add(m); };
-  add(W + T * 2, h, T, 0, y0 + h / 2, -D / 2 - T / 2, clay); add(W + T * 2, h, T, 0, y0 + h / 2, D / 2 + T / 2, clay);
-  add(T, h, D, -W / 2 - T / 2, y0 + h / 2, 0, clay); add(T, h, D, W / 2 + T / 2, y0 + h / 2, 0, clay);
-  add(W + T * 2 + L * 2, 1.1, L, 0, RIM - 0.55, -D / 2 - T - L / 2, clayDark); add(W + T * 2 + L * 2, 1.1, L, 0, RIM - 0.55, D / 2 + T + L / 2, clayDark);
-  add(L, 1.1, D + T * 2, -W / 2 - T - L / 2, RIM - 0.55, 0, clayDark); add(L, 1.1, D + T * 2, W / 2 + T + L / 2, RIM - 0.55, 0, clayDark);
-  add(W + T * 2, 1.4, D + T * 2, 0, y0 - 0.7, 0, clayDark, false);
-  const table = new THREE.Mesh(new THREE.CylinderGeometry(Math.hypot(W, D) / 2 + 16, Math.hypot(W, D) / 2 + 16, 2.4, 64), new THREE.MeshLambertMaterial({ color: 0xead9bd }));
-  table.position.y = y0 - 2.6; table.receiveShadow = true; stage.add(table);
+  buildContainer();
   // light + camera framing
   const half = Math.hypot(W, D) / 2 + 8;
   Object.assign(sun.shadow.camera, { left: -half, right: half, top: half, bottom: -half, near: 10, far: 320 * SF });
@@ -255,7 +281,7 @@ const LEVELS = [
 ];
 const LEVEL_NAMES = ['Low', 'Medium', 'High', 'Ultra'];
 const touchy = matchMedia('(pointer: coarse)').matches;
-const gfx = { mode: 'auto', level: touchy ? 1 : 2, ceil: 4, ...LEVELS[touchy ? 1 : 2] };
+const gfx = { mode: 'auto', level: touchy ? 1 : 2, ceil: 4, container: 'planter', ...LEVELS[touchy ? 1 : 2] };
 { const s = ls.get(GFX_KEY); if (s && typeof s === 'object') Object.assign(gfx, s); if (gfx.mode === 'auto') { gfx.ceil = 4; Object.assign(gfx, LEVELS[gfx.level]); } }
 let appliedShadow = -1, appliedAA = null, appliedGrass = -1, usePost = true;
 function applyGfx(save = true) {
@@ -275,6 +301,7 @@ function applyGfx(save = true) {
   motes.visible = gfx.motes;
   resize();
   // reflect in the panel
+  $('gContainer').value = gfx.container || 'planter';
   $('gQ').value = gfx.mode === 'auto' ? 'auto' : gfx.mode === 'custom' ? 'custom' : String(gfx.level);
   $('gRes').value = Math.round(gfx.res * 100 * DPR / Math.max(1, Math.min(DPR, 2)) ); $('gRes').value = Math.round(gfx.res * 100);
   $('gResO').textContent = Math.round(gfx.res * 100) + '%'; $('gShadow').value = String(gfx.shadows);
@@ -293,6 +320,7 @@ for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt']
 $('gSound').onchange = (e) => { sound.init(); sound.setMuted(!e.target.checked); };
 function setSeasons(v) { state.seasons = !!v; $('gSeasons').checked = state.seasons; }
 $('gSeasons').onchange = (e) => setSeasons(e.target.checked);
+$('gContainer').onchange = (e) => { gfx.container = e.target.value; ls.set(GFX_KEY, gfx); buildContainer(); };
 
 // Auto quality: watch real frame times, step down when it struggles, creep back up when there is clear headroom.
 const perf = {

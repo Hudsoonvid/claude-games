@@ -305,7 +305,46 @@ export function makeWater(renderer) {
     }
     tex.needsUpdate = true;
   }
-  return { mesh, rebuild, update };
+  // the water's sides, seen through a glass tank: a curtain around the border from the bed up to the surface
+  const skirtMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: U,
+    vertexShader: /* glsl */ `
+      uniform sampler2D uWater; uniform vec2 uWorld; attribute float top; attribute vec2 inset; varying float vDepth; varying float vTop;
+      void main(){
+        vec4 w = texture2D(uWater, (position.xz + inset) / uWorld);
+        float bed = w.r - w.g, y = w.g > 0.04 ? mix(bed, w.r, top) : w.r - 2.0;
+        vDepth = w.r - y; vTop = top;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position.x, y, position.z, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uAmb, uTime; varying float vDepth; varying float vTop;
+      void main(){
+        float k = 1.0 - exp(-vDepth * 0.35);
+        vec3 col = mix(vec3(0.3, 0.74, 0.82), vec3(0.03, 0.2, 0.4), k) * (0.55 + 0.45 * uAmb);
+        col += vec3(0.9, 0.97, 1.0) * smoothstep(0.12, 0.0, vDepth) * 0.5 * uAmb;     // the bright meniscus line
+        gl_FragColor = vec4(col, 0.5 + 0.35 * k);
+      }`,
+  });
+  const skirt = new THREE.Mesh(new THREE.BufferGeometry(), skirtMat);
+  skirt.frustumCulled = false; skirt.renderOrder = 3; skirt.visible = false;
+  function rebuildSkirt() {
+    const pos = [], top = [], inset = [], idx = [], e = 0.5 / WR, sides = [[WW, (k) => [k / WR, 0], [0, e]], [WW, (k) => [k / WR, D], [0, -e]], [WH, (k) => [0, k / WR], [e, 0]], [WH, (k) => [W, k / WR], [-e, 0]]];
+    for (const [n, at, ins] of sides) {
+      const base = pos.length / 3;
+      for (let k = 0; k <= n; k++) {
+        const [x, z] = at(k), cx = Math.min(Math.max(x, e), (ins[0] ? x : W - e)), cz = Math.min(Math.max(z, e), (ins[1] ? z : D - e));
+        for (const t of [0, 1]) { pos.push(x, 0, z); top.push(t); inset.push(cx - x + ins[0], cz - z + ins[1]); }
+      }
+      for (let k = 0; k < n; k++) { const a = base + k * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    }
+    skirt.geometry.dispose();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('top', new THREE.Float32BufferAttribute(top, 1));
+    g.setAttribute('inset', new THREE.Float32BufferAttribute(inset, 2)); g.setIndex(idx);
+    skirt.geometry = g;
+  }
+  const rebuildTop = rebuild;
+  return { mesh, skirt, rebuild() { rebuildTop(); rebuildSkirt(); }, update };
 }
 
 // ---------------------------------------------------------------- sky
