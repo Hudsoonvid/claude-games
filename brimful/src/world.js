@@ -785,6 +785,25 @@ export class World {
     } else if (m === PATH && this.aux[i] < 255) this.aux[i] = Math.min(254, this.aux[i] + 20);
   }
 
+  // a lasting dirt road between two points, laid over dry ground and stopping at water
+  road(x0, z0, x1, z1) {
+    let x = Math.round(x0), z = Math.round(z0), laid = 0;
+    const tx = Math.round(x1), tz = Math.round(z1);
+    for (let k = 0; k < W + D + 8 && (x !== tx || z !== tz); k++) {
+      // step along whichever axis is further behind, so the road stays four-connected
+      const dx = tx - x, dz = tz - z;
+      if (Math.abs(dx) * (0.8 + rnd() * 0.4) > Math.abs(dz)) x += Math.sign(dx); else z += Math.sign(dz);
+      const y = this.groundY(x, z) - 1;
+      if (y < 1 || this.wet(x, y + 1, z)) continue;
+      const i = x + W * (z + D * y), m = this.mat[i];
+      if (m !== TURF && m !== SOIL && m !== SAND && m !== PATH) continue;
+      this.mat[i] = PATH; this.aux[i] = 255; laid++;
+      const up = this.mat[i + WD]; if (up === TUFT || up === SNOW || up === CROP || up === SEED || up === WEED) { this.mat[i + WD] = AIR; this.aux[i + WD] = 0; }
+      this.markDirty(x, z);
+    }
+    return laid;
+  }
+
   growLily(x, z, c) {
     if (rnd() > 0.012 || this.cd[c] < 0.7 || this.cd[c] > 2.8) return;
     const y = Math.floor(this.cs[c]);

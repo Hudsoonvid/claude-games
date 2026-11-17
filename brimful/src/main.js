@@ -1469,6 +1469,11 @@ function frame(now) {
       const pop = critters.population(i), tier = pop >= 15 ? 2 : pop >= 6 ? 1 : 0;
       if (v.tier === undefined) v.tier = tier;
       else if (tier > v.tier) { v.tier = tier; chronicle(`${v.name} grew into a ${TIERS[tier]}`); toast(`${v.name} is now a ${TIERS[tier]}`); }
+      if (v.tier >= 1 && !v.road) { // a growing village lays a road to its nearest neighbour
+        v.road = true; let best = null, bd = Math.max(W, D) * 0.9;
+        critters.villages.forEach((o, j) => { const d = Math.hypot(o.x - v.x, o.z - v.z); if (j !== i && d < bd && !(o.roadTo === i)) { bd = d; best = j; } });
+        if (best !== null) { const o = critters.villages[best]; v.roadTo = best; if (world.road(v.x, v.z, o.x, o.z) > 4) chronicle(`A road now joins ${v.name} and ${o.name}`); }
+      }
     });
     renderCensus();
     $('fps').textContent = `${Math.round(perf.fps)} frames per second · ${gfx.mode === 'auto' ? 'Auto: ' + LEVEL_NAMES[gfx.level] : gfx.mode === 'custom' ? 'Custom' : LEVEL_NAMES[gfx.level]} · ${Math.round(innerWidth * renderer.getPixelRatio())}×${Math.round(innerHeight * renderer.getPixelRatio())}`;
