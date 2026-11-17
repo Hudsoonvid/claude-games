@@ -551,7 +551,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; syncMills([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; syncMills([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -563,13 +563,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at) });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), away: state.away });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); state.away = s.away || {}; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -821,6 +821,27 @@ function festivals(dt) {
   state.festival -= dt;
   if (state.festival <= 0) { state.festival = null; return; }
   for (const v of critters.villages) if (rnd() < dt * 0.7) firework(v.x + (rnd() - 0.5) * 4, world.groundY(Math.round(v.x), Math.round(v.z)), v.z + (rnd() - 0.5) * 4);
+}
+// ---- migration: songbirds leave in autumn, bees and butterflies sleep through winter; all return in spring
+const AWAY = { songbird: 2, bee: 3, butterfly: 3 };   // the season each one leaves in
+function migrate(season) {
+  state.away ||= {};
+  if (season === 0) { // spring: everyone comes back, arriving from the edges
+    let n = 0;
+    for (const [k, cnt] of Object.entries(state.away)) for (let j = 0; j < cnt; j++) {
+      const x = 3 + rnd() * (W - 6), z = 3 + rnd() * (D - 6); if (critters.spawn(k, x, world.groundY(x, z) + 3 + rnd() * 3, z, true)) n++;
+    }
+    state.away = {};
+    if (n) chronicle('The birds, bees and butterflies came back for spring');
+    return;
+  }
+  const leaving = Object.keys(AWAY).filter((k) => AWAY[k] === season);
+  let gone = 0;
+  for (const c of [...critters.list]) if (leaving.includes(c.kind) && !c.dead && critters.possessed !== c && rnd() < 0.85) {
+    state.away[c.kind] = (state.away[c.kind] || 0) + 1; gone++;
+    fx.burst(c.x, c.y + 0.5, c.z, 4, c.kind === 'songbird' ? 0xffc9bd : 0xfff2b0, 1.5, -0.3); critters.remove(c);
+  }
+  if (gone) chronicle(season === 2 ? 'The songbirds flew south for the winter' : 'The bees and butterflies went to sleep for the winter');
 }
 function dateLabel() { return `Day ${state.day}` + (state.seasons ? `, ${SEASONS[Math.floor(state.year * 4)].toLowerCase()} of year ${state.yearN}` : ''); }
 function chronicle(text) {
@@ -1487,7 +1508,7 @@ function frame(now) {
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
       state.year = (state.year + dt * state.speed / 1800) % 1;
-      if (Math.floor(state.year * 4) !== season0) { if (season0 === 3) state.yearN++; chronicle(`${SEASONS[Math.floor(state.year * 4)]} came`); if (critters.villages.length) state.festival = 'due'; }
+      if (Math.floor(state.year * 4) !== season0) { if (season0 === 3) state.yearN++; chronicle(`${SEASONS[Math.floor(state.year * 4)]} came`); if (critters.villages.length) state.festival = 'due'; migrate(Math.floor(state.year * 4)); }
       state.weatherT -= dt * state.speed;
       if (state.weatherT <= 0) {
         const season = Math.floor(state.year * 4), r = Math.random(), on = world.raining || world.snowing;
@@ -1668,4 +1689,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, get frames() { return frames; } };
