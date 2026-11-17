@@ -832,20 +832,25 @@ export class World {
 
   // a lasting dirt road between two points, laid over dry ground and stopping at water
   road(x0, z0, x1, z1) {
-    let x = Math.round(x0), z = Math.round(z0), laid = 0;
-    const tx = Math.round(x1), tz = Math.round(z1);
+    let x = Math.round(x0), z = Math.round(z0), laid = 0, dry = null, wetN = 0;
+    const tx = Math.round(x1), tz = Math.round(z1), bridges = [];
     for (let k = 0; k < W + D + 8 && (x !== tx || z !== tz); k++) {
       // step along whichever axis is further behind, so the road stays four-connected
       const dx = tx - x, dz = tz - z;
       if (Math.abs(dx) * (0.8 + rnd() * 0.4) > Math.abs(dz)) x += Math.sign(dx); else z += Math.sign(dz);
       const y = this.groundY(x, z) - 1;
-      if (y < 1 || this.wet(x, y + 1, z)) continue;
+      if (y < 1) continue;
+      if (this.wet(x, y + 1, z)) { wetN++; continue; }
+      // back on dry land after crossing water: remember the gap so a bridge can be drawn over it
+      if (wetN > 0 && dry && wetN <= 16) bridges.push([dry[0], dry[1], dry[2], x, y + 1, z]);
+      wetN = 0; dry = [x, y + 1, z];
       const i = x + W * (z + D * y), m = this.mat[i];
       if (m !== TURF && m !== SOIL && m !== SAND && m !== PATH) continue;
       this.mat[i] = PATH; this.aux[i] = 255; laid++;
       const up = this.mat[i + WD]; if (up === TUFT || up === SNOW || up === CROP || up === SEED || up === WEED) { this.mat[i + WD] = AIR; this.aux[i + WD] = 0; }
       this.markDirty(x, z);
     }
+    this.lastBridges = bridges;
     return laid;
   }
 

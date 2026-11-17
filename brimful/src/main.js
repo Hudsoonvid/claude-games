@@ -552,7 +552,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; syncMills([]); syncLights([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; syncMills([]); syncLights([]); syncBridges([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -564,13 +564,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), away: state.away });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), bridges: bridges.map((b) => b.at), away: state.away });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); state.away = s.away || {}; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); syncBridges(s.bridges); state.away = s.away || {}; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -769,6 +769,24 @@ function turnMills(dt) {
     m.g.rotation.z -= dt * (0.6 + (world.raining ? 0.8 : 0) + (state.storm ? 1.2 : 0));
   }
 }
+// ---- bridges: a plank deck on posts where a road crosses water (drawn, not voxels, so rivers still run beneath)
+const bridges = [];   // { at: [x0, y0, z0, x1, y1, z1], g }
+const deckMat = new THREE.MeshLambertMaterial({ color: 0xa8784a }), postMat = new THREE.MeshLambertMaterial({ color: 0x6e4e30 });
+function addBridge(at) {
+  const [x0, y0, z0, x1, y1, z1] = at, dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz), deck = Math.max(y0, y1) + 0.12;
+  const g = new THREE.Group(); g.position.set((x0 + x1) / 2 + 0.5, deck, (z0 + z1) / 2 + 0.5); g.rotation.y = Math.atan2(dx, dz);
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.16, len + 1), deckMat); plank.castShadow = plank.receiveShadow = true; g.add(plank);
+  for (const sx of [-0.52, 0.52]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, len + 0.8), postMat); rail.position.set(sx, 0.55, 0); g.add(rail);
+    for (let t = -len / 2; t <= len / 2 + 0.01; t += Math.max(1.5, len / Math.ceil(len / 2))) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.62, 0.1), postMat); post.position.set(sx, 0.3, t); g.add(post);
+      const px = (x0 + x1) / 2 + Math.sin(g.rotation.y) * t, pz = (z0 + z1) / 2 + Math.cos(g.rotation.y) * t, bed = world.bedAt(px + 0.5, pz + 0.5);
+      if (deck - bed > 0.3) { const pile = new THREE.Mesh(new THREE.BoxGeometry(0.14, deck - bed, 0.14), postMat); pile.position.set(sx, -(deck - bed) / 2, t); g.add(pile); }
+    }
+  }
+  grid.add(g); bridges.push({ at, g });
+}
+function syncBridges(list) { for (const b of bridges) grid.remove(b.g); bridges.length = 0; for (const at of list || []) addBridge(at); }
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
 const lights = [];   // { at, g }
@@ -1704,7 +1722,7 @@ function frame(now) {
       if (v.tier >= 1 && !v.road) { // a growing village lays a road to its nearest neighbour
         v.road = true; let best = null, bd = Math.max(W, D) * 0.9;
         critters.villages.forEach((o, j) => { const d = Math.hypot(o.x - v.x, o.z - v.z); if (j !== i && d < bd && !(o.roadTo === i)) { bd = d; best = j; } });
-        if (best !== null) { const o = critters.villages[best]; v.roadTo = best; if (world.road(v.x, v.z, o.x, o.z) > 4) chronicle(`A road now joins ${v.name} and ${o.name}`); }
+        if (best !== null) { const o = critters.villages[best]; v.roadTo = best; if (world.road(v.x, v.z, o.x, o.z) > 4) chronicle(`A road now joins ${v.name} and ${o.name}`); for (const at of world.lastBridges || []) addBridge(at); if ((world.lastBridges || []).length) chronicle(`${v.name} bridged the water on the road to ${o.name}`); }
       }
     });
     renderCensus();
@@ -1728,4 +1746,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, buildLight, lights, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, buildLight, lights, bridges, get frames() { return frames; } };
