@@ -1,6 +1,6 @@
 // Starting worlds. Each preset is a recipe: a height function plus which biomes, how much water, what grows.
 // Everything is placed relative to the world size so any size works.
-import { W, D, H, RIM, WR, WW, WH, AIR, STONE, SOIL, TURF, SAND, LAVA, WOOD, TUFT, BASALT, SNOW, HEARTH, SPRING, rnd, ri } from './world.js';
+import { setSeed, W, D, H, RIM, WR, WW, WH, AIR, STONE, SOIL, TURF, SAND, LAVA, WOOD, TUFT, BASALT, SNOW, HEARTH, SPRING, rnd, ri } from './world.js';
 import { BIO } from './biomes.js';
 
 function makeNoise() {
@@ -157,8 +157,9 @@ function tree(world, x, y, z, b) {
   world.crown(x, y + h, z, 2.2 + rnd() * 0.8);
 }
 
-export function generate(world, presetId) {
+export function generate(world, presetId, seedText) {
   world.clear();
+  if (seedText) setSeed(seedText + '|' + presetId + '|' + W + 'x' + D);
   let pre = PRESETS.find((p) => p.id === presetId) || PRESETS[0];
   if (pre.id === 'bare') {
     for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) { world.set(x, 0, z, STONE); world.set(x, 1, z, STONE); world.set(x, 2, z, SAND); }

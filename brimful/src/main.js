@@ -294,7 +294,7 @@ function renderCensus() {
   $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name}</label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
   $('censusDate').textContent = dateLabel();
   $('censusChron').innerHTML = state.chron.length ? state.chron.slice(-8).reverse().map((e) => `<li><small>${e.d}</small>${e.t}${e.n > 1 ? ` <b>×${e.n}</b>` : ''}</li>`).join('') : '<li class="zero">Nothing has happened yet.</li>';
-  $('censusWorld').innerHTML = (state.seasons ? row('Season', SEASONS[Math.floor(state.year * 4)]) : '') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
+  $('censusWorld').innerHTML = (state.seasons ? row('Season', SEASONS[Math.floor(state.year * 4)]) : '') + row('Type', (WORLD_TYPES.find((t) => t[0] === state.preset) || [0, state.preset])[1]) + row('Seed', state.seed || '—') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
 $('bWorld').onclick = (e) => { e.stopPropagation(); openSheet('worlds'); };
 $('bSet').onclick = (e) => { e.stopPropagation(); openSheet('settings'); };
@@ -401,26 +401,31 @@ function populate(villages) {
     if (k < 2) { const sx = v.x + (rnd() - 0.5) * 9, sz = v.z + (rnd() - 0.5) * 9, sh = critters.spawn('sheep', sx, world.groundY(sx, sz) + 0.1, sz, true); if (sh) { sh.hx = v.x; sh.hz = v.z; } }   // each village keeps a few sheep
   }
 }
-function newWorld(preset, w = W, d = D) {
+const SEED_A = ['amber', 'birch', 'clover', 'dusk', 'ember', 'fern', 'glade', 'heron', 'iris', 'juniper', 'kestrel', 'lichen', 'moss', 'nettle', 'otter', 'pebble', 'quill', 'reed', 'sorrel', 'thistle', 'umber', 'violet', 'willow', 'yarrow'];
+const SEED_B = ['brook', 'cove', 'dell', 'fen', 'glen', 'hill', 'isle', 'knoll', 'lake', 'marsh', 'moor', 'pond', 'ridge', 'shore', 'vale', 'wood'];
+const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_B[(Math.random() * SEED_B.length) | 0]}-${10 + ((Math.random() * 90) | 0)}`;
+function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
+  state.seed = seedText;
   release(); resetScene();
   state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = [];
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
-  const villages = generate(world, preset);
+  const villages = generate(world, preset, seedText);
   buildStage();
-  const was = booted; booted = false; populate(villages); booted = was;   // no announcements for the villages a world starts with
+  const was = booted; booted = false; populate(villages); booted = was;
+  WM.setSeed(Math.random() * 1e9);   // from here on the world lives its own life   // no announcements for the villages a world starts with
   banners.sync(true);
   setRain(false); syncName();
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -490,6 +495,7 @@ for (const el of [$('wW'), $('wD')]) {
   el.onchange = () => { el.value = snapSize(el.value); sizeNote(); };
   el.onkeydown = (e) => { if (e.key === 'Enter') $('bCreate').click(); };
 }
+$('wSeed').onkeydown = (e) => { if (e.key === 'Enter') $('bCreate').click(); };
 function sizeNote() {
   const w = snapSize($('wW').value), d = snapSize($('wD').value), a = w * d;
   for (const b of $('sizeChips').children) b.classList.toggle('on', +b.dataset.w === w && +b.dataset.d === d);
@@ -503,7 +509,8 @@ $('bCreate').onclick = () => {
   $('worlds').classList.remove('open');
   const label = WORLD_TYPES.find((t) => t[0] === pickType)[1];
   toast(`Making a ${w} × ${d} ${label.toLowerCase()}…`);
-  setTimeout(() => { newWorld(pickType, w, d); toast(`A fresh ${label.toLowerCase()}, ${w} × ${d}`); }, 30);   // let the toast paint before the work
+  const sd = $('wSeed').value.trim() || randomSeed();
+  setTimeout(() => { newWorld(pickType, w, d, sd); $('wSeed').value = ''; toast(`A fresh ${label.toLowerCase()}, ${w} × ${d}, seed ${sd}`); }, 30);   // let the toast paint before the work
 };
 
 // ---------------------------------------------------------------- picking
@@ -1276,7 +1283,7 @@ addEventListener('pagehide', autosave);
 setTab('earth'); setTool('sand'); setSize(2); setTimeMode('auto');
 applyGfx(false);
 loadModels().then(() => {   // the Blender-made creature models unpack first, then the world starts
-  if (!restore(ls.get(AUTO_KEY))) { const v = generate(world, 'valley'); buildStage(); populate(v); showHelp(true); }
+  if (!restore(ls.get(AUTO_KEY))) { newWorld('valley', W, D); showHelp(true); }
   resize();
   remesh(999);
   updateSky();

@@ -39,6 +39,12 @@ const BURN = new Uint8Array(32);
 BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8; BURN[CROP] = 4; BURN[REED] = 5;
 
 let seed = 0x9e3779b9 | 0;
+// worlds are generated from a seed, so the same seed, type and size always make the same world
+export function setSeed(text) {
+  let h = 0x811c9dc5;
+  for (const ch of String(text)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193); }
+  seed = h | 0 || 1;
+}
 export function rnd() {
   seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
   return (seed >>> 0) / 4294967296;

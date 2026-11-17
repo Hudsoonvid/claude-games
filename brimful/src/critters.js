@@ -243,8 +243,8 @@ const NAME_B = ['a', 'an', 'da', 'den', 'en', 'eth', 'ia', 'in', 'is', 'la', 'le
 const TOWN_A = ['Ash', 'Brook', 'Elm', 'Fern', 'Holly', 'Mill', 'Oak', 'Thorn', 'Willow', 'Stone', 'Clay', 'Marsh', 'Pine', 'Red', 'Wind', 'Hazel', 'Bram', 'Lark', 'Moss', 'Sedge'];
 const TOWN_B = ['ford', 'ham', 'by', 'wick', 'stead', 'field', 'ton', 'dale', 'mere', 'well', 'bury', 'combe', 'hollow', 'gate', 'stow'];
 const COLOURS = [0xc8553a, 0x3f7fb0, 0x5a9a4a, 0xd9a53a, 0x8a5aa8, 0x2a9a9a, 0xd06a90, 0x6a6a7a];
-export const townName = () => TOWN_A[(Math.random() * TOWN_A.length) | 0] + TOWN_B[(Math.random() * TOWN_B.length) | 0];
-const personName = () => NAME_A[(Math.random() * NAME_A.length) | 0] + NAME_B[(Math.random() * NAME_B.length) | 0];
+export const townName = () => TOWN_A[ri(TOWN_A.length)] + TOWN_B[ri(TOWN_B.length)];
+const personName = () => NAME_A[ri(NAME_A.length)] + NAME_B[ri(NAME_B.length)];
 
 // a few words on what a creature is up to, for the inspect card
 export function describe(c, world, night) {

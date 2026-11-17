@@ -63,7 +63,8 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Worlds**: 60 world types in five groups (gentle, water, rugged, wild and special), from orchard hills and lake
   districts to fjords, mesas, crater lakes, twin volcanoes, glaciers, fungal wilds, a volcanic island, stone pillars, a bayou and a moonlit glade, plus a
   biome checkerboard and *Surprise me*. Type any
-  width and depth from 16 to 256 blocks (in steps of 16). Villages are generated where there is room. Save as many named worlds as the
+  width and depth from 16 to 256 blocks (in steps of 16). Villages are generated where there is room. Every world has a seed (shown in the menu under the
+  title); type the same seed, type and size to make the same world again. Save as many named worlds as the
   browser's storage holds; the current one also autosaves.
 - **Graphics**: Auto measures real frame times and moves between Low, Medium, High and Ultra; every setting
   (resolution, shadows, grass density, bloom, light shafts, miniature blur, water detail, anti-aliasing) can also be
