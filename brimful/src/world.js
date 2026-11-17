@@ -777,17 +777,30 @@ export class World {
   count(m) { let c = 0; const mat = this.mat; for (let i = 0; i < N; i++) if (mat[i] === m) c++; return c; }
 
   // ---- persistence -------------------------------------------------------
+  // Water is stored as the height of its surface, which is the same across a still lake, so it packs down well;
+  // the 16-bit values go in two byte planes (low bytes, then high bytes) so runs survive the byte-wise packing.
   serialize() {
-    const q = new Uint16Array(this.wd.length);
-    for (let i = 0; i < q.length; i++) q[i] = Math.min(65535, Math.round(this.wd[i] * 512));
-    return { w: W, d: D, b: b64(rle(this.biome)), m: b64(rle(this.mat)), a: b64(rle(this.aux)), q: b64(rle(new Uint8Array(q.buffer))) };
+    this.updateBeds();
+    const n = this.wd.length, planes = new Uint8Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      const v = this.wd[i] > 0.0005 ? Math.min(65535, Math.max(1, Math.round((this.wb[i] + this.wd[i]) * 1024))) : 0;
+      planes[i] = v & 255; planes[i + n] = v >> 8;
+    }
+    return { w: W, d: D, b: b64(rle(this.biome)), m: b64(rle(this.mat)), a: b64(rle(this.aux)), s: b64(rle(planes)) };
   }
   deserialize(o) {
     this.resize(o.w, o.d);
     unrle(unb64(o.m), this.mat); unrle(unb64(o.a), this.aux); if (o.b) unrle(unb64(o.b), this.biome);
-    const q = new Uint16Array(this.wd.length); unrle(unb64(o.q), new Uint8Array(q.buffer));
-    for (let i = 0; i < q.length; i++) this.wd[i] = q[i] / 512;
-    this.updateBeds(); this.aggregate(); this.awake.fill(40); this.wakeAllWater();
+    this.colDirty.fill(1); this.updateBeds();
+    const n = this.wd.length;
+    if (o.s) { // surface heights
+      const planes = new Uint8Array(n * 2); unrle(unb64(o.s), planes);
+      for (let i = 0; i < n; i++) { const v = planes[i] | (planes[i + n] << 8); this.wd[i] = v ? Math.max(0, v / 1024 - this.wb[i]) : 0; }
+    } else { // older saves kept depths
+      const q = new Uint16Array(n); unrle(unb64(o.q), new Uint8Array(q.buffer));
+      for (let i = 0; i < n; i++) this.wd[i] = q[i] / 512;
+    }
+    this.aggregate(); this.awake.fill(40); this.wakeAllWater();
   }
 }
 

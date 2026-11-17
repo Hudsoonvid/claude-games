@@ -532,7 +532,10 @@ function restore(s) {
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
 }
-function autosave() { ls.set(AUTO_KEY, snapshot()); }
+let warnedFull = false;
+function autosave() {
+  if (!ls.set(AUTO_KEY, snapshot()) && !warnedFull) { warnedFull = true; toast('Browser storage is full, so this world is not being autosaved. Delete a saved world to make room.'); }
+}
 function syncName() { $('wname').textContent = state.name || 'Brimful'; $('saveName').value = state.name; }
 
 function renderSlots() {
