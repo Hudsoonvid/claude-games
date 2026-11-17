@@ -10,6 +10,10 @@ export const KINDS = {
   frog: { name: 'frog', cap: 40, hint: 'WASD hop and swim · Space leap' },
   mossback: { name: 'mossback', cap: 45, hint: 'WASD walk · Space hop' },
   rabbit: { name: 'rabbit', cap: 45, hint: 'WASD hop · Space leap' },
+  koi: { name: 'koi', cap: 16, hint: 'WASD swim · Space up · Shift down' },
+  turtle: { name: 'turtle', cap: 20, hint: 'WASD paddle or plod · Space hop' },
+  heron: { name: 'heron', cap: 10, hint: 'WASD wade · Space hop' },
+  sheep: { name: 'sheep', cap: 30, hint: 'WASD walk · Space hop' },
   deer: { name: 'deer', cap: 25, hint: 'WASD walk · Space leap' },
   fox: { name: 'fox', cap: 12, hint: 'WASD run · Space leap' },
   crab: { name: 'crab', cap: 25, hint: 'WASD scuttle · Space hop' },
@@ -17,6 +21,7 @@ export const KINDS = {
   bee: { name: 'bee', cap: 40, hint: 'WASD fly · Space up · Shift down' },
   butterfly: { name: 'butterfly', cap: 45, hint: 'WASD fly · Space up · Shift down' },
   songbird: { name: 'songbird', cap: 30, hint: 'WASD fly · Space up · Shift down' },
+  owl: { name: 'owl', cap: 12, hint: 'WASD fly · Space up · Shift down' },
   glimmer: { name: 'glimmer', cap: 50, hint: 'WASD fly · Space up · Shift down' },
 };
 export const KIND_IDS = Object.keys(KINDS);
@@ -75,6 +80,7 @@ export function loadModels() {
 const TINTS = {
   minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
   villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
+  koi: [[std(0xf2622a), std(0xf7f3ea), std(0xf0a030)]], turtle: [M.shell], heron: [[std(0xdfe6ee), std(0xb9c6d6)]], owl: [[std(0x8a6a48), std(0x9a8468), std(0xcfc6b8)]],
 };
 const plain = {};   // one shared Lambert per exported material colour
 function fromModel(kind) {
@@ -186,7 +192,9 @@ function build(kind) {
 }
 
 const lerpAngle = (a, b, t) => { let d = (b - a) % 6.2832; if (d > 3.1416) d -= 6.2832; else if (d < -3.1416) d += 6.2832; return a + d * t; };
-const FLY = { glimmer: 1, butterfly: 1, songbird: 1, bee: 1 };
+const FLY = { glimmer: 1, butterfly: 1, songbird: 1, bee: 1, owl: 1 };
+const SWIM = { minnow: 1, koi: 1 };
+const GRAZE = { mossback: 1, rabbit: 1, deer: 1, sheep: 1 };
 
 export class Critters {
   constructor(world, scene, fx) {
@@ -255,7 +263,7 @@ export class Critters {
       const cx = Math.floor(c.x), cy = Math.floor(c.y + 0.2), cz = Math.floor(c.z);
       const here = w.get(cx, cy, cz);
       if (here === LAVA || here === FIRE) { this.remove(c, 0xff9a3a); continue; }
-      if (c.kind === 'minnow') this.minnow(c, dt, ctl, here, cx, cy, cz);
+      if (SWIM[c.kind]) this.minnow(c, dt, ctl, here, cx, cy, cz);
       else if (FLY[c.kind]) this.flier(c, dt, ctl, night);
       else this.lander(c, dt, ctl, here, cx, cy, cz, night);
       if (c.dead) continue;
@@ -268,7 +276,7 @@ export class Critters {
     const m = c.mesh, u = m.userData, sp = Math.hypot(c.vx, c.vz);
     m.position.set(c.x, c.y, c.z);
     m.scale.setScalar(c.size);
-    if (c.kind === 'minnow') {
+    if (SWIM[c.kind]) {
       m.rotation.set(-Math.atan2(c.vy, Math.max(0.6, sp)) * 0.6, c.yaw, c.dry > 0.3 ? Math.PI / 2 : 0, 'YXZ');
       u.tail.rotation.y = Math.sin(c.t * (6 + sp * 4)) * 0.5;
     } else if (FLY[c.kind]) {
@@ -297,7 +305,7 @@ export class Critters {
     const surf = w.surfAt(c.x, c.z), bed = w.bedAt(c.x, c.z);
     if (surf > 0 && surf - bed > 0.45 && c.y < surf + 0.1 && !w.solid(cx, cy, cz)) {
       c.dry = 0;
-      let dx = 0, dy = 0, dz = 0, sp = 2.6;
+      let dx = 0, dy = 0, dz = 0, sp = c.kind === 'koi' ? 1.7 : 2.6;
       if (ctl) { dx = ctl.x; dz = ctl.z; dy = ctl.up; sp = 4.5; }
       else {
         c.retarget -= dt;
@@ -324,7 +332,7 @@ export class Critters {
       c.y = Math.max(b2 + 0.15, Math.min(s2 > 0 ? s2 - 0.18 : c.y, c.y + c.vy * dt));
       if (Math.hypot(c.vx, c.vz) > 0.2) c.yaw = lerpAngle(c.yaw, Math.atan2(c.vx, c.vz), Math.min(1, dt * 8));
       if (here === WEED && c.eatCd <= 0 && c.food < 6) { w.set(cx, cy, cz, AIR); c.food++; c.eatCd = 4; this.fx.burst(c.x, c.y, c.z, 4, 0x58c08a, 1); }
-      if (c.food >= 5 && c.age > 150 && c.eatCd <= 0) { c.food = 0; c.age = 0; this.spawn('minnow', c.x, c.y, c.z); }
+      if (c.food >= 5 && c.age > (c.kind === 'koi' ? 260 : 150) && c.eatCd <= 0) { c.food = 0; c.age = 0; this.spawn(c.kind, c.x, c.y, c.z); }
     } else {
       if (w.solid(cx, cy, cz)) { c.y += 3 * dt; return; }
       c.dry += dt; c.vy -= 22 * dt;
@@ -355,7 +363,7 @@ export class Critters {
     if (w.solid(cx, cy, cz)) { c.y += 4 * dt; c.vy = 0; return; } // dig out when buried
     const surf = w.surfAt(c.x, c.z), inWater = surf > c.y + 0.3;
     const hops = kind === 'frog' || kind === 'rabbit';
-    let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7, deer: 2.2, fox: 2.8, crab: 1.2 }[kind], jump = false;
+    let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7, deer: 2.2, fox: 2.8, crab: 1.2, sheep: 1.2, turtle: 0.8, heron: 1.3 }[kind], jump = false;
     if (ctl) {
       dx = ctl.x; dz = ctl.z; sp *= kind === 'mossback' ? 2.4 : 1.6; jump = ctl.up > 0;
     } else {
@@ -363,20 +371,21 @@ export class Critters {
       if (c.retarget <= 0) {
         c.retarget = 2 + rnd() * 4; c.walk = rnd() < (kind === 'frog' ? 0.45 : 0.8);
         let ang = c.heading + (rnd() - 0.5) * 2.4, t = null;
-        if (kind === 'mossback' || kind === 'rabbit' || kind === 'deer') { if (c.food < 5) t = this.find(c, TUFT, 6); }
-        if (kind === 'rabbit' || kind === 'deer' || kind === 'duck') { // bolt from a fox that gets close
+        if (GRAZE[kind]) { if (c.food < 5) t = this.find(c, TUFT, 6); if (kind === 'sheep' && !t && Math.hypot(c.hx - c.x, c.hz - c.z) > 10) { ang = Math.atan2(c.hx - c.x, c.hz - c.z); c.walk = true; } }
+        if (kind === 'rabbit' || kind === 'deer' || kind === 'duck' || kind === 'sheep') { // bolt from a fox that gets close
           for (const o of this.list) if (o.kind === 'fox' && !o.dead && Math.hypot(o.x - c.x, o.z - c.z) < 5.5) { t = null; ang = Math.atan2(c.x - o.x, c.z - o.z) + (rnd() - 0.5) * 0.6; c.walk = true; c.flee = 2.5; c.retarget = 1; break; }
         }
         else if (kind === 'fox') {
-          if (c.eatCd <= 0) { let bd = 11; for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback')) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < bd) { bd = d; t = [o.x - 0.5, 0, o.z - 0.5]; } } if (t) c.retarget = 0.6; }
+          if (c.eatCd <= 0) { let bd = 11; for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback' || o.kind === 'sheep')) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < bd) { bd = d; t = [o.x - 0.5, 0, o.z - 0.5]; } } if (t) c.retarget = 0.6; }
         } else if (kind === 'crab') {
           for (let k = 0; k < 8 && !t; k++) { const x = c.x + (rnd() - 0.5) * 14, z = c.z + (rnd() - 0.5) * 14, d = w.depthAt(x, z); if (d > 0.05 && d < 1.6) t = [x, 0, z]; }
         }
-        else if (kind === 'duck' || kind === 'frog') {
+        else if (kind === 'duck' || kind === 'frog' || kind === 'turtle' || kind === 'heron') {
           // drawn to water
           if (!inWater || rnd() < 0.5) for (let k = 0; k < 8 && !t; k++) {
             const x = c.x + (rnd() - 0.5) * 18, z = c.z + (rnd() - 0.5) * 18;
-            if (w.surfAt(x, z) > 0 && w.depthAt(x, z) > (kind === 'duck' ? 0.6 : 0.2)) t = [x, 0, z];
+            const dd = w.depthAt(x, z);
+            if (w.surfAt(x, z) > 0 && dd > (kind === 'duck' ? 0.6 : 0.2) && (kind !== 'heron' || dd < 1.1)) t = [x, 0, z];
           }
           if (kind === 'frog' && inWater && rnd() < 0.5) c.walk = false;
         } else if (kind === 'villager') ang = this.villagerPlan(c, ang);
@@ -388,7 +397,7 @@ export class Critters {
     if (c.flee > 0) { c.flee -= dt; sp *= 1.6; }
     if (kind === 'frog' && this.night > 0.6 && inWater && rnd() < dt * 0.04) this.onEvent('croak', c);
     // vertical
-    if (inWater && kind === 'crab') { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom
+    if (inWater && (kind === 'crab' || kind === 'heron')) { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom
     else if (inWater) {
       const sink = kind === 'duck' ? 0.16 : kind === 'frog' ? 0.22 : kind === 'deer' ? 0.7 : 0.3;
       const want = Math.max(-3, Math.min(4, (surf - sink - c.y) * 9));
@@ -429,7 +438,12 @@ export class Critters {
       if (c.food >= 4 && c.age > 320 && this.counts.fox < 5) { c.food = 0; c.age = 0; this.spawn('fox', c.x, c.y + 0.2, c.z); }
     } else if (kind === 'crab') {
       if (c.age > 220 && inWater && rnd() < 0.01) { c.age = 0; this.spawn('crab', c.x, c.y + 0.2, c.z); }
-    } else if (kind === 'mossback' || kind === 'rabbit' || kind === 'deer') {
+    } else if (kind === 'heron') {
+      if (c.eatCd <= 0 && surf > 0) for (const o of this.list) if (!o.dead && o.kind === 'minnow' && this.possessed !== o && Math.hypot(o.x - c.x, o.z - c.z) < 2.2) {
+        this.fx.burst(o.x, surf, o.z, 8, 0xbfe6f7, 2.5); this.remove(o); c.food++; c.eatCd = 45; break;
+      }
+      if (c.food >= 4 && c.age > 300) { c.food = 0; c.age = 0; this.spawn('heron', c.x, c.y + 0.2, c.z); }
+    } else if (GRAZE[kind]) {
       if (here === TUFT && c.eatCd <= 0 && c.food < 6) { w.set(cx, cy, cz, AIR); c.food++; c.eatCd = kind === 'rabbit' ? 2 : 3; this.fx.burst(c.x, c.y + 0.3, c.z, 4, 0x86cf58, 1); }
       if (c.food >= 5 && c.age > 140) { c.food = 0; c.age = 0; this.spawn(kind, c.x, c.y + 0.2, c.z); }
     } else if (kind === 'frog') {
@@ -440,12 +454,12 @@ export class Critters {
         }
       }
       if (c.food >= 3 && c.age > 90 && inWater) { c.food = 0; c.age = 0; this.spawn('frog', c.x, c.y, c.z); }
-    } else if (kind === 'duck') {
+    } else if (kind === 'duck' || kind === 'turtle') {
       if (inWater && c.eatCd <= 0) {
         c.eatCd = 3; const b = Math.floor(w.bedAt(c.x, c.z));
         for (let y = b + 2; y >= b; y--) if (w.get(cx, y, cz) === WEED) { w.set(cx, y, cz, AIR); c.food++; c.eatCd = 8; this.fx.burst(c.x, c.y, c.z, 5, 0x9fe0f0, 1.5); break; }
       }
-      if (c.food >= 4 && c.age > 110) { c.food = 0; c.age = 0; this.spawn('duck', c.x, c.y + 0.2, c.z); }
+      if (c.food >= 4 && c.age > (kind === 'turtle' ? 260 : 110)) { c.food = 0; c.age = 0; this.spawn(kind, c.x, c.y + 0.2, c.z); }
     } else if (kind === 'villager') this.villagerWork(c, cx, cy, cz);
   }
 
@@ -510,14 +524,14 @@ export class Critters {
   }
 
   flier(c, dt, ctl, night) {
-    const w = this.world, kind = c.kind;
-    let dx = 0, dy = 0, dz = 0, sp = kind === 'songbird' ? 5 : kind === 'butterfly' ? 1.7 : kind === 'bee' ? 2.8 : 2.2;
-    const sleepy = ((kind === 'butterfly' || kind === 'bee') && night > 0.6) || (kind === 'songbird' && night > 0.75);
-    if (ctl) { dx = ctl.x; dz = ctl.z; dy = ctl.up; sp = kind === 'songbird' ? 8 : 6; c.rest = 0; }
+    const w = this.world, kind = c.kind, bird = kind === 'songbird' || kind === 'owl';
+    let dx = 0, dy = 0, dz = 0, sp = bird ? 5 : kind === 'butterfly' ? 1.7 : kind === 'bee' ? 2.8 : 2.2;
+    const sleepy = ((kind === 'butterfly' || kind === 'bee') && night > 0.6) || (kind === 'songbird' && night > 0.75) || (kind === 'owl' && night < 0.4);
+    if (ctl) { dx = ctl.x; dz = ctl.z; dy = ctl.up; sp = bird ? 8 : 6; c.rest = 0; }
     else if (c.rest > 0) {
       c.rest -= dt; c.vx = c.vy = c.vz = 0;
       if (sleepy) c.rest = Math.max(c.rest, 1);
-      if (kind === 'songbird' && rnd() < dt * 0.25 && !sleepy) this.onEvent('chirp', c);
+      if (bird && rnd() < dt * (kind === 'owl' ? 0.08 : 0.25) && !sleepy) this.onEvent(kind === 'owl' ? 'hoot' : 'chirp', c);
       // the perch may have gone
       if (!w.solid(Math.floor(c.x), Math.floor(c.y - 0.3), Math.floor(c.z))) c.rest = 0;
       return;
@@ -525,7 +539,7 @@ export class Critters {
       c.retarget -= dt;
       const tx = c.tx - c.x, ty = c.ty - c.y, tz = c.tz - c.z, dist = Math.hypot(tx, ty, tz);
       if (dist < 0.6 && c.land) {
-        c.rest = kind === 'songbird' ? 3 + rnd() * 7 : kind === 'bee' ? 1 + rnd() : 2 + rnd() * 4; c.land = false; c.retarget = 0;
+        c.rest = bird ? 3 + rnd() * 7 : kind === 'bee' ? 1 + rnd() : 2 + rnd() * 4; c.land = false; c.retarget = 0;
         if (kind === 'bee' && rnd() < 0.35) { // pollination: a new flower nearby
           const x = Math.floor(c.x) + ri(5) - 2, z = Math.floor(c.z) + ri(5) - 2, y = w.groundY(x, z);
           if (w.get(x, y - 1, z) === TURF && w.get(x, y, z) === AIR && !w.wet(x, y, z)) w.set(x, y, z, TUFT, ri(85) * 3);
@@ -534,19 +548,19 @@ export class Critters {
       }
       if (c.retarget <= 0 || dist < 0.6) {
         c.retarget = 2 + rnd() * 4; c.land = false;
-        const range = kind === 'songbird' ? 30 : 18;
+        const range = bird ? 30 : 18;
         c.tx = Math.min(W - 2, Math.max(2, c.x + (rnd() - 0.5) * range));
         c.tz = Math.min(D - 2, Math.max(2, c.z + (rnd() - 0.5) * range));
         const gy = Math.max(w.groundY(c.tx, c.tz), w.surfAt(c.tx, c.tz));
-        c.ty = Math.min(H - 2, gy + (kind === 'butterfly' ? 0.8 + rnd() * 1.6 : kind === 'songbird' ? 3 + rnd() * 6 : 1.5 + rnd() * 3.5));
-        if (kind !== 'glimmer' && (sleepy || rnd() < (kind === 'songbird' ? 0.6 : kind === 'bee' ? 0.75 : 0.3))) {
+        c.ty = Math.min(H - 2, gy + (kind === 'butterfly' ? 0.8 + rnd() * 1.6 : bird ? 3 + rnd() * 6 : 1.5 + rnd() * 3.5));
+        if (kind !== 'glimmer' && (sleepy || rnd() < (bird ? 0.6 : kind === 'bee' ? 0.75 : 0.3))) {
           // pick somewhere to settle: birds like treetops, butterflies like flowers
-          const t = this.find(c, kind === 'songbird' ? LEAF : TUFT, 9, 12);
-          if (t && w.get(t[0], t[1] + 1, t[2]) === AIR) { c.tx = t[0] + 0.5; c.ty = t[1] + (kind === 'songbird' ? 1.02 : 0.9); c.tz = t[2] + 0.5; c.land = kind !== 'butterfly' || sleepy; c.retarget = 8; }
+          const t = this.find(c, bird ? LEAF : TUFT, 9, 12);
+          if (t && w.get(t[0], t[1] + 1, t[2]) === AIR) { c.tx = t[0] + 0.5; c.ty = t[1] + (bird ? 1.02 : 0.9); c.tz = t[2] + 0.5; c.land = kind !== 'butterfly' || sleepy; c.retarget = 8; }
           else if (sleepy && w.surfAt(c.tx, c.tz) < 0) { c.ty = w.groundY(c.tx, c.tz) + 0.05; c.land = true; c.retarget = 8; }
         }
       } else { dx = tx / dist; dy = ty / dist; dz = tz / dist; }
-      const wob = kind === 'butterfly' ? 1.3 : kind === 'songbird' ? 0.15 : kind === 'bee' ? 0.3 : 0.5;
+      const wob = kind === 'butterfly' ? 1.3 : bird ? 0.15 : kind === 'bee' ? 0.3 : 0.5;
       dx += Math.sin(c.t * 2.1) * wob; dz += Math.cos(c.t * 1.7) * wob; dy += Math.sin(c.t * (kind === 'butterfly' ? 7 : 3.3)) * wob * 0.8;
     }
     const k = Math.min(1, dt * 3);
@@ -557,7 +571,7 @@ export class Critters {
     if (free(c.x, ny, c.z)) c.y = ny; else { c.vy = Math.abs(c.vy) * 0.5 + 0.5; c.retarget = 0; if (!free(c.x, c.y, c.z)) c.y += 3 * dt; }
     if (free(c.x, c.y, nz)) c.z = nz; else { c.vz *= -0.5; c.retarget = 0; }
     if (Math.hypot(c.vx, c.vz) > 0.3) c.yaw = lerpAngle(c.yaw, Math.atan2(c.vx, c.vz), Math.min(1, dt * 6));
-    if (kind === 'songbird' && c.eatCd <= 0) { // birds carry seeds about
+    if (bird && c.eatCd <= 0) { // birds carry seeds about
       c.eatCd = 20 + rnd() * 30;
       const gy = w.groundY(c.x, c.z);
       if (w.get(Math.floor(c.x), gy, Math.floor(c.z)) === AIR && w.get(Math.floor(c.x), gy - 1, Math.floor(c.z)) === TURF && rnd() < 0.3) w.set(Math.floor(c.x), gy, Math.floor(c.z), SEED);

@@ -43,8 +43,8 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   through trees, grass and huts; water puts it out; ice melts by heat.
 - **Growth**: soil near water turns to turf with real blade grass, flowers and trees in each biome's colours;
   waterweed takes root on lake beds.
-- **Life**: minnows, ducks, frogs, crabs, mossbacks, rabbits, deer, foxes, bees, butterflies, songbirds, glimmers and
-  villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
+- **Life**: eighteen creatures — minnows, koi, ducks, turtles, herons, frogs, crabs, mossbacks, rabbits, sheep, deer,
+  foxes, bees, butterflies, songbirds, owls, glimmers and villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
   lantern-lit huts and raise families. Ride along with any of them in
   third or first person.
 - **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Weather steps from clear
@@ -59,7 +59,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 
 ## Creature models
 
-The thirteen creatures are modelled procedurally in Blender by `tools/make_animals.py` and exported as one GLB that
+The eighteen creatures are modelled procedurally in Blender by `tools/make_animals.py` and exported as one GLB that
 is embedded in the build. To regenerate them after editing the script:
 
 ```bash

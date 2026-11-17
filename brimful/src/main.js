@@ -149,8 +149,8 @@ const TOOLS = [
   { id: 'dig', tab: 'earth', label: 'Scoop', type: 'dig', color: '#efe7d8', glyph: '⌣' },
   // life
   ...KIND_IDS.map((k) => ({ id: k, tab: 'life', label: k[0].toUpperCase() + k.slice(1), type: 'critter',
-    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158' }[k],
-    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦' }[k], gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
+    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158', koi: '#ffd2bd', turtle: '#cfe6b8', heron: '#dfe8f2', sheep: '#f4f0e6', owl: '#d9c4a6' }[k] || '#eee',
+    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦', koi: '➤', turtle: '◒', heron: '⌇', sheep: '☁', owl: '◉' }[k] || k[0].toUpperCase(), gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
   { id: 'possess', tab: 'life', label: 'Ride along', type: 'possess', color: '#f6d9c9', glyph: '⌖' },
   // powers
   { id: 'fire', tab: 'powers', label: 'Spark', type: 'fire', color: '#ffb028', glyph: '♨' },
@@ -230,7 +230,7 @@ $('brand').onclick = (e) => { e.stopPropagation(); openSheet('census'); };
 function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
-  $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
+  $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
   $('censusWorld').innerHTML = row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
 $('bWorld').onclick = (e) => { e.stopPropagation(); openSheet('worlds'); };
@@ -309,23 +309,27 @@ const perf = {
 function populate(villages) {
   if (state.preset === 'bare') return;
   const area = (W * D) / 4096, n = (k) => Math.max(1, Math.round(k * area));
-  const left = { minnow: n(8), duck: n(2), frog: n(3), crab: n(3), mossback: n(4), rabbit: n(4), deer: n(2), fox: n(1), bee: n(4), butterfly: n(5), songbird: n(3), glimmer: n(6) };
+  const left = { minnow: n(8), koi: n(2), duck: n(2), turtle: n(1), heron: n(1), frog: n(3), crab: n(3), mossback: n(4), rabbit: n(4), deer: n(2), fox: n(1), bee: n(4), butterfly: n(5), songbird: n(3), owl: n(1), glimmer: n(6) };
   let tries = 6000 * area;
   while (tries-- > 0 && Object.values(left).some((v) => v > 0)) {
     const x = 3 + rnd() * (W - 6), z = 3 + rnd() * (D - 6), gy = world.groundY(x, z), top = world.get(x | 0, gy - 1, z | 0);
     const s = world.surfAt(x, z), dep = world.depthAt(x, z);
     if (s > 0 && dep > 1.5 && left.minnow > 0) { critters.spawn('minnow', x, s - dep * 0.5, z, true); left.minnow--; }
+    else if (s > 0 && dep > 1.8 && left.koi > 0) { critters.spawn('koi', x, s - dep * 0.5, z, true); left.koi--; }
+    else if (s > 0 && dep > 0.3 && left.turtle > 0) { critters.spawn('turtle', x, s, z, true); left.turtle--; }
+    else if (s > 0 && dep < 1 && left.heron > 0) { critters.spawn('heron', x, s, z, true); left.heron--; }
     else if (s > 0 && dep > 0.7 && left.duck > 0) { critters.spawn('duck', x, s, z, true); left.duck--; }
     else if (s > 0 && dep > 0.2 && dep < 1.5 && left.frog > 0) { critters.spawn('frog', x, s, z, true); left.frog--; }
     else if (s > 0 && dep < 1.2 && left.crab > 0) { critters.spawn('crab', x, s, z, true); left.crab--; }
     else if (top === TURF && s < 0) {
-      const k = ['mossback', 'rabbit', 'deer', 'fox', 'bee', 'butterfly', 'glimmer', 'songbird'].find((q) => left[q] > 0 && rnd() < 0.3);
+      const k = ['mossback', 'rabbit', 'deer', 'fox', 'bee', 'butterfly', 'glimmer', 'songbird', 'owl'].find((q) => left[q] > 0 && rnd() < 0.3);
       if (k) { critters.spawn(k, x, gy + (['mossback', 'rabbit', 'deer', 'fox'].includes(k) ? 0.1 : 2 + rnd() * 3), z, true); left[k]--; }
     }
   }
   for (const v of villages || []) for (let k = 0; k < 2 + v.huts; k++) {
     const x = v.x + 0.5 + (rnd() - 0.5) * 5, z = v.z + 0.5 + (rnd() - 0.5) * 5;
     const c = critters.spawn('villager', x, world.groundY(x, z) + 0.1, z, true); if (c) { c.hx = v.x; c.hz = v.z; }
+    if (k < 2) { const sx = v.x + (rnd() - 0.5) * 9, sz = v.z + (rnd() - 0.5) * 9, sh = critters.spawn('sheep', sx, world.groundY(sx, sz) + 0.1, sz, true); if (sh) { sh.hx = v.x; sh.hz = v.z; } }   // each village keeps a few sheep
   }
 }
 function newWorld(preset, w = W, d = D) {
@@ -672,8 +676,8 @@ function useTool(first) {
       if (!first && critterCd > 0) return;
       critterCd = 0.22;
       const k = tool.id; let y = p.y + 0.1;
-      if (k === 'minnow' && hit.m === -1) y = Math.max(world.bed[at.x + at.z * W] + 0.3, world.cs[at.x + at.z * W] - 1);
-      if (k === 'glimmer' || k === 'butterfly' || k === 'songbird' || k === 'bee') y += 2;
+      if ((k === 'minnow' || k === 'koi') && hit.m === -1) y = Math.max(world.bed[at.x + at.z * W] + 0.3, world.cs[at.x + at.z * W] - 1);
+      if (k === 'glimmer' || k === 'butterfly' || k === 'songbird' || k === 'bee' || k === 'owl') y += 2;
       const c = critters.spawn(k, p.x + 0.5, y, p.z + 0.5);
       if (c) { sound.blip(500 + KIND_IDS.indexOf(k) * 110, 0.14); fx.burst(c.x, c.y, c.z, 6, 0xffffff, 1.5); }
       else if (first) toast(`The world is full of ${KINDS[k].name === 'butterfly' ? 'butterflies' : KINDS[k].name + 's'}`);
@@ -685,7 +689,7 @@ let camSaved = null;
 function possess(c) {
   critters.possessed = c;
   camSaved = { dist: camGoal.dist, tx: camGoal.tx, ty: camGoal.ty, tz: camGoal.tz, pitch: camGoal.pitch };
-  camGoal.dist = c.kind === 'minnow' ? 7 : 12; camGoal.pitch = c.kind === 'minnow' ? 0.12 : 0.35;
+  camGoal.dist = c.kind === 'minnow' || c.kind === 'koi' ? 7 : 12; camGoal.pitch = c.kind === 'minnow' || c.kind === 'koi' ? 0.12 : 0.35;
   document.body.classList.add('riding'); $('ride').classList.add('on');
   $('rideName').textContent = `You are a ${KINDS[c.kind].name}`;
   $('rideHint').textContent = document.body.classList.contains('touch') ? 'Stick to move · drag to look' : KINDS[c.kind].hint + ' · V view · Esc to let go';
@@ -709,6 +713,7 @@ critters.onEvent = (t, c) => {
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') sound.blip(392, 0.25, 'triangle', 0.07);
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
+  else if (t === 'hoot') { sound.blip(330, 0.3, 'sine', 0.05); setTimeout(() => sound.blip(290, 0.45, 'sine', 0.05), 380); }
   else if (t === 'croak') { sound.blip(150 + Math.random() * 50, 0.12, 'square', 0.03); setTimeout(() => sound.blip(170, 0.1, 'square', 0.025), 160); }
 };
 
