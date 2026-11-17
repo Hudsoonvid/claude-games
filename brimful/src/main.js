@@ -145,6 +145,32 @@ const clouds = {
   },
 };
 grid.add(clouds.group);
+
+// ---------------------------------------------------------------- lantern light: the lamps and hearths nearest the camera light their surroundings after dark
+const lamps = {
+  lights: [], found: [], t: 0,
+  init() {
+    for (let k = 0; k < 6; k++) { const l = new THREE.PointLight(0xffb060, 0, 10, 1.6); l.visible = false; grid.add(l); this.lights.push(l); }
+  },
+  update(dt) {
+    const want = gfx.level > 0 && night > 0.25;
+    this.t -= dt;
+    if (want && this.t <= 0) { // look for lights now and then; the list is short
+      this.t = 2;
+      const mat = world.mat, n = mat.length, step = n > 1e6 ? 2 : 1, WDn = W * D, f = [];
+      for (let i = 0; i < n; i += step) { const m = mat[i]; if (m === 19 || m === 24) f.push([i % W + 0.5, ((i / WDn) | 0) + (m === 19 ? 0.4 : 0.8), ((i / W) | 0) % D + 0.5]); }
+      const cx = cam.tx + W / 2, cz = cam.tz + D / 2;
+      f.sort((a, b) => Math.hypot(a[0] - cx, a[2] - cz) - Math.hypot(b[0] - cx, b[2] - cz));
+      this.found = f.slice(0, this.lights.length);
+    }
+    this.lights.forEach((l, k) => {
+      const p = this.found[k], on = want && !!p;
+      l.visible = on;
+      if (on) { l.position.set(p[0], p[1], p[2]); l.intensity = (night - 0.25) * 16 * (0.92 + 0.08 * Math.sin(U.uTime.value * 9 + k * 2.1)); }
+    });
+  },
+};
+lamps.init();
 let booted = false;
 
 // the container the world sits in: clay planter, glass tank, wooden crate, or nothing at all
@@ -1283,6 +1309,7 @@ function frame(now) {
 
   if (gfx.level > 0) banners.wave(now / 1000);
   clouds.update(dt);
+  lamps.update(dt);
   // smoke curls from a few roofs
   if (!state.paused && gfx.motes && Math.random() < 0.35) {
     const x = ri(W), z = ri(D), y = world.groundY(x, z) - 1;
