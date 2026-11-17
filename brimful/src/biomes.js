@@ -1,0 +1,37 @@
+// Every biome's look and habits. Indices are saved with worlds, so new biomes are only ever appended.
+//   turf/g1/g2/tip: ground and grass colours · leaf: three leaf colours · tree: crown shape
+//   trees/tufts: density multipliers · trunk: [min, extra] trunk height · evergreen: keeps colour in autumn
+//   snowy: snow lies all year · petals: falling-petal colour · shroom: 1 mushrooms in shade, 2 glowing ones
+//   sandy: ground is sand rather than soil · flowers: blossom colours
+const B = (name, turf, g1, g2, tip, leaf, tree, o = {}) => ({
+  name, turf, g1, g2, tip, leaf, tree, trees: 1, tufts: 1, trunk: [3, 4], evergreen: false, snowy: false, petals: 0, shroom: 0, sandy: false, flowers: null, ...o,
+});
+
+export const BIO = [
+  B('Meadow', 0x6aa846, 0x4f9a3c, 0x78bf4e, 0xa6d568, [0x4f9f4c, 0x5fae4e, 0x3f8f52], 'round'),
+  B('Forest', 0x4c8a3c, 0x356f30, 0x4f9440, 0x7ab85a, [0x2f7a3c, 0x3a8a40, 0x276a38], 'conifer', { trees: 2.6, tufts: 0.7, trunk: [5, 3], evergreen: true, shroom: 1 }),
+  B('Autumn', 0x9aa046, 0x8a8a34, 0xb7a640, 0xe0c860, [0xd9722a, 0xe3a02c, 0xb8442a], 'round', { trees: 1.6, tufts: 0.8, petals: 0xe08a30 }),
+  B('Blossom', 0x7cc05c, 0x5ea848, 0x8fd068, 0xc8ec90, [0xf5a8c8, 0xfbc4d8, 0xe88ab4], 'round', { trees: 1.3, tufts: 2.2, petals: 0xf7b4d0 }),
+  B('Savanna', 0xb0a04c, 0x9a8a3a, 0xc4b050, 0xe6d47a, [0x8a9a3c, 0x9aa648, 0x7a8a34], 'flat', { trees: 0.35, tufts: 0.6, trunk: [3, 2] }),
+  B('Tundra', 0xcfe0e0, 0x9fbfc0, 0xc8dede, 0xf4fbff, [0x3f7a6a, 0x4a8a78, 0x346a5c], 'conifer', { trees: 0.6, tufts: 0.3, trunk: [5, 3], evergreen: true, snowy: true }),
+  B('Swamp', 0x5a7a3a, 0x3f5f2c, 0x5a7c36, 0x86a04c, [0x4a6a34, 0x58783a, 0x3c5a2e], 'willow', { tufts: 2.4, trunk: [4, 2], shroom: 2 }),
+  B('Jungle', 0x3fae4a, 0x1f8a3a, 0x38b44a, 0x8ae05a, [0x1f9a44, 0x2cb04e, 0x148a3c], 'tall', { trees: 3, tufts: 1.6, trunk: [6, 3], evergreen: true, shroom: 1 }),
+  B('Heath', 0x8a8a5a, 0x6a7a44, 0x9a6aa0, 0xd08ad8, [0x6a8a4a, 0x7a9a54, 0x5a7a42], 'bush', { trees: 0.4, tufts: 2.6, trunk: [1, 1] }),
+  B('Birchwood', 0x7fb24e, 0x63a040, 0x8cc458, 0xbfe07a, [0xb8d05a, 0xa6c450, 0xc8dc6a], 'slender', { trees: 2.2, tufts: 1.2, trunk: [6, 3] }),
+  B('Taiga', 0x5e8650, 0x3e6a3c, 0x5a8450, 0x8ab07a, [0x1f5a3c, 0x2a6644, 0x184e34], 'spire', { trees: 2.4, tufts: 0.5, trunk: [6, 3], evergreen: true, shroom: 1 }),
+  B('Desert', 0xd9c27a, 0xb9a45a, 0xcdb46a, 0xe8d898, [0x6a9a3c, 0x7aaa44, 0x5a8a34], 'palm', { trees: 0.25, tufts: 0.15, trunk: [5, 3], evergreen: true, sandy: true }),
+  B('Badlands', 0xb8784a, 0x9a6a3a, 0xb08048, 0xd8b070, [0x7a7a4a, 0x8a8456, 0x6a6a40], 'dead', { trees: 0.3, tufts: 0.4, trunk: [3, 3] }),
+  B('Mangrove', 0x4f8a4a, 0x3a6a3a, 0x548a4a, 0x7aaa5a, [0x2f6a3a, 0x3a7a42, 0x285a32], 'willow', { trees: 2.2, tufts: 1.2, trunk: [4, 2], evergreen: true }),
+  B('Bamboo', 0x7ab84e, 0x5a9a3c, 0x7cc050, 0xb0e070, [0x8ac850, 0x7ab844, 0x9ad860], 'bamboo', { trees: 3.5, tufts: 0.8, trunk: [7, 4], evergreen: true }),
+  B('Lavender', 0x7a9a5a, 0x5a7a48, 0x8a8ab0, 0xb09ae0, [0x6a8a52, 0x7a9a5c, 0x5a7a4a], 'bush', { trees: 0.3, tufts: 3.2, trunk: [1, 1], flowers: [0xa888e0, 0xc0a0f0, 0x8a6ac8, 0xd8c8f8] }),
+  B('Fungal', 0x7a6a8a, 0x5a4a6a, 0x7a6a8c, 0xb09ad0, [0xc8402a, 0xbe3c2a, 0xd04830], 'cap', { trees: 1.6, tufts: 0.6, trunk: [3, 3], evergreen: true, shroom: 2 }),
+  B('Alpine', 0x8ab060, 0x6a9a4a, 0x8ab85a, 0xc0e08a, [0x2a6a48, 0x346a4a, 0x22583c], 'spire', { trees: 0.5, tufts: 1.8, trunk: [4, 2], evergreen: true, flowers: [0x6a9aff, 0xffffff, 0xffd84a, 0xd86aff] }),
+  B('Tropical', 0x5ec05a, 0x3aa04a, 0x5ac85a, 0xa0f07a, [0x3aa84a, 0x4ab854, 0x2a983e], 'palm', { trees: 1.4, tufts: 1.2, trunk: [5, 3], evergreen: true, flowers: [0xff5a6a, 0xffa02a, 0xff7ad0, 0xfff05a] }),
+  B('Steppe', 0xb4a85a, 0xa09440, 0xbcaa50, 0xe0d080, [0x7a8a44, 0x8a9a4c, 0x6a7a3c], 'bush', { trees: 0.12, tufts: 1.4, trunk: [1, 1] }),
+  B('Rainforest', 0x2e9a44, 0x1a7a36, 0x2a9a40, 0x6ad05a, [0x147a38, 0x1a8a3e, 0x0e6a30], 'tall', { trees: 4, tufts: 2, trunk: [7, 4], evergreen: true, shroom: 1 }),
+  B('Orchard', 0x86c058, 0x64a446, 0x88c858, 0xbce884, [0x5aa04a, 0x6ab054, 0x4a9040], 'round', { trees: 1.6, tufts: 1.4, trunk: [2, 2], petals: 0xfff4f0, flowers: [0xffffff, 0xffe0ea, 0xfff2a8] }),
+  B('Ashlands', 0x6a6460, 0x55504c, 0x6a6460, 0x8a8480, [0x4a4440, 0x5a524c, 0x3e3a36], 'dead', { trees: 0.4, tufts: 0.3, trunk: [3, 3] }),
+  B('Glacier', 0xe0eef4, 0xb8d0d8, 0xd8e8ee, 0xffffff, [0x3a6a62, 0x44786e, 0x305a54], 'spire', { trees: 0.15, tufts: 0.1, trunk: [3, 2], evergreen: true, snowy: true }),
+  B('Redwood', 0x5a7a3e, 0x3e5e30, 0x5a7c3c, 0x8aaa5a, [0x2a5a30, 0x346636, 0x224a2a], 'spire', { trees: 1.8, tufts: 0.6, trunk: [9, 4], evergreen: true, shroom: 1 }),
+  B('Moorland', 0x7a7a4e, 0x5e6a3e, 0x8a6a6a, 0xa88a8a, [0x5a6a40, 0x66764a, 0x4e5e38], 'bush', { trees: 0.25, tufts: 2, trunk: [1, 1], flowers: [0xc87aa8, 0xe8d06a, 0xffffff] }),
+];

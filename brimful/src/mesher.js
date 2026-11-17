@@ -2,7 +2,8 @@
 // solid (lit, shadowed cubes), flora (grass blades, flowers, waterweed), mist (steam) and
 // glow (lava + fire). Water is not meshed here: it is a simulated surface drawn by its own shader.
 import { Color } from 'three';
-import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, HEARTH, OPAQUE } from './world.js';
+import { BIO } from './biomes.js';
+import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, HEARTH, LILY, OPAQUE } from './world.js';
 
 class Buf {
   constructor(cap) {
@@ -46,17 +47,7 @@ const C_STEAM = lin(0xffffff), C_LAVA1 = lin(0xff5a12), C_LAVA2 = lin(0xffc23a),
 const C_G1 = lin(0x4f9a3c), C_G2 = lin(0x78bf4e), C_G3 = lin(0xa6d568), C_DRY = lin(0xb9b96a), C_WEED = lin(0x2f9a72);
 const FLOWERS = [lin(0x9af0ff), lin(0xffd24a), lin(0xff8fc0), lin(0xb99cff), lin(0xfff6f0)];
 // biome palettes: turf, grass base x2, grass tip, leaves x3
-export const BIOMES = [
-  ['Meadow', 0x6aa846, 0x4f9a3c, 0x78bf4e, 0xa6d568, [0x4f9f4c, 0x5fae4e, 0x3f8f52]],
-  ['Forest', 0x4c8a3c, 0x356f30, 0x4f9440, 0x7ab85a, [0x2f7a3c, 0x3a8a40, 0x276a38]],
-  ['Autumn', 0x9aa046, 0x8a8a34, 0xb7a640, 0xe0c860, [0xd9722a, 0xe3a02c, 0xb8442a]],
-  ['Blossom', 0x7cc05c, 0x5ea848, 0x8fd068, 0xc8ec90, [0xf5a8c8, 0xfbc4d8, 0xe88ab4]],
-  ['Savanna', 0xb0a04c, 0x9a8a3a, 0xc4b050, 0xe6d47a, [0x8a9a3c, 0x9aa648, 0x7a8a34]],
-  ['Tundra', 0xcfe0e0, 0x9fbfc0, 0xc8dede, 0xf4fbff, [0x3f7a6a, 0x4a8a78, 0x346a5c]],
-  ['Swamp', 0x5a7a3a, 0x3f5f2c, 0x5a7c36, 0x86a04c, [0x4a6a34, 0x58783a, 0x3c5a2e]],
-  ['Jungle', 0x3fae4a, 0x1f8a3a, 0x38b44a, 0x8ae05a, [0x1f9a44, 0x2cb04e, 0x148a3c]],
-  ['Heath', 0x8a8a5a, 0x6a7a44, 0x9a6aa0, 0xd08ad8, [0x6a8a4a, 0x7a9a54, 0x5a7a42]],
-].map(([name, t, a, b, c, lf]) => ({ name, hex: t, turf: lin(t), g1: lin(a), g2: lin(b), tip: lin(c), leaf: lf.map(lin) }));
+export const BIOMES = BIO.map((b) => ({ ...b, hex: b.turf, turf: lin(b.turf), g1: lin(b.g1), g2: lin(b.g2), tip: lin(b.tip), leaf: b.leaf.map(lin), flowers: b.flowers ? b.flowers.map(lin) : null }));
 let bio = BIOMES[0];
 
 const hash = (i) => (Math.imul(i ^ (i >>> 15), 0x2c1b3c6d) >>> 24) / 255;
@@ -77,7 +68,7 @@ const P3 = [0, 0, 0], N3 = [0, 0, 0];
 
 function cube(x, y, z, m, i) {
   let base = COL[m]; const j = 0.88 + 0.24 * hash(i);
-  const bb = biome[x + z * W], evergreen = m === LEAF && (bb === 1 || bb === 5 || bb === 7);   // conifers and jungle keep their colour all year
+  const bb = biome[x + z * W], evergreen = m === LEAF && BIO[bb].evergreen;   // conifers and jungle keep their colour all year
   if (m === LEAF) base = BIOMES[bb].leaf[Math.min(2, (hash(i * 7 + 3) * 3) | 0)];
   else if (m === TURF) base = BIOMES[biome[x + z * W]].turf;
   for (let f = 0; f < 6; f++) {
@@ -211,6 +202,20 @@ export function buildChunk(world, cx, cz) {
           break;
         }
         case LAVA: lava(x, y, z, i); break;
+        case LILY: { // a few round pads at the surface, now and then a flower
+          hs = (i * 2246822519) | 0 || 1;
+          const sy = y + aux[i] / 100 + 0.025, n = 1 + ((hr() * 2.6) | 0);
+          for (let k = 0; k < n; k++) {
+            const cx0 = x + 0.25 + hr() * 0.5, cz0 = z + 0.25 + hr() * 0.5, r = 0.2 + hr() * 0.14, a0 = hr() * 6.283, sh = 0.75 + hr() * 0.25;
+            for (let q = 0; q < 7; q++) { // a disc with a notch: seven wedges of an eight-wedge circle
+              const a1 = a0 + q * 0.785, a2 = a1 + 0.785;
+              setQ(cx0, sy, cz0, cx0 + Math.cos(a1) * r, sy, cz0 + Math.sin(a1) * r, cx0 + Math.cos((a1 + a2) / 2) * r * 1.03, sy, cz0 + Math.sin((a1 + a2) / 2) * r * 1.03, cx0 + Math.cos(a2) * r, sy, cz0 + Math.sin(a2) * r);
+              L.quad(Q, 0, 1, 0, 0.16 * sh, 0.42 * sh, 0.14 * sh, 0, 1.1, 0.9, 0.9, 0.9);
+            }
+            if (k === 0 && hr() < 0.45) head(cx0, sy + 0.08, cz0, 0.075, hr() < 0.6 ? [1.0, 0.86, 0.92] : [1.0, 0.95, 0.75]);
+          }
+          break;
+        }
         case REED: { // cattails standing in the shallows
           hs = (i * 6151 + aux[i]) | 0 || 1;
           for (let k = 0; k < 4; k++) {
@@ -222,7 +227,7 @@ export function buildChunk(world, cx, cz) {
         }
         case MUSH: {
           hs = (i * 4073 + aux[i]) | 0 || 1;
-          const glow = biome[x + z * W] === 6, n = 1 + (aux[i] & 1);
+          const glow = BIO[biome[x + z * W]].shroom === 2, n = 1 + (aux[i] & 1);
           for (let k = 0; k < n; k++) {
             const bx = x + 0.25 + hr() * 0.5, bz = z + 0.25 + hr() * 0.5, h = 0.14 + hr() * 0.14, r = 0.09 + hr() * 0.07;
             box(L, bx, y + h * 0.5, bz, 0.035, h * 0.5, 0.035, 0.85, 0.8, 0.7, 0);
@@ -258,7 +263,7 @@ export function buildChunk(world, cx, cz) {
           const a = aux[i];
           if (a % 3 === 0) { // flowers on stems
             hs = (i * 9176 + a) | 0 || 1;
-            const fl = FLOWERS[(a >> 2) % 5], nf = 1 + (a & 1);
+            const bf = BIOMES[biome[x + z * W]].flowers, fl = bf ? bf[(a >> 2) % bf.length] : FLOWERS[(a >> 2) % 5], nf = 1 + (a & 1) + (bf ? 1 : 0);
             for (let k = 0; k < nf; k++) {
               const fx = x + 0.25 + hr() * 0.5, fz = z + 0.25 + hr() * 0.5, fh = 0.6 + hr() * 0.4;
               blade(fx, y, fz, fh, 0.03, hr() * 6.283, 0, C_G1[0] * 0.6, C_G1[1] * 0.6, C_G1[2] * 0.6, C_G2[0], C_G2[1], C_G2[2], 0.5);

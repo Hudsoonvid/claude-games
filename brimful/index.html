@@ -34,6 +34,18 @@
   .sheet h4 { margin:10px 2px 8px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.6; }
   .sheet h4:first-child { margin-top:0; }
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  #worlds { width:min(440px, calc(100vw - 20px)); }
+  #types { max-height:min(330px, 42vh); overflow:auto; padding:2px; margin:6px -2px 0; }
+  #types h5 { margin:10px 2px 6px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; opacity:.55; }
+  #types h5:first-child { margin-top:2px; }
+  #types .grid { grid-template-columns:repeat(auto-fill, minmax(124px, 1fr)); }
+  #typeFilter { width:100%; padding:7px 10px; border-radius:9px; border:1px solid var(--line); background:#fff; user-select:text; -webkit-user-select:text; }
+  .row input[type=number] { width:74px; padding:6px 8px; border-radius:9px; border:1px solid var(--line); background:#fff; font-variant-numeric:tabular-nums; }
+  .row input[type=number]:invalid { border-color:#c8643c; }
+  .vh { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; margin:2px 2px 6px; }
+  .chips button { padding:4px 9px; border-radius:999px; font-size:12px; font-weight:600; background:rgba(255,255,255,.6); }
+  .chips button:hover, .chips button.on { background:#fff; box-shadow: inset 0 0 0 2px var(--clay); }
   .pick { text-align:left; padding:8px 10px; border-radius:10px; font-weight:600; background:rgba(255,255,255,.5); }
   .pick small { display:block; font-weight:400; opacity:.65; font-size:11px; line-height:1.25; }
   .pick:hover { background:#fff; }
@@ -128,8 +140,11 @@
 
 <div id="worlds" class="panel sheet">
   <h4>New world</h4>
-  <div class="grid" id="types"></div>
-  <div class="row"><label for="wW">Width</label><select id="wW"></select><label for="wD" style="text-align:right">Depth</label><select id="wD"></select></div>
+  <input type="text" id="typeFilter" placeholder="Search 42 world types" autocomplete="off">
+  <div id="types"></div>
+  <h4>Size</h4>
+  <div class="row"><label for="wW">Width</label><input type="number" id="wW" min="16" max="256" step="16" value="64" inputmode="numeric"><span>×</span><label for="wD" class="vh">Depth</label><input type="number" id="wD" min="16" max="256" step="16" value="64" inputmode="numeric"><span style="opacity:.6">blocks</span></div>
+  <div class="chips" id="sizeChips"></div>
   <div class="row"><span style="flex:1;opacity:.65;font-size:12px" id="sizeNote"></span><button class="cta" id="bCreate">Create</button></div>
   <h4>Saved worlds</h4>
   <div class="row"><input type="text" id="saveName" maxlength="28" placeholder="Name this world"><button class="cta" id="bSave">Save</button></div>

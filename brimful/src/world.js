@@ -2,6 +2,7 @@
 // Solids, lava, steam, fire and plants live in a voxel grid (cellular rules).
 // Water is NOT voxels: it is a shallow-water (virtual pipes) simulation on a grid twice as
 // fine as the voxels, flowing over the terrain's height field with momentum and waves.
+import { BIO } from './biomes.js';
 export let W = 64, H = 40, D = 64, WD = W * D, N = WD * H, CX = 4, CZ = 4;
 export const RIM = 13;            // height of the planter wall; above it things spill out
 export const CH = 16;
@@ -16,7 +17,7 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24, LILY = 25;
 
 export const OPAQUE = new Uint8Array(32);
 for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN]) OPAQUE[m] = 1;
@@ -29,7 +30,7 @@ for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN, HEART
 
 // What a falling powder may move into: 1 = replace, 2 = swap places
 const PP = new Uint8Array(32);
-PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1; PP[SNOW] = 1; PP[REED] = 1; PP[MUSH] = 1;
+PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1; PP[SNOW] = 1; PP[REED] = 1; PP[MUSH] = 1; PP[LILY] = 1;
 PP[LAVA] = 2; PP[STEAM] = 2;
 
 const FLAM = new Float32Array(32);
@@ -130,7 +131,7 @@ export class World {
     if (x < 0 || x >= W || z < 0 || z >= D) return 0;
     for (let y = H - 1; y >= 0; y--) {
       const m = this.mat[x + W * (z + D * y)];
-      if (m !== AIR && m !== STEAM && m !== TUFT && m !== FIRE) return y + 1;
+      if (m !== AIR && m !== STEAM && m !== TUFT && m !== FIRE && m !== LILY) return y + 1;
     }
     return 0;
   }
@@ -195,29 +196,57 @@ export class World {
 
   // tree tops take their shape from the biome they grow in
   crown(x, y, z, r = 2.4) {
-    const b = this.inb(x, 0, z) ? this.biome[x + z * W] : 0;
+    const shape = this.inb(x, 0, z) ? (BIO[this.biome[x + z * W]] || BIO[0]).tree : 'round';
     const put = (px, py, pz) => { if (this.inb(px, py, pz) && this.get(px, py, pz) === AIR) this.set(px, py, pz, LEAF); };
-    if (b === 1 || b === 5) { // conifer: stacked rings narrowing to a point
-      for (let k = 0; k < 6; k++) {
-        const rr = k === 5 ? 0 : 2.6 - k * 0.5 + (k & 1 ? 0.5 : 0), q = Math.ceil(rr), py = y - 3 + k;
-        for (let dz = -q; dz <= q; dz++) for (let dx = -q; dx <= q; dx++) if (dx * dx + dz * dz <= rr * rr + 0.3) put(x + dx, py, z + dz);
+    const wood = (px, py, pz) => { if (this.inb(px, py, pz) && this.get(px, py, pz) === AIR) this.set(px, py, pz, WOOD); };
+    const disc = (py, rr) => { const q = Math.ceil(rr); for (let dz = -q; dz <= q; dz++) for (let dx = -q; dx <= q; dx++) if (dx * dx + dz * dz <= rr * rr + 0.3) put(x + dx, py, z + dz); };
+    const ball = (cy, rr, squash = 1.4) => {
+      const R = Math.ceil(rr);
+      for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++)
+        if (dx * dx + dy * dy * squash + dz * dz <= rr * rr + rnd() * 1.5) put(x + dx, cy + dy, z + dz);
+    };
+    switch (shape) {
+      case 'conifer': for (let k = 0; k < 6; k++) disc(y - 3 + k, k === 5 ? 0 : 2.6 - k * 0.5 + (k & 1 ? 0.5 : 0)); return;
+      case 'spire': for (let k = 0; k < 8; k++) disc(y - 5 + k, k === 7 ? 0 : 1.9 - k * 0.24 + (k & 1 ? 0.4 : 0)); return;
+      case 'flat':
+        for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) { const d = dx * dx + dz * dz; if (d <= 9.5 + rnd() * 2) put(x + dx, y, z + dz); if (d <= 3) put(x + dx, y + 1, z + dz); }
+        return;
+      case 'bush': ball(y - 1, 1.3 + rnd() * 0.4, 1.8); return;
+      case 'slender': ball(y, 1.5, 0.55); return;
+      case 'bamboo': // tufts of leaf on the upper culm
+        for (let k = -3; k <= 0; k += 1) { put(x + 1, y + k, z); put(x - 1, y + k, z); put(x, y + k, z + 1); put(x, y + k, z - 1); }
+        put(x, y, z); put(x, y + 1, z); return;
+      case 'palm': { // a crown of drooping fronds
+        put(x, y, z);
+        for (let a = 0; a < 6; a++) {
+          const ang = a * 1.047 + rnd() * 0.3, cx = Math.cos(ang), cz = Math.sin(ang);
+          for (let k = 1; k <= 3; k++) put(x + Math.round(cx * k), y - (k === 3 ? 1 : 0), z + Math.round(cz * k));
+        }
+        return;
       }
-      return;
-    }
-    if (b === 4) { // flat-topped, wide
-      for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
-        const d = dx * dx + dz * dz;
-        if (d <= 9.5 + rnd() * 2) put(x + dx, y, z + dz);
-        if (d <= 3) put(x + dx, y + 1, z + dz);
+      case 'willow': { // a dome with hanging curtains
+        ball(y, 2.4);
+        for (let a = 0; a < 10; a++) {
+          const ang = a * 0.628 + rnd() * 0.4, px = x + Math.round(Math.cos(ang) * 2.3), pz = z + Math.round(Math.sin(ang) * 2.3);
+          for (let k = 1; k <= 2 + ri(3); k++) put(px, y - k, pz);
+        }
+        return;
       }
-      return;
+      case 'cap': { // a giant mushroom: wide cap on a stem
+        const R = 2.6 + rnd() * 0.8;
+        disc(y, R); disc(y + 1, R - 0.9); disc(y + 2, R - 2);
+        for (let a = 0; a < 12; a++) { const ang = a * 0.524; put(x + Math.round(Math.cos(ang) * R), y - 1, z + Math.round(Math.sin(ang) * R)); }
+        return;
+      }
+      case 'dead': // a bare snag: a couple of crooked branches, no leaves
+        for (let a = 0; a < 2 + ri(2); a++) {
+          const ang = rnd() * 6.283, dx = Math.round(Math.cos(ang)), dz = Math.round(Math.sin(ang)), h = -1 - ri(2);
+          wood(x + dx, y + h, z + dz); wood(x + dx, y + h + 1, z + dz); if (rnd() < 0.5) wood(x + 2 * dx, y + h + 1, z + 2 * dz);
+        }
+        return;
+      case 'tall': r += 0.9; break;
     }
-    if (b === 7) r += 0.9;
-    const R = Math.ceil(r);
-    for (let dy = -1; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
-      if (dx * dx + dy * dy * 1.4 + dz * dz > r * r + rnd() * 1.5) continue;
-      if (this.inb(x + dx, y + dy, z + dz) && this.get(x + dx, y + dy, z + dz) === AIR) this.set(x + dx, y + dy, z + dz, LEAF);
-    }
+    ball(y, r);
   }
 
   // ---- water simulation ----------------------------------------------------
@@ -498,16 +527,16 @@ export class World {
       switch (m) {
         case SOIL:
           if (up === AIR && y + 1 >= bed[c] && cd[c] > 0.08 && cd[c] < 1.3 && rnd() < 0.05) { mat[i + WD] = REED; aux[i + WD] = ri(256); this.markDirty(x, z); break; }
-          if (under) this.growWeed(i, x, y, z, 1);
+          if (under) { this.growWeed(i, x, y, z, 1); this.growLily(x, z, c); }
           else if ((up === AIR || up === TUFT) && rnd() < 0.2 && this.moist(x, y, z)) { mat[i] = TURF; this.markDirty(x, z); }
           break;
         case SAND:
           if (up === AIR && y + 1 >= bed[c] && cd[c] > 0.08 && cd[c] < 1.3 && rnd() < 0.03) { mat[i + WD] = REED; aux[i + WD] = ri(256); this.markDirty(x, z); break; }
-          if (under && rnd() < 0.5) this.growWeed(i, x, y, z, 1);
+          if (under && rnd() < 0.5) { this.growWeed(i, x, y, z, 1); this.growLily(x, z, c); }
           break;
         case TURF:
           if (OPAQUE[up] || up === LAVA || under) { if (rnd() < 0.4) { mat[i] = SOIL; this.markDirty(x, z); } }
-          else if (up === AIR && rnd() < 0.012 && (this.biome[c] === 1 || this.biome[c] === 6 || this.biome[c] === 7) && this.shaded(x, y, z)) { mat[i + WD] = MUSH; aux[i + WD] = ri(256); this.markDirty(x, z); }
+          else if (up === AIR && rnd() < 0.012 && BIO[this.biome[c]].shroom && this.shaded(x, y, z)) { mat[i + WD] = MUSH; aux[i + WD] = ri(256); this.markDirty(x, z); }
           else if (up === AIR && rnd() < 0.05 && this.moist(x, y, z)) { mat[i + WD] = TUFT; aux[i + WD] = ri(256); this.markDirty(x, z); }
           break;
         case TUFT:
@@ -530,7 +559,7 @@ export class World {
           break;
         case LEAF: {
           let ok = false;
-          for (let dy = -3; dy <= 2 && !ok; dy++) for (let dz = -2; dz <= 2 && !ok; dz++) for (let dx = -2; dx <= 2; dx++) {
+          for (let dy = -4; dy <= 2 && !ok; dy++) for (let dz = -3; dz <= 3 && !ok; dz++) for (let dx = -3; dx <= 3; dx++) {
             if (this.get(x + dx, y + dy, z + dz) === WOOD) { ok = true; break; }
           }
           if (!ok) { if (rnd() < 0.5) { mat[i] = AIR; this.markDirty(x, z); } }
@@ -544,9 +573,16 @@ export class World {
             for (let dz = -3; dz <= 3 && !crowded; dz++) for (let dx = -3; dx <= 3; dx++) {
               if (this.get(x + dx, y, z + dz) === WOOD || this.get(x + dx, y + 1, z + dz) === WOOD) { crowded = true; break; }
             }
-            if (!crowded) { mat[i] = WOOD; aux[i] = 3 + ri(4); this.markDirty(x, z); }
+            if (!crowded) { const tk = BIO[this.biome[c]].trunk; mat[i] = WOOD; aux[i] = tk[0] + ri(tk[1]); this.markDirty(x, z); }
             else if (rnd() < 0.15) { mat[i] = AIR; this.markDirty(x, z); }
           } else if (below !== AIR && rnd() < 0.03) { mat[i] = AIR; this.markDirty(x, z); }
+          break;
+        }
+        case LILY: { // floats on the simulated surface; aux = how far up its cell the surface sits, in hundredths
+          const lvl = cs[c] - y;
+          if (cd[c] < 0.5 || lvl < 0 || lvl >= 1 || cd[c] > 3.2) { mat[i] = AIR; this.markDirty(x, z); break; }
+          const a = Math.round(lvl * 100);
+          if (Math.abs(a - aux[i]) > 6) { aux[i] = a; this.markDirty(x, z); }
           break;
         }
         case REED: {
@@ -558,7 +594,7 @@ export class World {
           if (y === 0 || mat[i - WD] !== TURF || (cd[c] > 0.2 && cs[c] > y + 0.2) || (!this.shaded(x, y, z) && rnd() < 0.3)) { mat[i] = AIR; this.markDirty(x, z); }
           break;
         case SNOW: {
-          const below = y > 0 ? mat[i - WD] : STONE, cold = this.snowing || this.biome[c] === 5;
+          const below = y > 0 ? mat[i - WD] : STONE, cold = this.snowing || BIO[this.biome[c]].snowy;
           if (!OPAQUE[below]) { mat[i] = AIR; this.markDirty(x, z); }
           else if (!cold && rnd() < 0.5) { // melt, a layer at a time, into a little water
             this.addWater(x, z, 0.012);
@@ -577,7 +613,7 @@ export class World {
           let hot = false;
           for (let d = 0; d < 4 && !hot; d++) { const nm = this.get(x + DX[d], y, z + DZ[d]); hot = nm === LAVA || nm === FIRE; }
           if (hot || up === LAVA || up === FIRE || (y > 0 && mat[i - WD] === LAVA)) this.melt(x, y, z);
-          else if (!this.snowing && this.biome[c] !== 5 && rnd() < (y > 0 && mat[i - WD] === AIR ? 0.2 : 0.02)) this.melt(x, y, z);   // lake ice breaks up when the cold passes
+          else if (!this.snowing && !BIO[this.biome[c]].snowy && rnd() < (y > 0 && mat[i - WD] === AIR ? 0.2 : 0.02)) this.melt(x, y, z);   // lake ice breaks up when the cold passes
           break;
         }
         case LAVA:
@@ -649,6 +685,14 @@ export class World {
     const b = this.bed[c] | 0;
     this.takeWater(x, z, n * 0.5);
     for (let k = 0; k < n; k++) if (this.get(x, b + k, z) === AIR || this.get(x, b + k, z) === WEED) this.set(x, b + k, z, ICE);
+  }
+
+  growLily(x, z, c) {
+    if (rnd() > 0.012 || this.cd[c] < 0.7 || this.cd[c] > 2.8) return;
+    const y = Math.floor(this.cs[c]);
+    if (y < 0 || y >= H || this.mat[x + W * (z + D * y)] !== AIR) return;
+    for (let k = 0; k < 4; k++) if (this.get(x + DX[k], y, z + DZ[k]) === LILY && rnd() < 0.5) return;   // patches, not carpets
+    this.set(x, y, z, LILY, Math.round((this.cs[c] - y) * 100));
   }
 
   growWeed(i, x, y, z, level) {

@@ -38,7 +38,8 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Water** is not voxels. It is a virtual-pipes shallow-water simulation on a grid twice as fine as the terrain:
   it has momentum, makes waves, runs downhill as streams, pools, is displaced by anything dropped in and spills
   over the rim. It is drawn as one smooth surface with reflections, depth colour, foam and caustics beneath.
-- **Earth**: sand, soil, stone, lava, ice, seeds, springs that well up water and drains that swallow it; raise, lower and smooth the land; paint any of nine biomes.
+- **Earth**: sand, soil, stone, lava, ice, seeds, springs that well up water and drains that swallow it; raise, lower and smooth the land; paint any of 26 biomes (each with its own colours, tree shapes and habits: conifers, palms, willows,
+  bamboo, giant mushrooms, dead snags and more).
 - **Reactions**: lava boils water to steam and freezes to basalt; steam condenses and rains back; fire spreads
   through trees, grass and huts; water puts it out; ice melts by heat.
 - **Growth**: soil near water turns to turf with real blade grass, flowers and trees in each biome's colours;
@@ -52,8 +53,9 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   and surge. U hides the interface for photos.
 - **Seasons**: the year turns through spring, summer, autumn and winter, tinting grass and broadleaf trees, and
   weather comes and goes by itself (showers, summer storms, winter snow). It can be switched off in Settings.
-- **Worlds**: ten world types (valley, atoll, archipelago, canyon, highlands, marsh, dunes, patchwork, volcano, bare
-  tray) at any size from 32 to 160 blocks a side, with generated villages. Save as many named worlds as the
+- **Worlds**: 42 world types in five groups (gentle, water, rugged, wild and special), from orchard hills and lake
+  districts to fjords, mesas, crater lakes, twin volcanoes, glaciers and fungal wilds, plus *Surprise me*. Type any
+  width and depth from 16 to 256 blocks (in steps of 16). Villages are generated where there is room. Save as many named worlds as the
   browser's storage holds; the current one also autosaves.
 - **Graphics**: Auto measures real frame times and moves between Low, Medium, High and Ultra; every setting
   (resolution, shadows, grass density, bloom, light shafts, miniature blur, water detail, anti-aliasing) can also be

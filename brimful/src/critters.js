@@ -352,6 +352,7 @@ export class Critters {
     }
     m.scale.setScalar(c.size);
     if (SWIM[c.kind]) {
+      if (c.leap > 0) { const f = 1 - c.leap / 0.75; m.position.y = c.y + Math.sin(f * Math.PI) * 0.9; m.rotation.set(-Math.cos(f * Math.PI) * 1.0, c.yaw, 0, 'YXZ'); u.tail.rotation.y = Math.sin(c.t * 22) * 0.4; return; }
       m.rotation.set(-Math.atan2(c.vy, Math.max(0.6, sp)) * 0.6, c.yaw, c.dry > 0.3 ? Math.PI / 2 : 0, 'YXZ');
       u.tail.rotation.y = Math.sin(c.t * (6 + sp * 4)) * 0.5;
     } else if (FLY[c.kind]) {
@@ -409,6 +410,13 @@ export class Critters {
       if (this.canSwim(c.x, c.y, nz) && !w.solid(Math.floor(c.x), cy, Math.floor(nz))) c.z = nz; else { c.vz *= -0.3; c.retarget = 0; }
       const s2 = w.surfAt(c.x, c.z), b2 = w.bedAt(c.x, c.z);
       c.y = Math.max(b2 + 0.15, Math.min(s2 > 0 ? s2 - 0.18 : c.y, c.y + c.vy * dt));
+      // now and then a fish near the top jumps clear of the water
+      if (c.leap > 0) {
+        c.leap -= dt;
+        if (c.leap <= 0) { this.fx.burst(c.x, s2, c.z, 7, 0xd8f0f8, 2); w.ripple(c.x, c.z, 0.3); this.onEvent('plop', c); }
+      } else if (!ctl && s2 > 0 && c.y > s2 - 1.8 && rnd() < dt * (c.kind === 'koi' ? 0.015 : 0.03)) {
+        c.leap = 0.75; this.fx.burst(c.x, s2, c.z, 6, 0xd8f0f8, 1.6); w.ripple(c.x, c.z, 0.2);
+      }
       if (Math.hypot(c.vx, c.vz) > 0.2) c.yaw = lerpAngle(c.yaw, Math.atan2(c.vx, c.vz), Math.min(1, dt * 8));
       if (here === WEED && c.eatCd <= 0 && c.food < 6) { w.set(cx, cy, cz, AIR); c.food++; c.eatCd = 4; this.fx.burst(c.x, c.y, c.z, 4, 0x58c08a, 1); }
       if (c.food >= 5 && c.age > (c.kind === 'koi' ? 260 : 150) && c.eatCd <= 0) { c.food = 0; c.age = 0; this.spawn(c.kind, c.x, c.y, c.z); }

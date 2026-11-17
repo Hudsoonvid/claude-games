@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import * as WM from './world.js';
 import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
+import { BIO } from './biomes.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity } from './mesher.js';
 import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe } from './critters.js';
 import { Fx } from './fx.js';
@@ -391,16 +392,55 @@ $('bSave').onclick = () => {
 };
 // new-world form
 let pickType = 'valley';
-for (const [id, label, note] of WORLD_TYPES) {
-  const b = document.createElement('button'); b.className = 'pick'; b.dataset.t = id; b.innerHTML = `${label}<small>${note}</small>`;
-  b.onclick = () => { pickType = id; for (const q of $('types').children) q.classList.toggle('on', q.dataset.t === id); };
-  $('types').append(b);
+{ // the world-type picker: grouped, searchable
+  const groups = {};
+  for (const [id, label, note, group] of WORLD_TYPES) (groups[group] ||= []).push([id, label, note]);
+  for (const [group, list] of Object.entries(groups)) {
+    const h = document.createElement('h5'); h.textContent = group; $('types').append(h);
+    const g = document.createElement('div'); g.className = 'grid'; $('types').append(g);
+    for (const [id, label, note] of list) {
+      const b = document.createElement('button'); b.className = 'pick'; b.dataset.t = id; b.dataset.q = (label + ' ' + note + ' ' + group).toLowerCase();
+      b.innerHTML = `${label}<small>${note}</small>`;
+      b.onclick = () => { pickType = id; for (const q of $('types').querySelectorAll('.pick')) q.classList.toggle('on', q.dataset.t === id); };
+      b.ondblclick = () => $('bCreate').click();
+      g.append(b);
+    }
+  }
+  $('types').querySelector('.pick').classList.add('on');
+  $('typeFilter').oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const b of $('types').querySelectorAll('.pick')) b.hidden = !!q && !b.dataset.q.includes(q);
+    for (const g of $('types').querySelectorAll('.grid')) { const any = [...g.children].some((b) => !b.hidden); g.hidden = !any; g.previousElementSibling.hidden = !any; }
+  };
 }
-$('types').firstChild.classList.add('on');
-for (const sel of [$('wW'), $('wD')]) { for (let v = 32; v <= 160; v += 16) sel.add(new Option(v, v)); sel.value = 64; sel.onchange = sizeNote; }
-function sizeNote() { const a = $('wW').value * $('wD').value; $('sizeNote').textContent = a <= 4096 ? 'Runs well everywhere' : a <= 9216 ? 'Roomy' : a <= 16384 ? 'Large: needs a decent computer' : 'Huge: may run slowly'; }
+// world size: type any width and depth; sizes snap to whole 16-block chunks
+const SIZE_MIN = 16, SIZE_MAX = 256;
+const snapSize = (v) => Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round((+v || 64) / 16) * 16));
+for (const [label, w, d] of [['Tiny', 32, 32], ['Small', 48, 48], ['Medium', 64, 64], ['Large', 96, 96], ['Huge', 160, 160], ['Giant', 256, 256], ['Long', 160, 48], ['Tall', 48, 160]]) {
+  const b = document.createElement('button'); b.textContent = `${label} ${w}×${d}`; b.dataset.w = w; b.dataset.d = d;
+  b.onclick = () => { $('wW').value = w; $('wD').value = d; sizeNote(); };
+  $('sizeChips').append(b);
+}
+for (const el of [$('wW'), $('wD')]) {
+  el.oninput = sizeNote;
+  el.onchange = () => { el.value = snapSize(el.value); sizeNote(); };
+  el.onkeydown = (e) => { if (e.key === 'Enter') $('bCreate').click(); };
+}
+function sizeNote() {
+  const w = snapSize($('wW').value), d = snapSize($('wD').value), a = w * d;
+  for (const b of $('sizeChips').children) b.classList.toggle('on', +b.dataset.w === w && +b.dataset.d === d);
+  const snapped = w !== +$('wW').value || d !== +$('wD').value ? ` Will be ${w} × ${d}: sizes go in steps of 16, from 16 to 256.` : '';
+  $('sizeNote').textContent = (a <= 4096 ? 'Runs well everywhere.' : a <= 9216 ? 'Roomy.' : a <= 25600 ? 'Large: wants a decent computer.' : a <= 40000 ? 'Huge: may run slowly.' : 'Giant: expect it to be slow, and saving may not fit.') + snapped;
+}
 sizeNote();
-$('bCreate').onclick = () => { $('worlds').classList.remove('open'); newWorld(pickType, +$('wW').value, +$('wD').value); toast('A fresh ' + WORLD_TYPES.find((t) => t[0] === pickType)[1].toLowerCase()); };
+$('bCreate').onclick = () => {
+  const w = snapSize($('wW').value), d = snapSize($('wD').value);
+  $('wW').value = w; $('wD').value = d; sizeNote();
+  $('worlds').classList.remove('open');
+  const label = WORLD_TYPES.find((t) => t[0] === pickType)[1];
+  toast(`Making a ${w} × ${d} ${label.toLowerCase()}…`);
+  setTimeout(() => { newWorld(pickType, w, d); toast(`A fresh ${label.toLowerCase()}, ${w} × ${d}`); }, 30);   // let the toast paint before the work
+};
 
 // ---------------------------------------------------------------- picking
 const raycaster = new THREE.Raycaster();
@@ -731,6 +771,7 @@ critters.onEvent = (t, c) => {
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') sound.blip(392, 0.25, 'triangle', 0.07);
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
+  else if (t === 'plop') sound.blip(520 + Math.random() * 200, 0.08, 'sine', 0.035);
   else if (t === 'hoot') { sound.blip(330, 0.3, 'sine', 0.05); setTimeout(() => sound.blip(290, 0.45, 'sine', 0.05), 380); }
   else if (t === 'croak') { sound.blip(150 + Math.random() * 50, 0.12, 'square', 0.03); setTimeout(() => sound.blip(170, 0.1, 'square', 0.025), 160); }
 };
@@ -1016,11 +1057,11 @@ function frame(now) {
   }
   // petals and leaves drift down in the blossom and autumn biomes
   if (!state.paused && gfx.motes) for (let k = 0; k < 2; k++) {
-    const x = ri(W), z = ri(D), b = world.biome[x + z * W];
-    if (b !== 2 && b !== 3) continue;
+    const x = ri(W), z = ri(D), pc = BIO[world.biome[x + z * W]].petals;
+    if (!pc) continue;
     const y = world.groundY(x, z) - 1;
     if (world.get(x, y, z) !== 9) continue;
-    fx.emit(x + Math.random(), y - 0.2, z + Math.random(), 0.5 + Math.random() * 0.6, -0.3, (Math.random() - 0.5) * 0.8, b === 3 ? (Math.random() < 0.5 ? 0xf7b4d0 : 0xfdd3e2) : (Math.random() < 0.5 ? 0xe07a2a : 0xe6aa30), 4.5, 0.045);
+    fx.emit(x + Math.random(), y - 0.2, z + Math.random(), 0.5 + Math.random() * 0.6, -0.3, (Math.random() - 0.5) * 0.8, Math.random() < 0.5 ? pc : BIO[world.biome[x + z * W]].leaf[0], 4.5, 0.045);
   }
 
   toolAcc += dt; critterCd -= dt;
