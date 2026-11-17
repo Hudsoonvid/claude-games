@@ -242,7 +242,7 @@ cursor.renderOrder = 6; cursor.visible = false; grid.add(cursor);
 // ---------------------------------------------------------------- state
 const state = {
   tool: 'sand', tab: 'earth', size: 2, paused: false, speed: 1, tod: 0.36, timeMode: 'auto', preset: 'valley', name: '',
-  painting: false, pointerIn: false, mx: 0, my: 0, biome: 0, fp: false, shake: 0, flash: 0, seasons: true, year: 0.1, weatherT: 90, day: 1, yearN: 1, chron: [],
+  painting: false, pointerIn: false, mx: 0, my: 0, biome: 0, fp: false, shake: 0, flash: 0, seasons: true, year: 0.1, weatherT: 90, day: 1, yearN: 1, chron: [], hist: [],
 };
 const input = { x: 0, z: 0, up: 0 };
 const keys = new Set();
@@ -366,12 +366,32 @@ $('bTime').onclick = () => { const k = Object.keys(TIME_MODES); setTimeMode(k[(k
 const sheets = ['worlds', 'settings', 'census'];
 function openSheet(id) { for (const s of sheets) $(s).classList.toggle('open', s === id && !$(s).classList.contains('open')); if (id === 'worlds') renderSlots(); $('brand').classList.toggle('on', $('census').classList.contains('open')); if (id === 'census') renderCensus(); }
 $('brand').onclick = (e) => { e.stopPropagation(); openSheet('census'); };
+// ---- population history: sampled every few seconds of game time, drawn as a small line graph in the census
+const FLIERS = { bee: 1, butterfly: 1, songbird: 1, owl: 1, glimmer: 1 }, GRAPH = [['People', '#d9774a', 0], ['Animals', '#5a9a4a', 1], ['Fliers', '#5a86c8', 2]];
+let histT = 0;
+function sampleHistory(dt) {
+  histT += dt; if (histT < 6) return; histT = 0;
+  const c = critters.counts; let people = c.villager, animals = 0, fly = 0;
+  for (const k of KIND_IDS) if (k !== 'villager') { if (FLIERS[k]) fly += c[k]; else animals += c[k]; }
+  state.hist.push([people, animals, fly]); if (state.hist.length > 140) state.hist.splice(0, state.hist.length - 140);
+}
+function drawGraph() {
+  const cv = $('censusGraph'), g = cv.getContext('2d'), h = state.hist, Wc = cv.width, Hc = cv.height;
+  g.clearRect(0, 0, Wc, Hc);
+  $('censusKey').innerHTML = GRAPH.map(([n, col, i]) => `<span><i style="background:${col}"></i>${n} <b>${h.length ? Math.round(h[h.length - 1][i]) : ''}</b></span>`).join('');
+  if (h.length < 2) { g.fillStyle = 'rgba(0,0,0,.35)'; g.font = '22px system-ui'; g.fillText('Gathering numbers…', 20, Hc / 2 + 8); return; }
+  const top = Math.max(4, ...h.flat()) * 1.1;
+  for (const [, col, i] of GRAPH) {
+    g.beginPath(); h.forEach((r, k) => { const x = (k / (h.length - 1)) * (Wc - 8) + 4, y = Hc - 6 - (r[i] / top) * (Hc - 14); k ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.strokeStyle = col; g.lineWidth = 4; g.lineJoin = 'round'; g.stroke();
+  }
+}
 function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
   $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep', wolf: 'Wolves', goat: 'Goats' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
   $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name} <small style="opacity:.55">${TIERS[v.tier ?? 0]}</small></label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
-  $('censusDate').textContent = dateLabel();
+  $('censusDate').textContent = dateLabel(); drawGraph();
   $('censusChron').innerHTML = state.chron.length ? state.chron.slice(-8).reverse().map((e) => `<li><small>${e.d}</small>${e.t}${e.n > 1 ? ` <b>×${e.n}</b>` : ''}</li>`).join('') : '<li class="zero">Nothing has happened yet.</li>';
   $('censusWorld').innerHTML = (state.seasons ? row('Season', SEASONS[Math.floor(state.year * 4)]) : '') + row('Type', (WORLD_TYPES.find((t) => t[0] === state.preset) || [0, state.preset])[1]) + row('Seed', state.seed || '—') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
@@ -530,7 +550,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = [];
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = [];
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -542,13 +562,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -1402,6 +1422,7 @@ function frame(now) {
     let n = 0;
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
+    if (!state.paused) sampleHistory(dt * state.speed);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
