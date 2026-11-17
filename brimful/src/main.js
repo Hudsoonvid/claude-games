@@ -1,5 +1,6 @@
 // Brimful — renderer, camera, tools and powers, graphics settings, saved worlds, UI and the main loop.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as WM from './world.js';
 import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, SNOW, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
@@ -108,6 +109,42 @@ const banners = {
   },
 };
 grid.add(banners.group);
+
+// ---------------------------------------------------------------- clouds: puffs of boxes drifting over the world
+const clouds = {
+  group: new THREE.Group(), list: [], mat: new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.88 }),
+  make() {
+    const parts = [], n = 7 + ri(7), lx = 5 + rnd() * 5, lz = 3 + rnd() * 3;
+    for (let k = 0; k < n; k++) {
+      const s = 1.6 + rnd() * 2.6, g = new THREE.BoxGeometry(s * (1 + rnd()), s * 0.7, s);
+      g.translate((rnd() - 0.5) * lx * 2, rnd() * 1.2, (rnd() - 0.5) * lz * 2); parts.push(g);
+    }
+    const m = new THREE.Mesh(mergeGeometries(parts), this.mat); m.castShadow = true;
+    for (const g of parts) g.dispose();
+    return m;
+  },
+  reset() {
+    for (const c of this.list) { this.group.remove(c.mesh); c.mesh.geometry.dispose(); }
+    this.list = [];
+    const n = Math.max(3, Math.round(7 * (W * D) / 4096));
+    for (let k = 0; k < n; k++) { const mesh = this.make(); this.group.add(mesh); this.list.push({ mesh, x: rnd() * W * 1.4 - W * 0.2, z: rnd() * D, y: H + 3 + rnd() * 5, sp: 0.6 + rnd() * 0.6, phase: rnd() }); }
+  },
+  update(dt) {
+    const want = gfx.clouds ? Math.min(this.list.length, Math.round(this.list.length * (0.3 + overcast * 0.7) + 0.4)) : 0;
+    this.mat.color.setRGB(1, 1, 1).lerp(cTmp.set(0x7a808a), overcast * 0.8);
+    this.list.forEach((c, k) => {
+      c.x += c.sp * dt * (1 + overcast * 1.5) * (state.paused ? 0 : 1);
+      if (c.x > W * 1.25) { c.x = -W * 0.25; c.z = rnd() * D; }
+      const on = k < want, fade = Math.min(1, Math.min(c.x + W * 0.25, W * 1.25 - c.x) / 8);
+      c.mesh.visible = on && fade > 0.05;
+      c.mesh.position.set(c.x, c.y + Math.sin(U.uTime.value * 0.2 + c.phase * 6) * 0.3, c.z);
+      c.mesh.scale.setScalar(Math.max(0.05, fade) * (1 + overcast * 0.35));
+      if (on && world.raining && !state.paused && Math.random() < 0.6) fx.emit(c.x + (Math.random() - 0.5) * 12, c.y - 0.5, c.z + (Math.random() - 0.5) * 7, 0, -20, 0, 0xbfe6f7, 1.4, 0.5);
+      if (on && world.snowing && !state.paused && Math.random() < 0.3) fx.emit(c.x + (Math.random() - 0.5) * 12, c.y - 0.5, c.z + (Math.random() - 0.5) * 7, (Math.random() - 0.5), -3.5, (Math.random() - 0.5), 0xffffff, 9, 0.004);
+    });
+  },
+};
+grid.add(clouds.group);
 let booted = false;
 
 // the container the world sits in: clay planter, glass tank, wooden crate, or nothing at all
@@ -167,6 +204,7 @@ function buildStage() {
   scene.fog.density = 0.0008 / SF;
   motes.material.uniforms.uSpan.value.set(W * 1.5, D * 1.5);
   camGoal.dist = 128 * SF * (innerWidth / innerHeight < 0.9 ? 1.25 : 1); camGoal.tx = camGoal.tz = 0;
+  clouds.reset();
   world.dirty.fill(1);
 }
 
@@ -317,10 +355,10 @@ $('bView').onclick = () => setFP(!state.fp);
 // ---------------------------------------------------------------- graphics settings
 const DPR = window.devicePixelRatio || 1;
 const LEVELS = [
-  { res: 1 / DPR, shadows: 0, grass: 4, bloom: false, rays: false, tilt: false, detail: false, aa: false, motes: false },
-  { res: Math.min(DPR, 1.25) / DPR, shadows: 1024, grass: 8, bloom: true, rays: false, tilt: false, detail: true, aa: false, motes: true },
-  { res: Math.min(DPR, 1.5) / DPR, shadows: 2048, grass: 12, bloom: true, rays: true, tilt: true, detail: true, aa: false, motes: true },
-  { res: Math.min(DPR, 2) / DPR, shadows: 4096, grass: 18, bloom: true, rays: true, tilt: true, detail: true, aa: true, motes: true },
+  { res: 1 / DPR, shadows: 0, grass: 4, bloom: false, rays: false, tilt: false, detail: false, aa: false, motes: false, clouds: false },
+  { res: Math.min(DPR, 1.25) / DPR, shadows: 1024, grass: 8, bloom: true, rays: false, tilt: false, detail: true, aa: false, motes: true, clouds: true },
+  { res: Math.min(DPR, 1.5) / DPR, shadows: 2048, grass: 12, bloom: true, rays: true, tilt: true, detail: true, aa: false, motes: true, clouds: true },
+  { res: Math.min(DPR, 2) / DPR, shadows: 4096, grass: 18, bloom: true, rays: true, tilt: true, detail: true, aa: true, motes: true, clouds: true },
 ];
 const LEVEL_NAMES = ['Low', 'Medium', 'High', 'Ultra'];
 const touchy = matchMedia('(pointer: coarse)').matches;
@@ -349,7 +387,7 @@ function applyGfx(save = true) {
   $('gRes').value = Math.round(gfx.res * 100 * DPR / Math.max(1, Math.min(DPR, 2)) ); $('gRes').value = Math.round(gfx.res * 100);
   $('gResO').textContent = Math.round(gfx.res * 100) + '%'; $('gShadow').value = String(gfx.shadows);
   $('gGrass').value = gfx.grass; $('gGrassO').textContent = gfx.grass ? gfx.grass : 'off';
-  for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt'], ['gDetail', 'detail'], ['gAA', 'aa'], ['gMotes', 'motes']]) $(id).checked = gfx[k];
+  for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt'], ['gDetail', 'detail'], ['gAA', 'aa'], ['gMotes', 'motes'], ['gClouds', 'clouds']]) $(id).checked = gfx[k] !== false;
   if (save) ls.set(GFX_KEY, gfx);
 }
 function setLevel(l, mode) { gfx.level = Math.max(0, Math.min(3, l)); gfx.mode = mode; Object.assign(gfx, LEVELS[gfx.level]); applyGfx(); }
@@ -359,7 +397,7 @@ const custom = (fn) => (e) => { fn(e.target); gfx.mode = 'custom'; applyGfx(); }
 $('gRes').oninput = custom((t) => { gfx.res = t.value / 100; });
 $('gShadow').onchange = custom((t) => { gfx.shadows = +t.value; });
 $('gGrass').oninput = custom((t) => { gfx.grass = +t.value; });
-for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt'], ['gDetail', 'detail'], ['gAA', 'aa'], ['gMotes', 'motes']]) $(id).onchange = custom((t) => { gfx[k] = t.checked; });
+for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt'], ['gDetail', 'detail'], ['gAA', 'aa'], ['gMotes', 'motes'], ['gClouds', 'clouds']]) $(id).onchange = custom((t) => { gfx[k] = t.checked; });
 $('gSound').onchange = (e) => { sound.init(); sound.setMuted(!e.target.checked); };
 function setSeasons(v) { state.seasons = !!v; $('gSeasons').checked = state.seasons; }
 $('gSeasons').onchange = (e) => setSeasons(e.target.checked);
@@ -1235,7 +1273,7 @@ function frame(now) {
     }
     if (state.storm && Math.random() < dt * 0.22) { const x = 2 + ri(W - 4), z = 2 + ri(D - 4); strike({ x, y: Math.max(world.groundY(x, z), Math.ceil(world.cs[x + z * W])), z }); }
     if (world.snowing) for (let k = 0; k < Math.ceil(2 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, (Math.random() - 0.5) * 1.5, -3.5, (Math.random() - 0.5) * 1.5, 0xffffff, 9, 0.004);
-    if (world.raining) for (let k = 0; k < Math.ceil(3 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
+    if (world.raining) for (let k = 0; k < Math.ceil((gfx.clouds ? 1.5 : 3) * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
   }
   if (state.timeMode !== 'auto') {
     const goal = { noon: 0.5, dusk: 0.765, night: 0.02 }[state.timeMode];
@@ -1244,6 +1282,7 @@ function frame(now) {
   }
 
   if (gfx.level > 0) banners.wave(now / 1000);
+  clouds.update(dt);
   // smoke curls from a few roofs
   if (!state.paused && gfx.motes && Math.random() < 0.35) {
     const x = ri(W), z = ri(D), y = world.groundY(x, z) - 1;

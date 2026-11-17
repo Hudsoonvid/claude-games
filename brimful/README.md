@@ -57,7 +57,8 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Powers**: spark, lightning, meteor, meteor shower, quake, tornado, surge, downpour, dry up, freeze, thaw, bloom,
   hut, settlers (a band who found a new village) and harvest gift.
 - **Chronicle**: a running history with a calendar (day, season and year): villages founded, births, new huts, losses,
-  foxes hunting, weather, seasons and every disaster, in the menu under the title and saved with the world. Weather steps from clear
+  foxes hunting, weather, seasons and every disaster, in the menu under the title and saved with the world. Voxel clouds drift over the world casting shadows, gather and darken before rain, and rain or snow from
+  beneath. Weather steps from clear
   to rain, storm (overcast, lightning) and snow, which settles in drifts and skins lakes with ice. Also tornado
   and surge. U hides the interface for photos.
 - **Containers**: keep the clay planter, or switch to a glass tank that shows the ground and water in cross-section,
