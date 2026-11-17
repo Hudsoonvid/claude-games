@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as WM from './world.js';
-import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, SNOW, OPAQUE, rnd, ri } from './world.js';
+import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, SNOW, LEAF, OPAQUE, rnd, ri } from './world.js';
+const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 import { generate, WORLD_TYPES } from './gen.js';
 import { BIO } from './biomes.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity, setEdgeSolid } from './mesher.js';
@@ -294,6 +295,12 @@ const TOOLS = [
   { id: 'settlers', tab: 'powers', label: 'Settlers', type: 'settlers', color: '#f3c9b0', glyph: '⚑' },
   { id: 'gift', tab: 'powers', label: 'Harvest gift', type: 'gift', color: '#f2d27a', glyph: '❦' },
   { id: 'shower', tab: 'powers', label: 'Meteor shower', type: 'shower', color: '#3a2e46', glyph: '✶', gc: '#ffb060' },
+  { id: 'mountain', tab: 'powers', label: 'Mountain', type: 'landform', form: 'mountain', color: '#a8a4ac', glyph: '▲' },
+  { id: 'volcano', tab: 'powers', label: 'Volcano', type: 'landform', form: 'volcano', color: '#4a3a3e', glyph: '⛰', gc: '#ff8a3a' },
+  { id: 'sinkhole', tab: 'powers', label: 'Sinkhole', type: 'landform', form: 'sinkhole', color: '#6a5a4a', glyph: '◡', gc: '#fff' },
+  { id: 'forest', tab: 'powers', label: 'Forest', type: 'forest', color: '#4f9f4c', glyph: '♣', gc: '#fff' },
+  { id: 'wither', tab: 'powers', label: 'Wither', type: 'wither', color: '#8a7a5a', glyph: '✗', gc: '#fff' },
+  { id: 'hall', tab: 'build', label: 'Town hall', type: 'hall', color: '#9d9ca6', glyph: '⌂', gc: '#fff' },
 ];
 const toolById = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
 const TABS = [['earth', 'Earth'], ['life', 'Life'], ['build', 'Build'], ['powers', 'Powers']];
@@ -1000,6 +1007,72 @@ function useTool(first) {
       }
       break;
     }
+    case 'landform': { // a mountain, volcano or sinkhole rises or sinks over a second and a half
+      if (!first) break;
+      const form = tool.form, cx = at.x, cz = at.z, r = 4 + state.size * 2.2, peak = form === 'sinkhole' ? 7 + state.size : 9 + state.size * 2.5;
+      const want = new Map(), got = new Map(); let t = 0;
+      for (let z = Math.max(1, Math.floor(cz - r)); z <= Math.min(D - 2, Math.ceil(cz + r)); z++) for (let x = Math.max(1, Math.floor(cx - r)); x <= Math.min(W - 2, Math.ceil(cx + r)); x++) {
+        const d = Math.hypot(x - cx, z - cz) / r; if (d > 1) continue;
+        let h = form === 'sinkhole' ? (1 - sstep(0.55, 1, d)) * peak : (1 - d) ** 1.4 * peak * (0.85 + rnd() * 0.3);
+        if (form === 'volcano' && d < 0.22) h -= (0.22 - d) * peak * 2.5;
+        want.set(x + z * W, Math.max(0, Math.round(h)));
+      }
+      chronicle(form === 'sinkhole' ? 'The ground gave way' : form === 'volcano' ? 'A volcano rose from the land' : 'A mountain rose from the land');
+      sound.boom(0.4, 2.2, form === 'sinkhole' ? 120 : 80); state.shake = Math.max(state.shake, 0.6);
+      transients.push((dt) => {
+        t += dt; const goal = Math.min(1, t / 1.6);
+        for (const [c, h] of want) {
+          const x = c % W, z = (c / W) | 0, step = Math.round(h * goal) - (got.get(c) || 0);
+          for (let k = 0; k < step; k++) form === 'sinkhole' ? lowerCol(x, z) : raiseCol(x, z);
+          got.set(c, Math.round(h * goal));
+          if (step > 0 && rnd() < 0.05) fx.burst(x + 0.5, world.bed[c] + 0.5, z + 0.5, 2, form === 'sinkhole' ? 0x7f5638 : 0x9d9ca6, 2);
+        }
+        if (goal < 1) return false;
+        if (form !== 'sinkhole') for (const [c, h] of want) { // bare rock up high, snow on a tall peak, black basalt on a volcano
+          const x = c % W, z = (c / W) | 0, y = world.groundY(x, z) - 1, m = world.get(x, y, z);
+          if (m !== TURF && m !== SOIL) continue;
+          const f = h / peak + (rnd() - 0.5) * 0.15, up = world.get(x, y + 1, z);
+          if (form === 'volcano' ? f > 0.25 : f > 0.5) { world.set(x, y, z, form === 'volcano' ? BASALT : STONE); if (up === TUFT) world.set(x, y + 1, z, AIR); }
+          if (form === 'mountain' && f > 0.78 && peak > 12 && world.get(x, y + 1, z) === AIR) world.set(x, y + 1, z, SNOW, 2);
+        }
+        if (form === 'volcano') {
+          const y = world.groundY(cx, cz);
+          for (let z = cz - 1; z <= cz + 1; z++) for (let x = cx - 1; x <= cx + 1; x++) { world.set(x, world.groundY(x, z) - 1, z, BASALT); world.set(x, world.groundY(x, z), z, LAVA, 8); }
+          world.set(cx, y, cz, LAVA, 8); world.set(cx, y + 1, cz, LAVA, 8);
+          fx.burst(cx + 0.5, y + 2, cz + 0.5, 40, 0xff6a1a, 5);
+        }
+        return true;
+      });
+      break;
+    }
+    case 'forest': {
+      if (!first && toolTick % 6) break;
+      let n = 0;
+      cols(at.x, at.z, (x, z) => {
+        if (rnd() > 0.12) return;
+        const y = world.groundY(x, z), m = world.get(x, y - 1, z);
+        if ((m !== TURF && m !== SOIL) || world.wet(x, y, z) || world.get(x, y, z) !== AIR && world.get(x, y, z) !== TUFT) return;
+        for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) if (world.get(x + dx, y, z + dz) === WOOD) return;
+        if (m === SOIL) world.set(x, y - 1, z, TURF);
+        world.set(x, y, z, SEED); n++;
+      }, R + 3);
+      world.randomTicks(3000);
+      if (n && first) { sound.blip(520, 0.3, 'triangle', 0.07); chronicle('A forest was sown'); }
+      break;
+    }
+    case 'wither':
+      each(at.x, at.y, at.z, (x, y, z, m) => {
+        if (m === LEAF || m === TUFT || m === 20 || m === 22 || m === 23) { world.set(x, y, z, AIR); if (rnd() < 0.1) fx.burst(x + 0.5, y + 0.5, z + 0.5, 1, 0x8a7a5a, 1.5); }
+        else if (m === TURF && rnd() < 0.3) world.set(x, y, z, SOIL);
+        else if (m === WOOD && rnd() < 0.02) world.set(x, y, z, AIR);
+      });
+      if (first) sound.blip(160, 0.4, 'sawtooth', 0.04);
+      break;
+    case 'hall':
+      if (!first) break;
+      if (world.hall(at.x, world.groundY(at.x, at.z), at.z)) { sound.boom(0.15, 0.6, 300); const v = critters.villageAt(at.x, at.z); if (critters.villages[v]) critters.villages[v].hall = true; }
+      else toast('A town hall needs a dry 5×5 patch with no big dips');
+      break;
     case 'hut':
       if (!first) break;
       if (world.hut(at.x, world.groundY(at.x, at.z), at.z)) {
