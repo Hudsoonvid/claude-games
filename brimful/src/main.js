@@ -4,7 +4,7 @@ import * as WM from './world.js';
 import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity } from './mesher.js';
-import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows } from './critters.js';
+import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
 import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makePost } from './gfx.js';
@@ -460,7 +460,7 @@ function resetScene() {
   state.shake = 0; state.flash = 0; state.painting = false; state.weatherT = 90; state.year = 0.1;
   pourLevel = 0; sound.pour(0); sound.babble(0);
   acc = 0; ember.intensity = 0; glowGoal = 0; overcast = 0; U.uRain.value = 0; U.uUnder.value = 0;
-  pointers.clear(); drag = null; cursor.visible = false;
+  pointers.clear(); drag = null; cursor.visible = false; inspect(null);
 }
 
 function topOf(x, z) { const b = world.bed[x + z * W] | 0; return { y: b - 1, m: b > 0 ? world.get(x, b - 1, z) : STONE }; }
@@ -774,7 +774,29 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag === 'orbit') orbit(dx, dy);
   else if (drag === 'pan') pan(dx, dy);
 });
+// a click that did not turn into a drag, made with the Look tool, picks a creature to inspect
+let downAt = null, selected = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+function inspect(c) {
+  selected = c && !c.dead ? c : null;
+  $('card').classList.toggle('on', !!selected);
+  if (selected) syncCard();
+}
+function syncCard() {
+  if (!selected || selected.dead) { inspect(null); return; }
+  const k = selected.kind, an = /^[aeiou]/.test(k) ? 'An ' : 'A ';
+  $('cardName').textContent = selected.name ? `${selected.name}, a villager` : an + k;
+  $('cardWhat').textContent = describe(selected, world, night);
+}
+$('cardRide').onclick = () => { if (selected && !selected.dead) { const c = selected; inspect(null); possess(c); } };
+$('cardClose').onclick = () => inspect(null);
+
 const endPointer = (e) => {
+  if (downAt && state.tool === 'look' && !critters.possessed && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6 && performance.now() - downAt.t < 500) {
+    state.mx = e.clientX; state.my = e.clientY;
+    const r = gridRay(); inspect(critters.pick(r.o, r.d));
+  }
+  downAt = null;
   pointers.delete(e.pointerId);
   if (pointers.size === 0) { drag = null; state.painting = false; }
   else if (drag === 'gesture' && pointers.size < 2) drag = null;
@@ -1050,6 +1072,10 @@ function frame(now) {
       show = true;
     }
   }
+  if (selected && !ride) { // a ring of light on whoever is being inspected
+    if (selected.dead) inspect(null);
+    else { cursor.position.set(selected.x, selected.y + 0.4, selected.z); cursor.scale.setScalar(0.75); cursor.material.color.set(0xfff0b0); show = true; }
+  }
   cursor.visible = show;
 
   // atmosphere + post
@@ -1079,7 +1105,7 @@ function frame(now) {
 
   statT += dt;
   if (statT > 0.5) {
-    statT = 0;
+    statT = 0; if (selected) syncCard();
     renderCensus();
     $('fps').textContent = `${Math.round(perf.fps)} frames per second · ${gfx.mode === 'auto' ? 'Auto: ' + LEVEL_NAMES[gfx.level] : gfx.mode === 'custom' ? 'Custom' : LEVEL_NAMES[gfx.level]} · ${Math.round(innerWidth * renderer.getPixelRatio())}×${Math.round(innerHeight * renderer.getPixelRatio())}`;
   }
@@ -1100,4 +1126,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };
+window.__brimful = { THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };

@@ -100,6 +100,9 @@
   #help ul { margin:0 0 14px; padding:0; list-style:none; display:grid; gap:7px; }
   #help li { display:grid; grid-template-columns:118px 1fr; gap:10px; }
   #help .cta { width:100%; padding:12px; font-size:15px; }
+  #card { position:fixed; left:10px; top:64px; padding:9px 10px 9px 14px; display:none; align-items:center; gap:10px; max-width:calc(100vw - 20px); z-index:4; }
+  #card.on { display:flex; } #card b { display:block; } #card small { opacity:.72; }
+  body.riding #card, body.hideui #card { display:none; }
   #toast { position:fixed; left:50%; top:74px; transform:translateX(-50%); padding:8px 14px; font-weight:600; opacity:0; transition:opacity .25s; pointer-events:none; z-index:6; }
   #toast.on { opacity:1; }
   @media (max-width:640px) { #ctl button { padding:7px 8px; font-size:12px; } #brand b { font-size:15px; } .tool { width:52px; } #brand { max-width:40vw; } }
@@ -165,6 +168,7 @@
 <div id="stick"><i></i></div>
 <div id="updown"><button id="bUp">▲</button><button id="bDown">▼</button></div>
 
+<div id="card" class="panel"><div><b id="cardName"></b><small id="cardWhat"></small></div><button class="ghost" id="cardRide">Ride along</button><button class="ghost" id="cardClose" title="Close">×</button></div>
 <div id="toast" class="panel"></div>
 
 <div id="help">
@@ -175,7 +179,7 @@
       <li><b>Shape</b><span>Pick a tool from Earth, Life or Powers and hold the left button (or one finger) on the world.</span></li>
       <li><b>Look around</b><span>Right-drag or Option-drag to orbit, scroll or pinch to zoom, Shift-drag to pan. On a trackpad, swipe sideways to turn. Keys: WASD pan, Q E turn, Z X zoom, T G tilt. Touch: two fingers.</span></li>
       <li><b>Life</b><span>Plants need water nearby. Animals graze, hunt and multiply. Villagers fell trees, replant and build huts.</span></li>
-      <li><b>Ride along</b><span>Choose Ride along and click any creature to steer it. V switches to first person.</span></li>
+      <li><b>Meet them</b><span>With the Look tool, click a creature to see who it is and what it is doing; from there you can ride along and steer it. V switches to first person.</span></li>
       <li><b>Worlds</b><span>Nine world types, any size, nine biomes. Save as many named worlds as you like.</span></li>
       <li><b>Keys</b><span>1–9 tools · [ ] brush size · P pause · R rain · U photo mode · H help</span></li>
     </ul>

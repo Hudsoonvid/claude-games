@@ -238,6 +238,33 @@ const FLY = { glimmer: 1, butterfly: 1, songbird: 1, bee: 1, owl: 1 };
 const SWIM = { minnow: 1, koi: 1 };
 const GRAZE = { mossback: 1, rabbit: 1, deer: 1, sheep: 1 };
 
+const NAME_A = ['Al', 'Bri', 'Cor', 'Del', 'El', 'Fen', 'Gar', 'Hal', 'Is', 'Jor', 'Kes', 'Lin', 'Mar', 'Nel', 'Or', 'Per', 'Ros', 'Sil', 'Tam', 'Wil'];
+const NAME_B = ['a', 'an', 'da', 'den', 'en', 'eth', 'ia', 'in', 'is', 'la', 'ley', 'lo', 'mund', 'na', 'ra', 'ric', 'sa', 'ton', 'wyn', 'y'];
+const personName = () => NAME_A[(Math.random() * NAME_A.length) | 0] + NAME_B[(Math.random() * NAME_B.length) | 0];
+
+// a few words on what a creature is up to, for the inspect card
+export function describe(c, world, night) {
+  const wet = world.surfAt(c.x, c.z) > c.y - 0.1 && world.depthAt(c.x, c.z) > 0.3, k = c.kind;
+  if (c.flee > 0) return 'Running from a fox';
+  if (c.rest > 0) return night > 0.6 || k === 'owl' ? 'Asleep on a perch' : 'Resting';
+  if (k === 'minnow' || k === 'koi') return c.dry > 0.3 ? 'Stranded, gasping' : c.food < 4 ? 'Looking for waterweed' : 'Swimming with the school';
+  if (k === 'villager') {
+    if (wet) return 'Out in the boat' + ((c.meal || 0) < 2 ? ', fishing' : '');
+    if (night > 0.7) return 'Home for the night';
+    if (c.job) return 'Off to fell a tree';
+    if (c.food >= 3) return 'Looking for a place to build';
+    return (c.meal || 0) < 2 ? 'Tending the fields' : 'Out for a walk';
+  }
+  if (k === 'fox') return c.eatCd <= 0 ? 'Hunting' : 'Prowling, well fed';
+  if (k === 'heron') return c.eatCd <= 0 ? 'Stalking fish' : 'Wading';
+  if (k === 'bee') return 'Visiting flowers';
+  if (k === 'butterfly' || k === 'glimmer' || k === 'songbird' || k === 'owl') return 'On the wing';
+  if (wet) return k === 'duck' || k === 'turtle' ? (c.food < 4 ? 'Dabbling for weed' : 'Paddling') : 'Swimming';
+  if (night > 0.7 && !c.walk) return 'Settled for the night';
+  if (k === 'mossback' || k === 'rabbit' || k === 'deer' || k === 'sheep') return c.food < 5 ? 'Grazing' : 'Well fed, wandering';
+  return c.walk ? 'Wandering' : 'Standing still';
+}
+
 export class Critters {
   constructor(world, scene, fx) {
     this.world = world; this.scene = scene; this.fx = fx;
@@ -250,7 +277,7 @@ export class Critters {
     const c = {
       kind, x, y, z, vx: 0, vy: 0, vz: 0, yaw: rnd() * 6.28, food: 0, age: quiet ? rnd() * 40 : 0, dry: 0, t: rnd() * 10,
       tx: x, ty: y, tz: z, retarget: 0, ground: false, eatCd: 1 + rnd() * 3, hopCd: 0, walk: false, heading: rnd() * 6.28, rest: 0,
-      hx: x, hz: z, mesh: build(kind), dead: false, size: quiet ? 1 : 0.2,
+      hx: x, hz: z, mesh: build(kind), dead: false, size: quiet ? 1 : 0.2, name: kind === 'villager' ? personName() : '',
     };
     c.mesh.position.set(x, y, z);
     this.scene.add(c.mesh); this.list.push(c); this.counts[kind]++;
@@ -267,14 +294,14 @@ export class Critters {
 
   clear() { for (const c of this.list) this.scene.remove(c.mesh); this.list = []; for (const k of KIND_IDS) this.counts[k] = 0; this.possessed = null; }
 
-  serialize() { return this.list.filter((c) => !c.dead).map((c) => [c.kind, +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), c.food, +c.hx.toFixed(0), +c.hz.toFixed(0), c.meal || 0]); }
+  serialize() { return this.list.filter((c) => !c.dead).map((c) => [c.kind, +c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1), c.food, +c.hx.toFixed(0), +c.hz.toFixed(0), c.meal || 0, c.name]); }
   deserialize(arr) {
     this.clear();
     const OLD = ['minnow', 'duck', 'frog', 'mossback', 'rabbit', 'villager', 'butterfly', 'songbird', 'glimmer'];
     for (const a of arr || []) {
       const k = typeof a[0] === 'number' ? OLD[a[0]] : a[0]; if (!KINDS[k]) continue;
       const c = this.spawn(k, a[1], a[2], a[3], true);
-      if (c) { c.food = a[4] || 0; if (a.length > 5) { c.hx = a[5]; c.hz = a[6]; c.meal = a[7] || 0; } }
+      if (c) { c.food = a[4] || 0; if (a.length > 5) { c.hx = a[5]; c.hz = a[6]; c.meal = a[7] || 0; if (a[8]) c.name = a[8]; } }
     }
   }
 
