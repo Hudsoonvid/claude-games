@@ -55,6 +55,7 @@ export class World {
   alloc() {
     this.mat = new Uint8Array(N); this.aux = new Uint8Array(N); this.stamp = new Uint8Array(N);
     this.dirty = new Uint8Array(CX * CZ).fill(1);
+    this.awake = new Uint8Array(CX * CZ).fill(40);   // ticks each 16x16 column stays in the voxel simulation; 0 = asleep, nothing moving
     this.colDirty = new Uint8Array(WD).fill(1);
     this.biome = new Uint8Array(WD);      // biome id per column (tints turf, grass and leaves)
     this.bed = new Float32Array(WD);      // ground height per voxel column
@@ -69,7 +70,7 @@ export class World {
   resize(w, d) { setSize(w, d); this.alloc(); }
 
   clear() {
-    this.mat.fill(0); this.aux.fill(0); this.dirty.fill(1); this.colDirty.fill(1);
+    this.mat.fill(0); this.aux.fill(0); this.dirty.fill(1); this.colDirty.fill(1); this.awake.fill(40);
     this.biome.fill(0); this.wd.fill(0); this.fl.fill(0); this.fr.fill(0); this.ft.fill(0); this.fb.fill(0); this.cd.fill(0);
   }
 
@@ -101,6 +102,12 @@ export class World {
   markDirty(x, z) {
     const cx = x >> 4, cz = z >> 4, d = this.dirty;
     d[cx + cz * CX] = 1;
+    if (!this.quiet) { // growth and decay redraw a chunk but cannot set anything moving, so they do not wake it
+      const a = this.awake, lx2 = x & 15, lz2 = z & 15;
+      a[cx + cz * CX] = 24;
+      if (lx2 === 0 && cx > 0) a[cx - 1 + cz * CX] = 24; else if (lx2 === 15 && cx < CX - 1) a[cx + 1 + cz * CX] = 24;
+      if (lz2 === 0 && cz > 0) a[cx + (cz - 1) * CX] = 24; else if (lz2 === 15 && cz < CZ - 1) a[cx + (cz + 1) * CX] = 24;
+    }
     this.colDirty[x + z * W] = 1;
     const lx = x & 15, lz = z & 15;
     if (lx === 0 && cx > 0) d[cx - 1 + cz * CX] = 1;
@@ -297,13 +304,25 @@ export class World {
     }
     this.stepWater();
 
+    // Regions where nothing has moved lately sleep. Anything that can act on its own (lava, steam, fire, springs,
+    // drains, hearths) keeps its region awake; a periodic sweep finds those.
+    const awake = this.awake;
+    if ((t & 15) === 0) {
+      for (let i = 0; i < N; i++) {
+        const m = mat[i];
+        if (m === LAVA || m === STEAM || m === FIRE || m === SPRING || m === DRAIN || m === HEARTH || m === SEED) awake[((i % W) >> 4) + ((((i / W) | 0) % D) >> 4) * CX] = 24;
+      }
+    }
+    for (let k = 0; k < awake.length; k++) if (awake[k] > 0) awake[k]--;
     for (let y = 0; y < H; y++) {
       const zf = (t + y) & 1, xf = ((t >> 1) + y) & 1;
       for (let zz = 0; zz < D; zz++) {
         const z = zf ? D - 1 - zz : zz;
         let i = (xf ? W - 1 : 0) + W * (z + D * y);
         const di = xf ? -1 : 1;
+        const crow = (z >> 4) * CX;
         for (let xx = 0; xx < W; xx++, i += di) {
+          if ((xx & 15) === 0 && awake[((xf ? W - 1 - xx : xx) >> 4) + crow] === 0) { xx += 15; i += di * 15; continue; }
           const m = mat[i];
           if (ACTIVE[m] === 0 || stamp[i] === cur) continue;
           const x = xf ? W - 1 - xx : xx;
@@ -464,7 +483,7 @@ export class World {
         }
       }
     }
-    this.randomTicks((N * 0.0135) | 0);
+    this.quiet = true; this.randomTicks((N * 0.0135) | 0); this.quiet = false;
   }
 
   // Slow processes: growth, decay, cooling.
@@ -651,7 +670,7 @@ export class World {
     unrle(unb64(o.m), this.mat); unrle(unb64(o.a), this.aux); if (o.b) unrle(unb64(o.b), this.biome);
     const q = new Uint16Array(this.wd.length); unrle(unb64(o.q), new Uint8Array(q.buffer));
     for (let i = 0; i < q.length; i++) this.wd[i] = q[i] / 512;
-    this.updateBeds(); this.aggregate();
+    this.updateBeds(); this.aggregate(); this.awake.fill(40);
   }
 }
 
