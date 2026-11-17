@@ -301,6 +301,7 @@ const TOOLS = [
   { id: 'forest', tab: 'powers', label: 'Forest', type: 'forest', color: '#4f9f4c', glyph: '♣', gc: '#fff' },
   { id: 'wither', tab: 'powers', label: 'Wither', type: 'wither', color: '#8a7a5a', glyph: '✗', gc: '#fff' },
   { id: 'windmill', tab: 'build', label: 'Windmill', type: 'windmill', color: '#efe6d2', glyph: '✣' },
+  { id: 'lighthouse', tab: 'build', label: 'Lighthouse', type: 'lighthouse', color: '#e8e4dc', glyph: '⛯' },
   { id: 'hall', tab: 'build', label: 'Town hall', type: 'hall', color: '#9d9ca6', glyph: '⌂', gc: '#fff' },
 ];
 const toolById = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
@@ -551,7 +552,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; syncMills([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; syncMills([]); syncLights([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -563,13 +564,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), away: state.away });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), away: state.away });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); state.away = s.away || {}; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); state.away = s.away || {}; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -769,6 +770,28 @@ function turnMills(dt) {
   }
 }
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
+// ---- lighthouses: a slow beam sweeps the water at night
+const lights = [];   // { at, g }
+const beamMat = new THREE.ShaderMaterial({   // brightest at the lamp, fading to nothing over the water
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { opacity: { value: 0 } },
+  vertexShader: 'varying float vV; void main(){ vV = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform float opacity; varying float vV; void main(){ gl_FragColor = vec4(vec3(1.0, 0.93, 0.72) * pow(vV, 2.2) * opacity, 1.0); }',
+});
+function addLight(at) {
+  const g = new THREE.Group(); g.position.set(at[0] + 0.5, at[1] + 0.5, at[2] + 0.5);
+  for (const s of [1, -1]) { const cone = new THREE.Mesh(new THREE.ConeGeometry(2.2, 26, 16, 1, true).translate(0, -13, 0).rotateZ(s * Math.PI / 2), beamMat); g.add(cone); }
+  g.rotation.y = rnd() * 6.28; grid.add(g); lights.push({ at, g });
+}
+function syncLights(list) { for (const l of lights) grid.remove(l.g); lights.length = 0; for (const at of list || []) addLight(at); }
+function turnLights(dt) {
+  beamMat.uniforms.opacity.value = Math.max(0, night - 0.35) * 0.5 * (1 - overcast * 0.4);
+  for (let i = lights.length - 1; i >= 0; i--) {
+    const l = lights[i];
+    if (world.get(l.at[0], l.at[1], l.at[2]) !== 19) { grid.remove(l.g); lights.splice(i, 1); continue; }
+    l.g.rotation.y += dt * 0.7;
+  }
+}
+function buildLight(x, z) { const at = world.lighthouse(x, z); if (at) addLight(at); return at; }
 function resetScene() {
   history.clear();
   for (const o of live) { grid.remove(o); o.geometry.dispose(); }
@@ -1176,6 +1199,10 @@ function useTool(first) {
       });
       if (first) sound.blip(160, 0.4, 'sawtooth', 0.04);
       break;
+    case 'lighthouse':
+      if (!first) break;
+      if (buildLight(at.x, at.z)) sound.blip(300, 0.25, 'triangle', 0.07); else toast('A lighthouse needs a dry 3×3 patch with room above');
+      break;
     case 'windmill':
       if (!first) break;
       if (buildMill(at.x, at.z)) sound.blip(260, 0.2, 'triangle', 0.07); else toast('A windmill needs a dry 3×3 patch with room above');
@@ -1504,6 +1531,7 @@ function frame(now) {
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
     if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
+    turnLights(dt);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
@@ -1662,6 +1690,11 @@ function frame(now) {
       if (v.tier >= 1 && !v.mill && rnd() < 0.12) { // a village with fields puts up a windmill
         for (let k = 0; k < 12 && !v.mill; k++) { const a = rnd() * 6.283, r = 6 + rnd() * 5, at = buildMill(Math.round(v.x + Math.cos(a) * r), Math.round(v.z + Math.sin(a) * r)); if (at) { v.mill = true; chronicle(`${v.name} built a windmill`); } }
       }
+      if (v.tier >= 2 && !v.light && rnd() < 0.1) { // a town by the sea raises a lighthouse on its shore
+        let best = null;
+        for (let k = 0; k < 40; k++) { const a = rnd() * 6.283, r = 5 + rnd() * 12, x = Math.round(v.x + Math.cos(a) * r), z = Math.round(v.z + Math.sin(a) * r); if (world.depthAt(x + 2.5, z) > 1.5 || world.depthAt(x - 1.5, z) > 1.5 || world.depthAt(x, z + 2.5) > 1.5 || world.depthAt(x, z - 1.5) > 1.5) { best = [x, z]; if (buildLight(x, z)) break; best = null; } }
+        v.light = true; if (best) chronicle(`${v.name} lit a lighthouse`);
+      }
       if (v.tier >= 1 && !v.road) { // a growing village lays a road to its nearest neighbour
         v.road = true; let best = null, bd = Math.max(W, D) * 0.9;
         critters.villages.forEach((o, j) => { const d = Math.hypot(o.x - v.x, o.z - v.z); if (j !== i && d < bd && !(o.roadTo === i)) { bd = d; best = j; } });
@@ -1689,4 +1722,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, buildLight, lights, get frames() { return frames; } };
