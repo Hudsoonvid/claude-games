@@ -24,6 +24,11 @@
   #census { left:10px; right:auto; width:min(250px, calc(100vw - 20px)); }
   #census .row { margin:4px 2px; } #census .row span { font-variant-numeric:tabular-nums; font-weight:700; }
   #census .row.zero { opacity:.4; }
+  #census { width:min(300px, calc(100vw - 20px)); }
+  #census .date { font-weight:700; font-size:13px; margin:0 2px 8px; }
+  #censusChron { list-style:none; margin:0; padding:0 2px; display:grid; gap:7px; font-size:13px; }
+  #censusChron small { display:block; opacity:.55; font-size:11px; }
+  #censusChron .zero { opacity:.5; }
   .swatch { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
   #ctl { pointer-events:auto; display:flex; gap:4px; padding:5px; flex-wrap:wrap; justify-content:flex-end; }
   #ctl button { padding:7px 11px; border-radius:11px; font-weight:600; font-size:13px; white-space:nowrap; }
@@ -137,7 +142,7 @@
   </div>
 </div>
 
-<div id="census" class="panel sheet"><h4>Villages</h4><div id="censusVillages"></div><h4>Living here</h4><div id="censusList"></div><h4>The world</h4><div id="censusWorld"></div></div>
+<div id="census" class="panel sheet"><div id="censusDate" class="date"></div><h4>Villages</h4><div id="censusVillages"></div><h4>Chronicle</h4><ol id="censusChron"></ol><h4>Living here</h4><div id="censusList"></div><h4>The world</h4><div id="censusWorld"></div></div>
 
 <div id="worlds" class="panel sheet">
   <h4>New world</h4>

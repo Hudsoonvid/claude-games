@@ -177,7 +177,7 @@ cursor.renderOrder = 6; cursor.visible = false; grid.add(cursor);
 // ---------------------------------------------------------------- state
 const state = {
   tool: 'sand', tab: 'earth', size: 2, paused: false, speed: 1, tod: 0.36, timeMode: 'auto', preset: 'valley', name: '',
-  painting: false, pointerIn: false, mx: 0, my: 0, biome: 0, fp: false, shake: 0, flash: 0, seasons: true, year: 0.1, weatherT: 90,
+  painting: false, pointerIn: false, mx: 0, my: 0, biome: 0, fp: false, shake: 0, flash: 0, seasons: true, year: 0.1, weatherT: 90, day: 1, yearN: 1, chron: [],
 };
 const input = { x: 0, z: 0, up: 0 };
 const keys = new Set();
@@ -219,6 +219,9 @@ const TOOLS = [
   { id: 'thaw', tab: 'powers', label: 'Thaw', type: 'thaw', color: '#ffc9a8', glyph: '♒' },
   { id: 'bloom', tab: 'powers', label: 'Bloom', type: 'bloom', color: '#ffd0e6', glyph: '✿' },
   { id: 'hut', tab: 'powers', label: 'Hut', type: 'hut', color: '#d9b65a', glyph: '⌂' },
+  { id: 'settlers', tab: 'powers', label: 'Settlers', type: 'settlers', color: '#f3c9b0', glyph: '⚑' },
+  { id: 'gift', tab: 'powers', label: 'Harvest gift', type: 'gift', color: '#f2d27a', glyph: '❦' },
+  { id: 'shower', tab: 'powers', label: 'Meteor shower', type: 'shower', color: '#3a2e46', glyph: '✶', gc: '#ffb060' },
 ];
 const toolById = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
 const TABS = [['earth', 'Earth'], ['life', 'Life'], ['powers', 'Powers']];
@@ -231,7 +234,7 @@ const TIPS = {
   biome: 'Paint a biome: changes grass, leaves and tree shapes', dig: 'Scoop away anything, water included',
   possess: 'Click a creature to steer it yourself', fire: 'Set things alight', bolt: 'Call down lightning', meteor: 'Drop a meteor',
   quake: 'Shake and crack the ground', tornado: 'A twister that tears up the ground and flings things about', surge: 'Raise a wall of water that crashes outward', cloud: 'A local downpour', dry: 'Boil water off into steam', freeze: 'Turn standing water to ice',
-  thaw: 'Melt ice back to water', bloom: 'Make everything nearby grow', hut: 'Raise a hut and a villager to live in it',
+  thaw: 'Melt ice back to water', bloom: 'Make everything nearby grow', hut: 'Raise a hut and a villager to live in it', settlers: 'Send a band of settlers to found a new village here', gift: 'Feed the villagers nearby and ripen their crops', shower: 'A scatter of small meteors over a wide area',
 };
 
 // ---------------------------------------------------------------- toolbar UI
@@ -271,6 +274,8 @@ $('bPause').onclick = () => setPaused(!state.paused);
 $('bSpeed').onclick = () => { state.speed = state.speed >= 8 ? 1 : state.speed * 2; $('bSpeed').textContent = state.speed + '×'; $('bSpeed').classList.toggle('on', state.speed > 1); };
 // weather steps through: clear, rain, storm, snow
 function setRain(r, storm = false, snow = false) {
+  const was = world.snowing ? 'snow' : state.storm ? 'storm' : world.raining ? 'rain' : '', now = snow ? 'snow' : r && storm ? 'storm' : r ? 'rain' : '';
+  if (typeof booted !== 'undefined' && booted && was !== now && now) chronicle({ rain: 'Rain set in', storm: 'A storm broke', snow: 'Snow began to fall' }[now]);
   world.raining = !!r && !snow; world.snowing = !!snow; state.storm = !!r && storm && !snow;
   $('bRain').classList.toggle('on', !!r || !!snow); $('bRain').textContent = snow ? 'Snow' : state.storm ? 'Storm' : 'Rain';
 }
@@ -287,7 +292,9 @@ function renderCensus() {
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
   $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
   $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name}</label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
-  $('censusWorld').innerHTML = (state.seasons ? row('Season', ['Spring', 'Summer', 'Autumn', 'Winter'][Math.floor(state.year * 4)]) : '') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
+  $('censusDate').textContent = dateLabel();
+  $('censusChron').innerHTML = state.chron.length ? state.chron.slice(-8).reverse().map((e) => `<li><small>${e.d}</small>${e.t}${e.n > 1 ? ` <b>×${e.n}</b>` : ''}</li>`).join('') : '<li class="zero">Nothing has happened yet.</li>';
+  $('censusWorld').innerHTML = (state.seasons ? row('Season', SEASONS[Math.floor(state.year * 4)]) : '') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
 $('bWorld').onclick = (e) => { e.stopPropagation(); openSheet('worlds'); };
 $('bSet').onclick = (e) => { e.stopPropagation(); openSheet('settings'); };
@@ -396,7 +403,7 @@ function populate(villages) {
 }
 function newWorld(preset, w = W, d = D) {
   release(); resetScene();
-  state.preset = preset; state.name = '';
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = [];
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset);
@@ -407,13 +414,13 @@ function newWorld(preset, w = W, d = D) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, villages: critters.villages });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -574,6 +581,17 @@ function lowerCol(x, z) {
   if (m === TURF && world.get(x, y - 1, z) === SOIL) world.set(x, y - 1, z, TURF);
 }
 
+// ---------------------------------------------------------------- the chronicle: what happened, and when
+const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const vname = (c) => (critters.villages[c.vid] || {}).name || 'the wilds';
+function dateLabel() { return `Day ${state.day}` + (state.seasons ? `, ${SEASONS[Math.floor(state.year * 4)].toLowerCase()} of year ${state.yearN}` : ''); }
+function chronicle(text) {
+  const last = state.chron[state.chron.length - 1];
+  if (last && last.t === text && last.d === dateLabel()) { last.n = (last.n || 1) + 1; }
+  else state.chron.push({ d: dateLabel(), t: text });
+  if (state.chron.length > 80) state.chron.splice(0, state.chron.length - 80);
+}
+
 function strike(p) {
   // a jagged bolt from the sky
   const pts = []; let x = p.x + 0.5, z = p.z + 0.5;
@@ -582,6 +600,7 @@ function strike(p) {
   grid.add(line); live.add(line); let life = 0.2;
   transients.push((dt) => { life -= dt; line.visible = Math.random() < 0.8; if (life <= 0) { grid.remove(line); live.delete(line); line.geometry.dispose(); return true; } });
   state.flash = 0.5; state.shake = Math.max(state.shake, 0.35);
+  if (!state.storm || Math.random() < 0.15) chronicle('Lightning struck');
   for (let dy = -2; dy <= 2; dy++) for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
     if (dx * dx + dy * dy + dz * dz > 5) continue;
     const X = p.x + dx, Y = p.y + dy, Z = p.z + dz;
@@ -593,7 +612,8 @@ function strike(p) {
   sound.boom(0.6, 1.6, 160); sound.sizzle();
 }
 
-function meteor(p, size) {
+function meteor(p, size, quiet) {
+  if (!quiet) chronicle('A meteor struck');
   const R = 2 + size * 0.8;
   const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6 + size * 0.2, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 2.2, 0.8) }));
   const from = new THREE.Vector3(p.x + 0.5 + 26, p.y + 60, p.z + 0.5 - 14), to = new THREE.Vector3(p.x + 0.5, p.y + 0.5, p.z + 0.5);
@@ -624,6 +644,7 @@ function meteor(p, size) {
 }
 
 function quake(p, size) {
+  chronicle('The ground shook');
   const R = 4 + size * 1.5, ph = Math.random() * 6.28, ang = Math.random() * 3.14;
   for (let dz = -Math.ceil(R); dz <= R; dz++) for (let dx = -Math.ceil(R); dx <= R; dx++) {
     const r = Math.hypot(dx, dz); if (r > R) continue;
@@ -639,6 +660,7 @@ function quake(p, size) {
 }
 
 function tornado(p) {
+  chronicle('A tornado touched down');
   let x = p.x + 0.5, z = p.z + 0.5, life = 11, ang = Math.random() * 6.28, t = 0;
   sound.boom(0.35, 3, 240);
   const funnel = new THREE.Mesh(new THREE.CylinderGeometry(5, 0.6, 18, 20, 6, true), new THREE.MeshBasicMaterial({ color: 0xb9bcc6, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
@@ -780,10 +802,39 @@ function useTool(first) {
       }, R + 1);
       world.randomTicks(1200);
       if (first) sound.blip(990, 0.3, 'triangle', 0.08); break;
+    case 'settlers': {
+      if (!first) break;
+      const gy = world.groundY(at.x, at.z), top = world.get(at.x, gy - 1, at.z);
+      if (world.wet(at.x, gy, at.z) || !(top === 3 || top === 2 || top === 4 || top === 26)) { toast('Settlers need dry ground to stand on'); break; }
+      const vid = critters.found(at.x, at.z);
+      for (let k = 0; k < 4; k++) { const x = at.x + 0.5 + (rnd() - 0.5) * 3, z = at.z + 0.5 + (rnd() - 0.5) * 3, c = critters.spawn('villager', x, world.groundY(x, z) + 0.2, z); if (c) { c.hx = at.x; c.hz = at.z; c.vid = vid; c.meal = 2; } }
+      for (let k = 0; k < 2; k++) { const x = at.x + 0.5 + (rnd() - 0.5) * 6, z = at.z + 0.5 + (rnd() - 0.5) * 6, s = critters.spawn('sheep', x, world.groundY(x, z) + 0.2, z); if (s) { s.hx = at.x; s.hz = at.z; } }
+      for (let k = 0; k < 12; k++) { const a = rnd() * 6.283, r = 3 + rnd() * 3, hx = Math.round(at.x + Math.cos(a) * r), hz = Math.round(at.z + Math.sin(a) * r); if (world.hut(hx, world.groundY(hx, hz), hz)) break; }
+      fx.burst(at.x + 0.5, gy + 1, at.z + 0.5, 20, 0xfff2c8, 3); sound.blip(440, 0.3, 'triangle', 0.08);
+      break;
+    }
+    case 'gift': {
+      if (!first && toolTick % 10) break;
+      let fed = 0;
+      for (const c of critters.list) if (c.kind === 'villager' && !c.dead && Math.hypot(c.x - at.x, c.z - at.z) < R + 5) { c.meal = (c.meal || 0) + 3; c.food = (c.food || 0) + 3; fed++; fx.burst(c.x, c.y + 1.2, c.z, 5, 0xf2d27a, 1.5); }
+      cols(at.x, at.z, (x, z) => { const y = world.groundY(x, z); if (world.get(x, y - 1, z) === 20) world.set(x, y - 1, z, 20, 3); else if (world.get(x, y, z) === 20) world.set(x, y, z, 20, 3); }, R + 4);
+      if (first) { sound.blip(660, 0.35, 'triangle', 0.07); if (fed) chronicle(`${fed} villager${fed > 1 ? 's were' : ' was'} given a harvest gift`); }
+      break;
+    }
+    case 'shower': {
+      if (!first) break;
+      chronicle('A meteor shower fell');
+      for (let k = 0; k < 7; k++) {
+        let wait = 0.25 + k * 0.35 + rnd() * 0.3;
+        const x = Math.max(2, Math.min(W - 3, Math.round(at.x + (rnd() - 0.5) * 22))), z = Math.max(2, Math.min(D - 3, Math.round(at.z + (rnd() - 0.5) * 22)));
+        transients.push((dt) => { wait -= dt; if (wait > 0) return false; meteor({ x, y: world.groundY(x, z), z }, 1, true); return true; });
+      }
+      break;
+    }
     case 'hut':
       if (!first) break;
       if (world.hut(at.x, world.groundY(at.x, at.z), at.z)) {
-        const c = critters.spawn('villager', at.x + 0.5, world.groundY(at.x, at.z + 2) + 0.2, at.z + 2.5); if (c) { c.hx = at.x; c.hz = at.z; }
+        const c = critters.spawn('villager', at.x + 0.5, world.groundY(at.x, at.z + 2) + 0.2, at.z + 2.5); if (c) { c.hx = at.x; c.hz = at.z; c.vid = critters.villageAt(at.x, at.z); }
         sound.blip(330, 0.2, 'triangle');
       } else toast('A hut needs a flat, dry 3×3 patch');
       break;
@@ -826,9 +877,12 @@ critters.onEvent = (t, c) => {
   if (t === 'lost') { release(); toast('Your creature is gone'); }
   else if (t === 'chirp') { sound.blip(1700 + Math.random() * 700, 0.09, 'sine', 0.04); setTimeout(() => sound.blip(2100 + Math.random() * 500, 0.07, 'sine', 0.035), 110); }
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
-  else if (t === 'build') sound.blip(392, 0.25, 'triangle', 0.07);
+  else if (t === 'build') { sound.blip(392, 0.25, 'triangle', 0.07); if (booted) chronicle(`${c.name || 'A villager'} built a hut in ${vname(c)}`); }
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
-  else if (t === 'founded' && booted) toast(`A new village: ${c.name}`);
+  else if (t === 'founded' && booted) { toast(`A new village: ${c.name}`); chronicle(`${c.name} was founded`); }
+  else if (t === 'born' && booted) chronicle(`${c.name} was born in ${vname(c)}`);
+  else if (t === 'died' && booted) chronicle(`${c.name || 'A villager'} of ${vname(c)} was lost`);
+  else if (t === 'hunt' && booted && Math.random() < 0.35) chronicle(`A fox caught a${/^[aeiou]/.test(c.kind) ? 'n' : ''} ${c.kind}`);
   else if (t === 'plop') sound.blip(520 + Math.random() * 200, 0.08, 'sine', 0.035);
   else if (t === 'hoot') { sound.blip(330, 0.3, 'sine', 0.05); setTimeout(() => sound.blip(290, 0.45, 'sine', 0.05), 380); }
   else if (t === 'croak') { sound.blip(150 + Math.random() * 50, 0.12, 'square', 0.03); setTimeout(() => sound.blip(170, 0.1, 'square', 0.025), 160); }
@@ -1084,9 +1138,11 @@ function frame(now) {
     let n = 0;
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
-    if (state.timeMode === 'auto') state.tod = (state.tod + dt * state.speed / 300) % 1;
+    if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
+      const season0 = Math.floor(state.year * 4);
       state.year = (state.year + dt * state.speed / 1800) % 1;
+      if (Math.floor(state.year * 4) !== season0) { if (season0 === 3) state.yearN++; chronicle(`${SEASONS[Math.floor(state.year * 4)]} came`); }
       state.weatherT -= dt * state.speed;
       if (state.weatherT <= 0) {
         const season = Math.floor(state.year * 4), r = Math.random(), on = world.raining || world.snowing;

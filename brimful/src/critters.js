@@ -309,6 +309,7 @@ export class Critters {
     c.dead = true; this.counts[c.kind]--;
     this.scene.remove(c.mesh);
     if (puff) this.fx.burst(c.x, c.y + 0.2, c.z, 10, puff, 2.5);
+    if (puff && c.kind === 'villager') this.onEvent('died', c);
     if (this.possessed === c) { this.possessed = null; this.onEvent('lost', c); }
   }
 
@@ -555,7 +556,7 @@ export class Critters {
 
     // appetites
     if (kind === 'fox') {
-      if (c.eatCd <= 0) for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.3) { this.remove(o, 0xffffff); c.food++; c.eatCd = 70; break; }
+      if (c.eatCd <= 0) for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.3) { this.remove(o, 0xffffff); c.food++; c.eatCd = 70; this.onEvent('hunt', o); break; }
       if (c.food >= 4 && c.age > 320 && this.counts.fox < 5) { c.food = 0; c.age = 0; this.spawn('fox', c.x, c.y + 0.2, c.z); }
     } else if (kind === 'crab') {
       if (c.age > 220 && inWater && rnd() < 0.01) { c.age = 0; this.spawn('crab', c.x, c.y + 0.2, c.z); }

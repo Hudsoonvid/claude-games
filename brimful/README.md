@@ -50,7 +50,10 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   footpaths into the grass, and settlers who build far from home found new villages. The menu under the title lists
   each village and its population. Ride along with any of them in
   third or first person.
-- **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Weather steps from clear
+- **Powers**: spark, lightning, meteor, meteor shower, quake, tornado, surge, downpour, dry up, freeze, thaw, bloom,
+  hut, settlers (a band who found a new village) and harvest gift.
+- **Chronicle**: a running history with a calendar (day, season and year): villages founded, births, new huts, losses,
+  foxes hunting, weather, seasons and every disaster, in the menu under the title and saved with the world. Weather steps from clear
   to rain, storm (overcast, lightning) and snow, which settles in drifts and skins lakes with ice. Also tornado
   and surge. U hides the interface for photos.
 - **Containers**: keep the clay planter, or switch to a glass tank that shows the ground and water in cross-section,
