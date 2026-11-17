@@ -123,7 +123,7 @@ cursor.renderOrder = 6; cursor.visible = false; grid.add(cursor);
 // ---------------------------------------------------------------- state
 const state = {
   tool: 'sand', tab: 'earth', size: 2, paused: false, speed: 1, tod: 0.36, timeMode: 'auto', preset: 'valley', name: '',
-  painting: false, pointerIn: false, mx: 0, my: 0, biome: 0, fp: false, shake: 0, flash: 0,
+  painting: false, pointerIn: false, mx: 0, my: 0, biome: 0, fp: false, shake: 0, flash: 0, seasons: true, year: 0.1, weatherT: 90,
 };
 const input = { x: 0, z: 0, up: 0 };
 const keys = new Set();
@@ -220,7 +220,8 @@ function setRain(r, storm = false, snow = false) {
   world.raining = !!r && !snow; world.snowing = !!snow; state.storm = !!r && storm && !snow;
   $('bRain').classList.toggle('on', !!r || !!snow); $('bRain').textContent = snow ? 'Snow' : state.storm ? 'Storm' : 'Rain';
 }
-$('bRain').onclick = () => { if (world.snowing) setRain(false); else if (!world.raining) setRain(true); else if (!state.storm) setRain(true, true); else setRain(false, false, true); };
+$('bRain').onclick = () => { state.weatherT = 240;   // a hand-picked sky holds for a while before the seasons take over again
+  if (world.snowing) setRain(false); else if (!world.raining) setRain(true); else if (!state.storm) setRain(true, true); else setRain(false, false, true); };
 const TIME_MODES = { auto: 'Day cycle', noon: 'Noon', dusk: 'Dusk', night: 'Night' };
 function setTimeMode(m) { state.timeMode = m; $('bTime').textContent = TIME_MODES[m]; }
 $('bTime').onclick = () => { const k = Object.keys(TIME_MODES); setTimeMode(k[(k.indexOf(state.timeMode) + 1) % k.length]); };
@@ -231,7 +232,7 @@ function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
   $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
-  $('censusWorld').innerHTML = row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
+  $('censusWorld').innerHTML = (state.seasons ? row('Season', ['Spring', 'Summer', 'Autumn', 'Winter'][Math.floor(state.year * 4)]) : '') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
 $('bWorld').onclick = (e) => { e.stopPropagation(); openSheet('worlds'); };
 $('bSet').onclick = (e) => { e.stopPropagation(); openSheet('settings'); };
@@ -289,6 +290,8 @@ $('gShadow').onchange = custom((t) => { gfx.shadows = +t.value; });
 $('gGrass').oninput = custom((t) => { gfx.grass = +t.value; });
 for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt'], ['gDetail', 'detail'], ['gAA', 'aa'], ['gMotes', 'motes']]) $(id).onchange = custom((t) => { gfx[k] = t.checked; });
 $('gSound').onchange = (e) => { sound.init(); sound.setMuted(!e.target.checked); };
+function setSeasons(v) { state.seasons = !!v; $('gSeasons').checked = state.seasons; }
+$('gSeasons').onchange = (e) => setSeasons(e.target.checked);
 
 // Auto quality: watch real frame times, step down when it struggles, creep back up when there is clear headroom.
 const perf = {
@@ -335,7 +338,7 @@ function populate(villages) {
   }
 }
 function newWorld(preset, w = W, d = D) {
-  release();
+  release(); resetScene();
   state.preset = preset; state.name = '';
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
@@ -343,15 +346,16 @@ function newWorld(preset, w = W, d = D) {
   buildStage();
   populate(villages);
   setRain(false); syncName();
+  remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
-    release(); critters.clear();
-    world.deserialize(s.w); buildStage(); critters.deserialize(s.c);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    release(); resetScene(); critters.clear();
+    world.deserialize(s.w); buildStage(); critters.deserialize(s.c); remesh(9999); water.update(world);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -445,7 +449,19 @@ function pick() {
 
 // ---------------------------------------------------------------- tools and powers
 let pourLevel = 0, critterCd = 0, toolTick = 0;
-const transients = [];   // short-lived things: meteors, lightning bolts
+const transients = [];   // short-lived things: meteors, lightning bolts, tornadoes
+const live = new Set();  // their scene objects, so a world change can sweep them away
+
+// Nothing from the old world may follow into a new or loaded one.
+function resetScene() {
+  for (const o of live) { grid.remove(o); o.geometry.dispose(); }
+  live.clear(); transients.length = 0;
+  fx.clear(); world.events.length = 0;
+  state.shake = 0; state.flash = 0; state.painting = false; state.weatherT = 90; state.year = 0.1;
+  pourLevel = 0; sound.pour(0); sound.babble(0);
+  acc = 0; ember.intensity = 0; glowGoal = 0; overcast = 0; U.uRain.value = 0; U.uUnder.value = 0;
+  pointers.clear(); drag = null; cursor.visible = false;
+}
 
 function topOf(x, z) { const b = world.bed[x + z * W] | 0; return { y: b - 1, m: b > 0 ? world.get(x, b - 1, z) : STONE }; }
 function raiseCol(x, z) {
@@ -466,8 +482,8 @@ function strike(p) {
   const pts = []; let x = p.x + 0.5, z = p.z + 0.5;
   for (let y = p.y; y <= H + 14; y += 2.5) { pts.push(new THREE.Vector3(x, y, z)); x += (Math.random() - 0.5) * 2.4; z += (Math.random() - 0.5) * 2.4; }
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(6, 6.5, 8) }));
-  grid.add(line); let life = 0.2;
-  transients.push((dt) => { life -= dt; line.visible = Math.random() < 0.8; if (life <= 0) { grid.remove(line); line.geometry.dispose(); return true; } });
+  grid.add(line); live.add(line); let life = 0.2;
+  transients.push((dt) => { life -= dt; line.visible = Math.random() < 0.8; if (life <= 0) { grid.remove(line); live.delete(line); line.geometry.dispose(); return true; } });
   state.flash = 0.5; state.shake = Math.max(state.shake, 0.35);
   for (let dy = -2; dy <= 2; dy++) for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
     if (dx * dx + dy * dy + dz * dz > 5) continue;
@@ -484,12 +500,12 @@ function meteor(p, size) {
   const R = 2 + size * 0.8;
   const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6 + size * 0.2, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 2.2, 0.8) }));
   const from = new THREE.Vector3(p.x + 0.5 + 26, p.y + 60, p.z + 0.5 - 14), to = new THREE.Vector3(p.x + 0.5, p.y + 0.5, p.z + 0.5);
-  grid.add(rock); let t = 0;
+  grid.add(rock); live.add(rock); let t = 0;
   transients.push((dt) => {
     t += dt / 1.1; rock.position.lerpVectors(from, to, Math.min(1, t * t)); rock.rotation.x += dt * 9;
     for (let k = 0; k < 3; k++) fx.emit(rock.position.x, rock.position.y, rock.position.z, (Math.random() - 0.5) * 2, 1 + Math.random() * 2, (Math.random() - 0.5) * 2, Math.random() < 0.5 ? 0xffd24a : 0xff6a1a, 0.7, 0.1);
     if (t < 1) return false;
-    grid.remove(rock); rock.geometry.dispose();
+    grid.remove(rock); live.delete(rock); rock.geometry.dispose();
     const Ri = Math.ceil(R + 1);
     for (let dy = -Ri; dy <= Ri; dy++) for (let dz = -Ri; dz <= Ri; dz++) for (let dx = -Ri; dx <= Ri; dx++) {
       const d2 = dx * dx + dy * dy * 1.6 + dz * dz, X = p.x + dx, Y = p.y + dy, Z = p.z + dz;
@@ -530,13 +546,13 @@ function tornado(p) {
   sound.boom(0.35, 3, 240);
   const funnel = new THREE.Mesh(new THREE.CylinderGeometry(5, 0.6, 18, 20, 6, true), new THREE.MeshBasicMaterial({ color: 0xb9bcc6, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
   { const pa = funnel.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { const yy = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(yy * 0.5) * 0.9); pa.setZ(i, pa.getZ(i) + Math.cos(yy * 0.4) * 0.9); } }
-  funnel.renderOrder = 5; grid.add(funnel);
+  funnel.renderOrder = 5; grid.add(funnel); live.add(funnel);
   transients.push((dt) => {
     life -= dt; t += dt; ang += (Math.random() - 0.5) * dt * 3;
     x = Math.max(4, Math.min(W - 4, x + Math.cos(ang) * 5 * dt)); z = Math.max(4, Math.min(D - 4, z + Math.sin(ang) * 5 * dt));
     const gy = world.groundY(x, z);
     funnel.position.set(x, gy + 9, z); funnel.rotation.y = t * 7; funnel.material.opacity = 0.32 * Math.min(1, life, t * 2);
-    if (life <= 0) { grid.remove(funnel); funnel.geometry.dispose(); }
+    if (life <= 0) { grid.remove(funnel); live.delete(funnel); funnel.geometry.dispose(); }
     for (let k = 0; k < 14; k++) { // the funnel
       const h = Math.random() * 16, r = 0.8 + h * 0.28, a = t * 9 + h * 0.9 + k;
       fx.emit(x + Math.cos(a) * r, gy + h, z + Math.sin(a) * r, -Math.sin(a) * 7, 1.5, Math.cos(a) * 7, k % 3 ? 0xc9c9d2 : 0x8f8f9a, 0.35, 0);
@@ -885,6 +901,8 @@ function updateSky() {
   hemi.intensity = 0.95 + 0.15 * day + dusk * 0.15;
   hemi.color.set(0x7f93d8).lerp(cTmp.copy(cTop).lerp(cWhite, 0.45), day);
   hemi.groundColor.set(0x4a5078).lerp(cTmp.set(0x9a8468), day);
+  { const y = state.seasons ? state.year : 0.3, bump = (a, b) => smooth(a, a + 0.07, y) * (1 - smooth(b - 0.07, b, y));
+    U.uAutumn.value = bump(0.5, 0.8); U.uWinter.value = Math.max(bump(0.74, 1.0), y < 0.04 ? 1 - y / 0.04 : 0); }
   U.uNight.value = night; U.uCaustic.value = (0.25 + 0.75 * day) * (1 - overcast * 0.7);
   U.uCloud.value = day * (0.55 + overcast * 0.45); U.uRain.value += ((world.raining ? 1 : 0) - U.uRain.value) * 0.03;
   U.uSky.value.copy(cTop).lerp(cBot, 0.5).multiplyScalar(0.25 + 0.75 * day);
@@ -945,6 +963,20 @@ function frame(now) {
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
     if (state.timeMode === 'auto') state.tod = (state.tod + dt * state.speed / 300) % 1;
+    if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
+      state.year = (state.year + dt * state.speed / 1800) % 1;
+      state.weatherT -= dt * state.speed;
+      if (state.weatherT <= 0) {
+        const season = Math.floor(state.year * 4), r = Math.random(), on = world.raining || world.snowing;
+        if (on) { setRain(false); state.weatherT = 70 + Math.random() * 110; }
+        else {
+          if (season === 3) { if (r < 0.65) setRain(false, false, true); }
+          else if (season === 1) { if (r < 0.15) setRain(true, true); else if (r < 0.3) setRain(true); }
+          else if (r < 0.4) setRain(true);
+          state.weatherT = (world.raining || world.snowing) ? 35 + Math.random() * 45 : 60 + Math.random() * 60;
+        }
+      }
+    }
     if (state.storm && Math.random() < dt * 0.22) { const x = 2 + ri(W - 4), z = 2 + ri(D - 4); strike({ x, y: Math.max(world.groundY(x, z), Math.ceil(world.cs[x + z * W])), z }); }
     if (world.snowing) for (let k = 0; k < Math.ceil(2 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, (Math.random() - 0.5) * 1.5, -3.5, (Math.random() - 0.5) * 1.5, 0xffffff, 9, 0.004);
     if (world.raining) for (let k = 0; k < Math.ceil(3 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
@@ -1068,4 +1100,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };
+window.__brimful = { scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };

@@ -173,15 +173,18 @@ export function generate(world, preset) {
     const cx = 8 + ri(W - 16), cz = 8 + ri(D - 16), gy = hm[cx + cz * W];
     if (gy <= WL || gy > 26 || world.get(cx, gy - 1, cz) !== TURF) continue;
     if (villages.some((v) => Math.hypot(v.x - cx, v.z - cz) < 22)) continue;
-    let huts = 0;
-    for (let k = 0; k < 14 && huts < 3 + ri(3); k++) {
+    // find the sites first; build only if there is room for a real village, so no lone huts are left behind
+    const sites = [], target = 3 + ri(3);
+    for (let k = 0; k < 24 && sites.length < target; k++) {
       const a = rnd() * 6.283, r = 4 + rnd() * 5, hx = Math.round(cx + Math.cos(a) * r), hz = Math.round(cz + Math.sin(a) * r);
-      if (hx < 3 || hz < 3 || hx > W - 4 || hz > D - 4) continue;
+      if (hx < 3 || hz < 3 || hx > W - 4 || hz > D - 4 || sites.some((s) => Math.abs(s[0] - hx) < 4 && Math.abs(s[2] - hz) < 4)) continue;
       const hy = hm[hx + hz * W];
-      let flat = true;
+      let flat = hy > WL && world.clearFor(hx, hy, hz, 5);
       for (let dz = -1; dz <= 1 && flat; dz++) for (let dx = -1; dx <= 1; dx++) if (hm[hx + dx + (hz + dz) * W] !== hy) { flat = false; break; }
-      if (flat && world.hut(hx, hy, hz)) huts++;
+      if (flat) sites.push([hx, hy, hz]);
     }
+    let huts = 0;
+    if (sites.length >= 2) for (const s of sites) if (world.hut(s[0], s[1], s[2])) huts++;
     if (huts >= 2) {
       world.set(cx, gy - 1, cz, STONE); world.set(cx, gy, cz, HEARTH); // the village fire
       villages.push({ x: cx, y: gy, z: cz, huts }); want--;

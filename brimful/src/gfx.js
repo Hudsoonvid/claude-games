@@ -23,6 +23,7 @@ export const U = {
   uTexel: { value: new THREE.Vector2(1 / 128, 1 / 128) },
   uDetail: { value: 1 },
   uCloud: { value: 0 },                      // strength of drifting cloud shadows
+  uAutumn: { value: 0 }, uWinter: { value: 0 },
   uRain: { value: 0 },
 };
 
@@ -45,7 +46,7 @@ const NOISE = /* glsl */ `
   }
 `;
 const DECL = /* glsl */ `
-  uniform float uTime, uNight, uCaustic, uUnder, uDetail, uCloud, uRain; uniform vec3 uSky; uniform sampler2D uWater; uniform vec2 uWorld;
+  uniform float uTime, uNight, uCaustic, uUnder, uDetail, uCloud, uRain, uAutumn, uWinter; uniform vec3 uSky; uniform sampler2D uWater; uniform vec2 uWorld;
   varying vec3 vWPos; varying vec3 vWNrm;
 `;
 const VERT_OUT = /* glsl */ `
@@ -74,8 +75,15 @@ function patch(mat, { vertex = '', frag = {} }) {
   return mat;
 }
 
-// soft shadows of clouds sliding over the land
+// soft shadows of clouds sliding over the land, and the turning of the year on anything green
 const CLOUDS = /* glsl */ `
+  if (uAutumn + uWinter > 0.01) {
+    float veg = smoothstep(0.03, 0.15, diffuseColor.g - max(diffuseColor.r, diffuseColor.b)) * (1.0 - step(abs(vColor.a - 0.85), 0.04));
+    float gl = diffuseColor.g;
+    float mixv = 0.55 + 0.45 * h31(floor(vWPos * 0.5));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(gl * 1.55, gl * 0.82, gl * 0.18), veg * uAutumn * 0.8 * mixv);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(gl * 0.9, gl * 0.8, gl * 0.5), veg * uWinter * 0.7);
+  }
   if (uCloud > 0.01 && uDetail > 0.5) {
     float cl = fbm(vWPos.xz * 0.032 + uTime * vec2(0.014, 0.009));
     diffuseColor.rgb *= 1.0 - uCloud * smoothstep(0.42, 0.72, cl) * 0.4;

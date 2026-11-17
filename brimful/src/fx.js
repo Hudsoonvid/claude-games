@@ -39,6 +39,8 @@ export class Fx {
     }
   }
 
+  clear() { this.life.fill(0); for (let i = 1; i < this.pos.length; i += 3) this.pos[i] = -999; this.points.geometry.attributes.position.needsUpdate = true; }
+
   update(dt) {
     const { pos, vel, life, grav } = this;
     for (let i = 0; i < MAX; i++) {

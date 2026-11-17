@@ -77,7 +77,8 @@ const P3 = [0, 0, 0], N3 = [0, 0, 0];
 
 function cube(x, y, z, m, i) {
   let base = COL[m]; const j = 0.88 + 0.24 * hash(i);
-  if (m === LEAF) base = BIOMES[biome[x + z * W]].leaf[Math.min(2, (hash(i * 7 + 3) * 3) | 0)];
+  const bb = biome[x + z * W], evergreen = m === LEAF && (bb === 1 || bb === 5 || bb === 7);   // conifers and jungle keep their colour all year
+  if (m === LEAF) base = BIOMES[bb].leaf[Math.min(2, (hash(i * 7 + 3) * 3) | 0)];
   else if (m === TURF) base = BIOMES[biome[x + z * W]].turf;
   for (let f = 0; f < 6; f++) {
     const a = f >> 1, s = f & 1, u = (a + 1) % 3, v = (a + 2) % 3;
@@ -103,7 +104,7 @@ function cube(x, y, z, m, i) {
       if (k === 0) sh0 = sh; else if (k === 1) sh1 = sh; else if (k === 2) sh2 = sh; else sh3 = sh;
     }
     // alpha doubles as a material hint for the shader: 0.5 = ice
-    S.quad(Q, a === 0 ? (s ? 1 : -1) : 0, a === 1 ? (s ? 1 : -1) : 0, a === 2 ? (s ? 1 : -1) : 0, r, g, b, m === ICE ? 0.5 : 1, sh0, sh1, sh2, sh3);
+    S.quad(Q, a === 0 ? (s ? 1 : -1) : 0, a === 1 ? (s ? 1 : -1) : 0, a === 2 ? (s ? 1 : -1) : 0, r, g, b, m === ICE ? 0.5 : evergreen ? 0.85 : 1, sh0, sh1, sh2, sh3);
   }
 }
 
