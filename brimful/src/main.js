@@ -215,8 +215,12 @@ function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add
 function setPaused(p) { state.paused = p; $('bPause').textContent = p ? 'Play' : 'Pause'; $('bPause').classList.toggle('on', p); }
 $('bPause').onclick = () => setPaused(!state.paused);
 $('bSpeed').onclick = () => { state.speed = state.speed >= 8 ? 1 : state.speed * 2; $('bSpeed').textContent = state.speed + '×'; $('bSpeed').classList.toggle('on', state.speed > 1); };
-function setRain(r, storm = false) { world.raining = !!r; state.storm = !!r && storm; $('bRain').classList.toggle('on', !!r); $('bRain').textContent = state.storm ? 'Storm' : 'Rain'; }
-$('bRain').onclick = () => { if (!world.raining) setRain(true); else if (!state.storm) setRain(true, true); else setRain(false); };
+// weather steps through: clear, rain, storm, snow
+function setRain(r, storm = false, snow = false) {
+  world.raining = !!r && !snow; world.snowing = !!snow; state.storm = !!r && storm && !snow;
+  $('bRain').classList.toggle('on', !!r || !!snow); $('bRain').textContent = snow ? 'Snow' : state.storm ? 'Storm' : 'Rain';
+}
+$('bRain').onclick = () => { if (world.snowing) setRain(false); else if (!world.raining) setRain(true); else if (!state.storm) setRain(true, true); else setRain(false, false, true); };
 const TIME_MODES = { auto: 'Day cycle', noon: 'Noon', dusk: 'Dusk', night: 'Night' };
 function setTimeMode(m) { state.timeMode = m; $('bTime').textContent = TIME_MODES[m]; }
 $('bTime').onclick = () => { const k = Object.keys(TIME_MODES); setTimeMode(k[(k.indexOf(state.timeMode) + 1) % k.length]); };
@@ -335,13 +339,13 @@ function newWorld(preset, w = W, d = D) {
   setRain(false); syncName();
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, name: state.name });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; setRain(!!s.rain, !!s.storm);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -518,10 +522,15 @@ function quake(p, size) {
 function tornado(p) {
   let x = p.x + 0.5, z = p.z + 0.5, life = 11, ang = Math.random() * 6.28, t = 0;
   sound.boom(0.35, 3, 240);
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(5, 0.6, 18, 20, 6, true), new THREE.MeshBasicMaterial({ color: 0xb9bcc6, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
+  { const pa = funnel.geometry.attributes.position; for (let i = 0; i < pa.count; i++) { const yy = pa.getY(i); pa.setX(i, pa.getX(i) + Math.sin(yy * 0.5) * 0.9); pa.setZ(i, pa.getZ(i) + Math.cos(yy * 0.4) * 0.9); } }
+  funnel.renderOrder = 5; grid.add(funnel);
   transients.push((dt) => {
     life -= dt; t += dt; ang += (Math.random() - 0.5) * dt * 3;
     x = Math.max(4, Math.min(W - 4, x + Math.cos(ang) * 5 * dt)); z = Math.max(4, Math.min(D - 4, z + Math.sin(ang) * 5 * dt));
     const gy = world.groundY(x, z);
+    funnel.position.set(x, gy + 9, z); funnel.rotation.y = t * 7; funnel.material.opacity = 0.32 * Math.min(1, life, t * 2);
+    if (life <= 0) { grid.remove(funnel); funnel.geometry.dispose(); }
     for (let k = 0; k < 14; k++) { // the funnel
       const h = Math.random() * 16, r = 0.8 + h * 0.28, a = t * 9 + h * 0.9 + k;
       fx.emit(x + Math.cos(a) * r, gy + h, z + Math.sin(a) * r, -Math.sin(a) * 7, 1.5, Math.cos(a) * 7, k % 3 ? 0xc9c9d2 : 0x8f8f9a, 0.35, 0);
@@ -827,7 +836,7 @@ function updateSky() {
   const ang = (state.tod - 0.25) * Math.PI * 2, sy = Math.sin(ang), cx = Math.cos(ang);
   const day = smooth(-0.12, 0.3, sy), dusk = Math.max(0, 1 - Math.abs(sy) / 0.32) * 0.85;
   night = 1 - day;
-  overcast += ((world.raining ? (state.storm ? 1 : 0.6) : 0) - overcast) * 0.02;
+  overcast += ((world.raining ? (state.storm ? 1 : 0.6) : world.snowing ? 0.7 : 0) - overcast) * 0.02;
   cTop.copy(SKY.night[0]).lerp(SKY.day[0], day).lerp(SKY.dusk[0], dusk).lerp(cTmp.set(0x55606e).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
   cBot.copy(SKY.night[1]).lerp(SKY.day[1], day).lerp(SKY.dusk[1], dusk).lerp(cTmp.set(0x9aa4ae).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
   const su = sky.material.uniforms;
@@ -906,6 +915,7 @@ function frame(now) {
     if (acc > TICK) acc = 0;
     if (state.timeMode === 'auto') state.tod = (state.tod + dt * state.speed / 300) % 1;
     if (state.storm && Math.random() < dt * 0.22) { const x = 2 + ri(W - 4), z = 2 + ri(D - 4); strike({ x, y: Math.max(world.groundY(x, z), Math.ceil(world.cs[x + z * W])), z }); }
+    if (world.snowing) for (let k = 0; k < Math.ceil(2 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, (Math.random() - 0.5) * 1.5, -3.5, (Math.random() - 0.5) * 1.5, 0xffffff, 9, 0.004);
     if (world.raining) for (let k = 0; k < Math.ceil(3 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
   }
   if (state.timeMode !== 'auto') {

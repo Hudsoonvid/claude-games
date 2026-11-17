@@ -126,6 +126,7 @@ def fuse(objs, name, material, voxel=0.05, faces=420, smooth=3, pivot=None):
     s.factor = 0.6
     s.iterations = smooth
     bake(o)
+    faces = int(faces * 0.6)          # keep creatures light: hundreds of them share the screen
     n = len(o.data.polygons)
     if n > faces:
         d = o.modifiers.new('decimate', 'DECIMATE')
@@ -261,15 +262,18 @@ nose = part([ell((0, -0.66, 0.44), (0.028, 0.025, 0.025), seg=8, rings=6)], 'nos
 animals.append(animal('fox', [body, tip, chin, *legs, nose, eyes(0.1, -0.5, 0.53, 0.03)]))
 
 # ---------------------------------------------------------------- crab (its front is the long side; the game turns it to walk sideways)
-shapes = [ell((0, 0, 0.16), (0.3, 0.22, 0.12)),
-          ell((0.34, -0.2, 0.2), (0.12, 0.09, 0.08)), ell((-0.34, -0.2, 0.2), (0.12, 0.09, 0.08)),
-          ell((0.22, -0.14, 0.16), (0.1, 0.05, 0.05), rot=(0, 0, R(-40))), ell((-0.22, -0.14, 0.16), (0.1, 0.05, 0.05), rot=(0, 0, R(40))),
-          ell((0.08, -0.14, 0.3), (0.02, 0.02, 0.08)), ell((-0.08, -0.14, 0.3), (0.02, 0.02, 0.08))]
+shapes = [ell((0, 0.02, 0.17), (0.34, 0.22, 0.1)), ell((0, 0.02, 0.2), (0.26, 0.17, 0.1)),
+          ell((0.08, -0.16, 0.31), (0.022, 0.022, 0.08)), ell((-0.08, -0.16, 0.31), (0.022, 0.022, 0.08))]
 for s in (1, -1):
-    for y in (-0.04, 0.08, 0.18):
-        shapes.append(ell((s * 0.36, y, 0.08), (0.13, 0.025, 0.025), rot=(0, R(-35 * s), R(18 * s * (y * 6)))))
+    # an arm reaching forward and a fat pincer held up
+    shapes.append(ell((s * 0.3, -0.2, 0.2), (0.05, 0.13, 0.05), rot=(0, 0, R(-30 * s))))
+    shapes.append(ell((s * 0.36, -0.36, 0.26), (0.11, 0.13, 0.085)))
+    shapes.append(ell((s * 0.33, -0.48, 0.3), (0.035, 0.07, 0.03)))
+    for y, a in ((-0.02, 20), (0.1, 0), (0.2, -22)):   # three walking legs a side, knees up
+        shapes.append(ell((s * 0.4, y, 0.15), (0.11, 0.028, 0.028), rot=(0, R(-28 * s), R(a * s))))
+        shapes.append(ell((s * 0.52, y + a * 0.002, 0.07), (0.028, 0.028, 0.09)))
 body = fuse(shapes, 'body', TINT(), voxel=0.03, faces=520, smooth=2)
-animals.append(animal('crab', [body, eyes(0.08, -0.15, 0.39, 0.035)]))
+animals.append(animal('crab', [body, eyes(0.08, -0.17, 0.4, 0.038)]))
 
 # ---------------------------------------------------------------- villager
 torso = fuse([ell((0, 0, 0.62), (0.2, 0.15, 0.24)), ell((0, 0, 0.44), (0.21, 0.16, 0.12))], 'torso', TINT(), voxel=0.035, faces=260)

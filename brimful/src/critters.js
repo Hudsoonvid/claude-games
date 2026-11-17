@@ -88,7 +88,7 @@ function fromModel(kind) {
     else if (n.startsWith('leg') || n.startsWith('arm')) u.limbs.push(o);
     if (!o.isMesh) return;
     const mn = o.material.name;
-    o.castShadow = true;
+    o.castShadow = !FLY[kind] || kind === 'songbird';
     if (mn.startsWith('tint')) o.material = picks[mn === 'tint' ? 0 : mn === 'tint2' ? 1 : 2] || M.white;
     else if (mn === 'glow') { o.material = M.glow; o.castShadow = false; }
     else if (mn === 'wing') { o.material = M.wing; o.castShadow = false; }

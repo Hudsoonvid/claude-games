@@ -47,8 +47,9 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
   lantern-lit huts and raise families. Ride along with any of them in
   third or first person.
-- **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Rain can be stepped
-  up to a storm with overcast skies and lightning. U hides the interface for photos.
+- **Powers**: spark, lightning, meteor, quake, downpour, dry up, freeze, thaw, bloom and hut. Weather steps from clear
+  to rain, storm (overcast, lightning) and snow, which settles in drifts and skins lakes with ice. Also tornado
+  and surge. U hides the interface for photos.
 - **Worlds**: ten world types (valley, atoll, archipelago, canyon, highlands, marsh, dunes, patchwork, volcano, bare
   tray) at any size from 32 to 160 blocks a side, with generated villages. Save as many named worlds as the
   browser's storage holds; the current one also autosaves.

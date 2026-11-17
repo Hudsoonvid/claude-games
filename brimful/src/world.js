@@ -16,7 +16,7 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21;
 
 export const OPAQUE = new Uint8Array(32);
 for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN]) OPAQUE[m] = 1;
@@ -29,7 +29,7 @@ for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN]) ACTI
 
 // What a falling powder may move into: 1 = replace, 2 = swap places
 const PP = new Uint8Array(32);
-PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1;
+PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 1; PP[LAMP] = 1; PP[SNOW] = 1;
 PP[LAVA] = 2; PP[STEAM] = 2;
 
 const FLAM = new Float32Array(32);
@@ -272,6 +272,20 @@ export class World {
       const n = Math.max(2, (WD / 700) | 0);
       for (let k = 0; k < n; k++) this.addWaterF(rnd() * W, rnd() * D, 0.22);
     }
+    if (this.snowing) { // flakes settle on open ground and still water skins over with ice
+      const n = Math.max(3, (WD / 300) | 0), mat = this.mat;
+      for (let k = 0; k < n; k++) {
+        const x = ri(W), z = ri(D), c = x + z * W, y = this.groundY(x, z);
+        if (y >= H - 1 || y < 1) continue;
+        const i = x + W * (z + D * y), below = mat[i - WD];
+        if (this.cd[c] > 0.3 && this.cs[c] > y) {
+          const sy = Math.floor(this.cs[c] - 0.15);
+          if (rnd() < 0.08 && sy >= y && sy < H && mat[x + W * (z + D * sy)] === AIR && this.takeWater(x, z, 0.5) > 0) this.set(x, sy, z, ICE);
+        } else if (below === SNOW) { if (this.aux[i - WD] < 4) { this.aux[i - WD]++; this.markDirty(x, z); } }
+        else if (OPAQUE[below] && below !== ICE && mat[i] === AIR) this.set(x, y, z, SNOW, 1);
+        else if (mat[i] === TUFT && rnd() < 0.3) this.set(x, y, z, SNOW, 1);
+      }
+    }
     this.stepWater();
 
     for (let y = 0; y < H; y++) {
@@ -498,6 +512,16 @@ export class World {
           } else if (below !== AIR && rnd() < 0.03) { mat[i] = AIR; this.markDirty(x, z); }
           break;
         }
+        case SNOW: {
+          const below = y > 0 ? mat[i - WD] : STONE, cold = this.snowing || this.biome[c] === 5;
+          if (!OPAQUE[below]) { mat[i] = AIR; this.markDirty(x, z); }
+          else if (!cold && rnd() < 0.5) { // melt, a layer at a time, into a little water
+            this.addWater(x, z, 0.012);
+            if (aux[i] > 1) aux[i]--; else mat[i] = AIR;
+            this.markDirty(x, z);
+          }
+          break;
+        }
         case CROP: {
           const below = y > 0 ? mat[i - WD] : STONE;
           if ((below !== SOIL && below !== TURF) || (cd[c] > 0.2 && cs[c] > y + 0.3)) { mat[i] = AIR; this.markDirty(x, z); }
@@ -508,6 +532,7 @@ export class World {
           let hot = false;
           for (let d = 0; d < 4 && !hot; d++) { const nm = this.get(x + DX[d], y, z + DZ[d]); hot = nm === LAVA || nm === FIRE; }
           if (hot || up === LAVA || up === FIRE || (y > 0 && mat[i - WD] === LAVA)) this.melt(x, y, z);
+          else if (!this.snowing && this.biome[c] !== 5 && rnd() < (y > 0 && mat[i - WD] === AIR ? 0.2 : 0.02)) this.melt(x, y, z);   // lake ice breaks up when the cold passes
           break;
         }
         case LAVA:
@@ -539,7 +564,7 @@ export class World {
 
   melt(x, y, z) {
     if (this.get(x, y, z) !== ICE) return;
-    this.set(x, y, z, AIR); this.updateBeds(); this.addWater(x, z, 1);
+    this.set(x, y, z, AIR); this.updateBeds(); this.addWater(x, z, 0.5);
   }
   // turn the water standing in a column into ice blocks
   freeze(x, z) {
@@ -547,7 +572,7 @@ export class World {
     const c = x + z * W, n = Math.min(6, Math.round(this.cd[c]));
     if (n < 1) return;
     const b = this.bed[c] | 0;
-    this.takeWater(x, z, n);
+    this.takeWater(x, z, n * 0.5);
     for (let k = 0; k < n; k++) if (this.get(x, b + k, z) === AIR || this.get(x, b + k, z) === WEED) this.set(x, b + k, z, ICE);
   }
 

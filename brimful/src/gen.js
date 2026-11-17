@@ -1,5 +1,5 @@
 // Starting dioramas. Everything is placed relative to the world size so any size works.
-import { W, D, RIM, AIR, STONE, SOIL, TURF, SAND, LAVA, WOOD, TUFT, BASALT, PLANK, rnd, ri } from './world.js';
+import { W, D, RIM, AIR, STONE, SOIL, TURF, SAND, LAVA, WOOD, TUFT, BASALT, PLANK, SNOW, rnd, ri } from './world.js';
 
 function makeNoise() {
   const P = new Float32Array(4096);
@@ -145,7 +145,8 @@ export function generate(world, preset) {
     if (h <= WL) continue;
     if (world.get(x, h - 1, z) === SOIL && world.get(x, h, z) === AIR) {
       world.set(x, h - 1, z, TURF);
-      if (rnd() < tuftP * TUFTS[world.biome[x + z * W]]) world.set(x, h, z, TUFT, ri(256));
+      if (world.biome[x + z * W] === 5 && rnd() < 0.75) world.set(x, h, z, SNOW, 1 + ri(3));
+      else if (rnd() < tuftP * TUFTS[world.biome[x + z * W]]) world.set(x, h, z, TUFT, ri(256));
     }
   }
   const per = { atoll: 5, archipelago: 7, volcano: 6, dunes: 3, marsh: 5, highlands: 7, canyon: 10 }[preset] ?? 9;
@@ -156,6 +157,7 @@ export function generate(world, preset) {
     let near = false;
     for (let dz = -4; dz <= 4 && !near; dz++) for (let dx = -4; dx <= 4; dx++) if (world.get(x + dx, h + 1, z + dz) === WOOD) { near = true; break; }
     if (near) continue;
+    if (world.get(x, h, z) !== AIR && world.get(x, h, z) !== TUFT && world.get(x, h, z) !== SNOW) continue;
     world.set(x, h, z, AIR);
     const tb = world.biome[x + z * W];
     tree(world, x, h, z, tb === 1 || tb === 5 ? 5 + ri(3) : tb === 7 ? 6 + ri(3) : tb === 4 ? 3 + ri(2) : 3 + ri(4));
