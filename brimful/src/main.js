@@ -566,7 +566,39 @@ const transients = [];   // short-lived things: meteors, lightning bolts, tornad
 const live = new Set();  // their scene objects, so a world change can sweep them away
 
 // Nothing from the old world may follow into a new or loaded one.
+// ---------------------------------------------------------------- undo: whole-world snapshots taken before each stroke
+const history = {
+  past: [], future: [],
+  snap() {
+    return { mat: world.mat.slice(), aux: world.aux.slice(), biome: world.biome.slice(), wd: world.wd.slice(), c: critters.serialize(), v: JSON.parse(JSON.stringify(critters.villages)), w: W, d: D };
+  },
+  limit() { return Math.max(4, Math.min(30, Math.floor(60e6 / (world.mat.length * 2 + world.wd.length * 4 + 1)))); },   // about 60 MB of history at most
+  push() {
+    this.past.push(this.snap()); this.future.length = 0;
+    while (this.past.length > this.limit()) this.past.shift();
+    syncUndo();
+  },
+  apply(s) {
+    if (s.w !== W || s.d !== D) return false;
+    release(); inspect(null);
+    for (const o of live) { grid.remove(o); o.geometry.dispose(); }
+    live.clear(); transients.length = 0;
+    world.mat.set(s.mat); world.aux.set(s.aux); world.biome.set(s.biome); world.wd.set(s.wd);
+    for (const f of [world.fl, world.fr, world.ft, world.fb]) f.fill(0);
+    world.colDirty.fill(1); world.dirty.fill(1); world.awake.fill(40); world.updateBeds(); world.wakeAllWater(); world.aggregate();
+    critters.deserialize(s.c); critters.villages = s.v; banners.sync(true);
+    return true;
+  },
+  undo() { const s = this.past.pop(); if (!s) { toast('Nothing to undo'); return; } this.future.push(this.snap()); if (this.apply(s)) toast('Undone'); syncUndo(); },
+  redo() { const s = this.future.pop(); if (!s) { toast('Nothing to redo'); return; } this.past.push(this.snap()); if (this.apply(s)) toast('Redone'); syncUndo(); },
+  clear() { this.past.length = 0; this.future.length = 0; syncUndo(); },
+};
+function syncUndo() { $('bUndo').disabled = !history.past.length; $('bRedo').disabled = !history.future.length; }
+$('bUndo').onclick = () => history.undo();
+$('bRedo').onclick = () => history.redo();
+
 function resetScene() {
+  history.clear();
   for (const o of live) { grid.remove(o); o.geometry.dispose(); }
   live.clear(); transients.length = 0;
   fx.clear(); world.events.length = 0;
@@ -916,12 +948,12 @@ canvas.addEventListener('pointerdown', (e) => {
       const [a, b] = [...pointers.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y);
       return;
     }
-    if (looking) drag = 'orbit'; else { state.painting = true; useTool(true); }
+    if (looking) drag = 'orbit'; else { history.push(); state.painting = true; useTool(true); }
     return;
   }
   if (e.button === 2 || (e.button === 0 && (e.altKey || e.ctrlKey || e.metaKey))) drag = 'orbit';   // Option/Ctrl/Cmd-drag works on a trackpad
   else if (e.button === 1 || (e.button === 0 && e.shiftKey)) drag = 'pan';
-  else if (e.button === 0) { if (looking) drag = 'orbit'; else { state.painting = true; useTool(true); } }
+  else if (e.button === 0) { if (looking) drag = 'orbit'; else { history.push(); state.painting = true; useTool(true); } }
 });
 canvas.addEventListener('pointermove', (e) => {
   const prev = pointers.get(e.pointerId);
@@ -993,6 +1025,8 @@ function pan(dx, dy) {
 }
 
 addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'z' && e.target.tagName !== 'INPUT') { e.preventDefault(); if (e.shiftKey) history.redo(); else history.undo(); return; }
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'y' && e.target.tagName !== 'INPUT') { e.preventDefault(); history.redo(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   keys.add(k);

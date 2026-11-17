@@ -31,6 +31,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 | Pick a tool | Earth / Life / Powers tabs, 1–9 | Tap |
 | Brush size | `[` `]` | + / − |
 | Pause, rain, help | P, R, H | Top bar |
+| Undo / redo a stroke or power | Ctrl/Cmd + Z, Shift + Ctrl/Cmd + Z | ↶ ↷ in the top bar |
 | Ride along: steer a creature | WASD, Space, Shift, V first person, Esc | Stick and ▲ ▼ |
 
 ## What's in it
