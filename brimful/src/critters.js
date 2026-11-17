@@ -27,7 +27,7 @@ export const KINDS = {
 };
 export const KIND_IDS = Object.keys(KINDS);
 
-const std = (color, o = {}) => new THREE.MeshLambertMaterial({ color, ...o });
+const std = (color, o = {}) => new THREE.MeshLambertMaterial({ color, vertexColors: true, ...o });
 const G = {
   body: new THREE.SphereGeometry(0.5, 10, 8),
   cone: new THREE.ConeGeometry(0.5, 1, 6),
@@ -35,19 +35,20 @@ const G = {
   wing: new THREE.PlaneGeometry(1, 1),
   box: new THREE.BoxGeometry(1, 1, 1),
 };
+for (const g of Object.values(G)) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 3).fill(1), 3));   // stand-in parts are plain
 const M = {
-  fish: [std(0xff9a4a), std(0xf4f1e6), std(0x6fd0d8), std(0xffd257)],
+  fish: [std(0xc3ced2), std(0xa9b38a), std(0xd9b878), std(0xc99870)],
   fin: std(0xfff3dc), eye: std(0x1c1c22), white: std(0xfbf7ee), orange: std(0xf29a2e),
-  shell: [std(0x6a8f3c), std(0x8a6a3c), std(0x4f8a6a)], skin: std(0xf2d9a8), bug: std(0x2b2a33),
-  frog: [std(0x5fae3c), std(0x7fbf4a), std(0x4a9a5a)], belly: std(0xe9efc0),
-  fur: [std(0xb89a78), std(0x8f8478), std(0xf1ece2), std(0x6f5a48)],
-  duck: [std(0xfbf7ee), std(0xf6d85a), std(0x8a6a48)],
-  bird: [std(0xd6553a), std(0x4a8ad0), std(0xe2b23a), std(0x6a6f7a)],
-  tunic: [std(0xc8553a), std(0x3f7fb0), std(0x5a9a4a), std(0xd9a53a), std(0x8a5aa8)],
-  face: [std(0xf2cfa8), std(0xd9a878), std(0xa8744a), std(0x7a5236)], hair: [std(0x3a2a22), std(0x8a5a2a), std(0xd9b65a), std(0x1c1c22)],
+  shell: [std(0x7a9a4a), std(0x9a8250), std(0x6a8a6a)], skin: std(0xf2d9a8), bug: std(0x2b2a33),
+  frog: [std(0x7a9a44), std(0x8a8a4a), std(0x5f8a52), std(0x9a7a4a)], belly: std(0xe9efc0),
+  fur: [std(0xb9a284), std(0x9a9084), std(0xddd5c8), std(0x86705a)],
+  duck: [std(0xf2eee4), std(0xa5865e), std(0xb4b2a8), std(0x8a7458)],
+  bird: [std(0x8a6a4a), std(0x6a7f96), std(0x9a9a5a), std(0x5a5a62), std(0xb0563a)],
+  tunic: [std(0xa8553e), std(0x4f7396), std(0x6a8a52), std(0xc49a4a), std(0x7a5a86), std(0xb9ae98)],
+  face: [std(0xeec9a6), std(0xd6a67a), std(0xa8764e), std(0x7c563a)], hair: [std(0x3a2a22), std(0x7a5230), std(0xc9a85a), std(0x1c1c22), std(0x8a8884)],
   wing: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
-  bfly: [0xff9a3a, 0x6ab8ff, 0xfff07a, 0xff7ab8, 0xffffff].map((c) => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide })),
-  fox: std(0xe07a2c), deer: [std(0xb98a5a), std(0x9a7248)], crab: [std(0xd9482c), std(0xe8763a)], bee: std(0xf2c230), horn: std(0xe9dcc0),
+  bfly: [0xf08a2a, 0x6aa8e8, 0xf2e06a, 0xf2f0e6, 0xd9603a].map((c) => new THREE.MeshLambertMaterial({ color: c, side: THREE.DoubleSide, vertexColors: true })),
+  fox: std(0xe08a44), deer: [std(0xcaa274), std(0xb58a5e)], crab: [std(0xc9523a), std(0xd6814e), std(0x9a6a5a)], bee: std(0xf2c230), horn: std(0xe9dcc0),
   glow: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.8, 1.0) }),
 };
 export function setNightGlow(n) { for (const m of M.fish) m.emissive.copy(m.color).multiplyScalar(0.55 * n); }
@@ -81,6 +82,7 @@ export function loadModels() {
 // Fold a model's static pieces together so a creature costs a few draw calls instead of a dozen:
 // one mesh per tint slot, one vertex-coloured mesh for everything of fixed colour; hinged parts stay separate.
 const MOVING = /^(tail|wing|ear|leg|arm)/;
+const WHITE_C = new THREE.Color(1, 1, 1);
 const fixedMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 const boatMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
 function compact(root) {
@@ -89,13 +91,15 @@ function compact(root) {
   out.name = root.name;
   const bake = (mesh, rel) => {
     const g = mesh.geometry.clone().applyMatrix4(rel);
-    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    // the painted coat from Blender (shading and markings) rides along as vertex colour:
+    // fixed-colour parts bake the material colour into it, tinted parts keep it to multiply the individual's tint
     const mn = mesh.material.name, slot = /^(tint|glow|wing)/.test(mn) ? mn : 'fixed';
-    if (slot === 'fixed') {
-      const c = mesh.material.color, n = g.attributes.position.count, col = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
-      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const src = g.attributes.color, c = slot === 'fixed' ? mesh.material.color : WHITE_C, n = g.attributes.position.count, col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      col[i * 3] = c.r * (src ? src.getX(i) : 1); col[i * 3 + 1] = c.g * (src ? src.getY(i) : 1); col[i * 3 + 2] = c.b * (src ? src.getZ(i) : 1);
     }
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     return [slot, g];
   };
   for (const child of [...root.children]) {
@@ -118,7 +122,7 @@ export function setCritterShadows(v) { critterShadows = v; }
 const TINTS = {
   minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
   villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
-  koi: [[std(0xf2622a), std(0xf7f3ea), std(0xf0a030)]], turtle: [M.shell], heron: [[std(0xdfe6ee), std(0xb9c6d6)]], owl: [[std(0x8a6a48), std(0x9a8468), std(0xcfc6b8)]],
+  koi: [[std(0xf7f3ea), std(0xfbe8c8), std(0xf2ead8)]], turtle: [[std(0x7a8a4a), std(0x8a7a4e), std(0x5f7a5a)]], heron: [[std(0xdfe6ee), std(0xc2cedc)]], owl: [[std(0xa88a62), std(0xb9a27e), std(0xd6ccba)]],
 };
 const plain = {};   // one shared Lambert per exported material colour
 function fromModel(kind) {

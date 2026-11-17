@@ -103,7 +103,18 @@ def bake(o):
     bpy.data.meshes.remove(old)
 
 
-def finish(o, material, pivot=None):
+def paint_mesh(o, fn):
+    """Per-vertex colour that multiplies the material colour (shading, markings)."""
+    me = o.data
+    ca = me.color_attributes.new('Col', 'FLOAT_COLOR', 'POINT')
+    for v in me.vertices:
+        c = fn(v.co, v.normal) if fn else (1, 1, 1)
+        ca.data[v.index].color = (c[0], c[1], c[2], 1)
+    me.color_attributes.active_color = ca
+
+
+def finish(o, material, pivot=None, paint=None):
+    paint_mesh(o, paint)
     for p in o.data.polygons:
         p.use_smooth = True
     o.data.materials.clear()
@@ -115,7 +126,7 @@ def finish(o, material, pivot=None):
     return o
 
 
-def fuse(objs, name, material, voxel=0.05, faces=420, smooth=3, pivot=None):
+def fuse(objs, name, material, voxel=0.05, faces=420, smooth=3, pivot=None, paint=None):
     """Melt overlapping shapes into one soft low-poly skin."""
     o = join(objs, name)
     r = o.modifiers.new('remesh', 'REMESH')
@@ -132,12 +143,12 @@ def fuse(objs, name, material, voxel=0.05, faces=420, smooth=3, pivot=None):
         d = o.modifiers.new('decimate', 'DECIMATE')
         d.ratio = faces / n
         bake(o)
-    return finish(o, material, pivot)
+    return finish(o, material, pivot, paint)
 
 
-def part(objs, name, material, pivot=None):
+def part(objs, name, material, pivot=None, paint=None):
     """Simple pieces (eyes, beaks, wings): joined as they are."""
-    return finish(join(objs, name), material, pivot)
+    return finish(join(objs, name), material, pivot, paint)
 
 
 def eyes(x, y, z, r=0.04):
@@ -155,232 +166,307 @@ def animal(kind, parts):
 
 R = math.radians
 animals = []
+from mathutils import noise as mnoise
+
+
+def sm(a, b, x):
+    t = max(0.0, min(1.0, (x - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+
+
+def blotch(co, freq, seedv=0.0):
+    """Smooth 0..1 noise for mottling and patches."""
+    return 0.5 + 0.5 * mnoise.noise(Vector((co.x * freq + seedv, co.y * freq - seedv, co.z * freq + 3.1 * seedv)))
+
+
+def coat(dark=0.68, light=1.0, mottle=0.0, freq=9.0, extra=None):
+    """Countershading: darker along the back, paler underneath, optionally mottled.
+    The result multiplies the part's colour, so pick the colour of the palest fur."""
+    def f(co, n):
+        v = light + (dark - light) * sm(-0.35, 0.6, n.z)
+        if mottle:
+            v *= 1 - mottle * blotch(co, freq)
+        c = (v, v, v)
+        if extra:
+            c = extra(co, n, c)
+        return c
+    return f
+
+
+def leg(name, x, y, top, material, thick=0.05, paint=None, foot=0.0):
+    """A tapering limb hinged at its top: a full thigh, a slim shin, a small hoof or paw."""
+    shapes = [ell((x, y, top * 0.72), (thick, thick * 1.25, top * 0.3)), ell((x, y - 0.005, top * 0.3), (thick * 0.55, thick * 0.62, top * 0.31)),
+              ell((x, y - 0.012 - foot * 0.5, 0.03), (thick * 0.7, thick * 0.8 + foot, 0.032))]
+    return fuse(shapes, name, material, voxel=0.022, faces=90, smooth=2, pivot=(x, y, top), paint=paint)
+
+
+def hoofed(dark_below=0.07):
+    return coat(0.74, 1.0, extra=lambda co, n, c: (0.16, 0.14, 0.13) if co.z < dark_below else c)
+
 
 # ---------------------------------------------------------------- minnow (centred on the origin)
+fishcoat = coat(0.5, 1.0, mottle=0.12, freq=14)
 body = fuse([
-    ell((0, 0, 0), (0.15, 0.46, 0.2)),
-    ell((0, -0.3, 0.0), (0.11, 0.2, 0.15)),
-    cone((0, 0.02, 0.2), 0.14, 0.2, rot=(R(-25), 0, 0)),          # dorsal fin
-    ell((0.12, -0.1, -0.08), (0.02, 0.1, 0.05), rot=(0, R(35), R(20))),
-    ell((-0.12, -0.1, -0.08), (0.02, 0.1, 0.05), rot=(0, R(-35), R(-20))),
-], 'body', TINT(), voxel=0.035, faces=380)
+    ell((0, 0.0, 0), (0.085, 0.36, 0.125)), ell((0, -0.27, 0.0), (0.07, 0.17, 0.1)), ell((0, 0.34, 0), (0.035, 0.15, 0.055)),
+    ell((0, 0.03, 0.135), (0.012, 0.11, 0.07), rot=(R(-22), 0, 0)),                       # dorsal fin
+    ell((0, 0.2, -0.1), (0.01, 0.075, 0.045), rot=(R(20), 0, 0)),                         # anal fin
+    ell((0.085, -0.13, -0.05), (0.012, 0.075, 0.04), rot=(0, R(50), R(20))), ell((-0.085, -0.13, -0.05), (0.012, 0.075, 0.04), rot=(0, R(-50), R(-20))),
+], 'body', TINT(), voxel=0.022, faces=420, paint=fishcoat)
 tail = fuse([
-    ell((0, 0.52, 0.09), (0.025, 0.16, 0.1), rot=(R(-28), 0, 0)),
-    ell((0, 0.52, -0.09), (0.025, 0.16, 0.1), rot=(R(28), 0, 0)),
-    ell((0, 0.42, 0), (0.05, 0.08, 0.07)),
-], 'tail', mat('fin', srgb(0xfff3dc)), voxel=0.03, faces=120, pivot=(0, 0.4, 0))
-animals.append(animal('minnow', [body, tail, eyes(0.1, -0.33, 0.05, 0.035)]))
+    ell((0, 0.55, 0.075), (0.012, 0.13, 0.05), rot=(R(-32), 0, 0)), ell((0, 0.55, -0.075), (0.012, 0.13, 0.05), rot=(R(32), 0, 0)),
+    ell((0, 0.45, 0), (0.025, 0.05, 0.05)),
+], 'tail', TINT(), voxel=0.02, faces=120, pivot=(0, 0.42, 0), paint=coat(0.6, 0.85))
+animals.append(animal('minnow', [body, tail, eyes(0.062, -0.34, 0.03, 0.022)]))
+
+# ---------------------------------------------------------------- koi: white with orange and black patches
+def koicoat(co, n):
+    k = blotch(co, 4.2, 1.7)
+    if k > 0.56:
+        return (1.0, 0.36, 0.1)
+    if blotch(co, 7.0, 5.3) > 0.72:
+        return (0.12, 0.11, 0.12)
+    v = 1.0 - 0.18 * sm(-0.2, 0.7, n.z)
+    return (v, v, v)
+
+body = fuse([
+    ell((0, 0, 0), (0.14, 0.52, 0.18)), ell((0, -0.4, 0.0), (0.115, 0.24, 0.14)), ell((0, 0.5, 0), (0.05, 0.2, 0.075)),
+    ell((0, 0.02, 0.2), (0.015, 0.2, 0.08), rot=(R(-12), 0, 0)),
+    ell((0.15, -0.2, -0.08), (0.015, 0.13, 0.06), rot=(0, R(55), R(25))), ell((-0.15, -0.2, -0.08), (0.015, 0.13, 0.06), rot=(0, R(-55), R(-25))),
+    ell((0.06, -0.62, -0.05), (0.012, 0.012, 0.05), rot=(R(40), 0, 0)), ell((-0.06, -0.62, -0.05), (0.012, 0.012, 0.05), rot=(R(40), 0, 0)),   # barbels
+], 'body', TINT(), voxel=0.03, faces=480, paint=koicoat)
+tail = fuse([
+    ell((0, 0.8, 0.12), (0.015, 0.2, 0.08), rot=(R(-30), 0, 0)), ell((0, 0.8, -0.12), (0.015, 0.2, 0.08), rot=(R(30), 0, 0)),
+    ell((0, 0.66, 0), (0.035, 0.07, 0.07)),
+], 'tail', TINT(), voxel=0.025, faces=130, pivot=(0, 0.62, 0), paint=lambda co, n: (1.0, 0.5, 0.2) if blotch(co, 5, 2.0) > 0.5 else (0.95, 0.95, 0.95))
+animals.append(animal('koi', [body, tail, eyes(0.1, -0.5, 0.05, 0.028)]))
 
 # ---------------------------------------------------------------- duck
 body = fuse([
-    ell((0, 0.02, 0.2), (0.24, 0.36, 0.19)),
-    ell((0, 0.3, 0.3), (0.12, 0.16, 0.1), rot=(R(35), 0, 0)),        # tail
-    ell((0, -0.2, 0.38), (0.1, 0.1, 0.16)),                          # neck
-    ell((0, -0.26, 0.56), (0.15, 0.16, 0.14)),                       # head
-    ell((0.2, 0.06, 0.24), (0.07, 0.24, 0.12)),                      # wings
-    ell((-0.2, 0.06, 0.24), (0.07, 0.24, 0.12)),
-], 'body', TINT(), voxel=0.04, faces=460)
-beak = part([ell((0, -0.44, 0.52), (0.075, 0.1, 0.03))], 'beak', ORANGE())
-animals.append(animal('duck', [body, beak, eyes(0.1, -0.36, 0.61, 0.03)]))
+    ell((0, 0.05, 0.19), (0.17, 0.32, 0.15)), ell((0, -0.2, 0.22), (0.14, 0.16, 0.15)),                  # body, breast
+    ell((0, 0.36, 0.27), (0.07, 0.13, 0.045), rot=(R(24), 0, 0)),                                         # tail
+    ell((0, -0.28, 0.39), (0.055, 0.06, 0.13), rot=(R(-10), 0, 0)), ell((0, -0.31, 0.53), (0.078, 0.1, 0.075)),   # neck, head
+    ell((0.155, 0.09, 0.25), (0.045, 0.24, 0.095), rot=(R(6), 0, 0)), ell((-0.155, 0.09, 0.25), (0.045, 0.24, 0.095), rot=(R(6), 0, 0)),
+], 'body', TINT(), voxel=0.03, faces=520, paint=coat(0.72, 1.0, mottle=0.14, freq=11))
+bill = fuse([ell((0, -0.43, 0.505), (0.042, 0.075, 0.02)), ell((0, -0.38, 0.515), (0.04, 0.04, 0.03))], 'bill', mat('bill', srgb(0xd9a02a)), voxel=0.018, faces=70)
+animals.append(animal('duck', [body, bill, eyes(0.066, -0.35, 0.56, 0.016)]))
 
 # ---------------------------------------------------------------- frog
+frogcoat = coat(0.62, 1.0, mottle=0.35, freq=13)
 body = fuse([
-    ell((0, 0, 0.16), (0.25, 0.29, 0.16)),
-    ell((0, -0.2, 0.2), (0.2, 0.16, 0.13)),
-    ell((0.13, -0.2, 0.32), (0.085, 0.085, 0.085)), ell((-0.13, -0.2, 0.32), (0.085, 0.085, 0.085)),   # eye bumps
-    ell((0.24, 0.14, 0.08), (0.11, 0.2, 0.08), rot=(0, 0, R(-25))), ell((-0.24, 0.14, 0.08), (0.11, 0.2, 0.08), rot=(0, 0, R(25))),
-    ell((0.2, -0.2, 0.05), (0.06, 0.1, 0.05)), ell((-0.2, -0.2, 0.05), (0.06, 0.1, 0.05)),
-], 'body', TINT(), voxel=0.035, faces=460)
-belly = part([ell((0, -0.06, 0.1), (0.2, 0.22, 0.1))], 'belly', mat('belly', srgb(0xe9efc0)))
-animals.append(animal('frog', [body, belly, eyes(0.15, -0.26, 0.35, 0.04)]))
+    ell((0, 0.02, 0.12), (0.17, 0.23, 0.1)), ell((0, -0.2, 0.14), (0.145, 0.13, 0.08)), ell((0, -0.31, 0.12), (0.095, 0.075, 0.048)),
+    ell((0.095, -0.2, 0.215), (0.045, 0.05, 0.04)), ell((-0.095, -0.2, 0.215), (0.045, 0.05, 0.04)),
+    ell((0.19, 0.15, 0.085), (0.065, 0.15, 0.055), rot=(0, 0, R(-38))), ell((-0.19, 0.15, 0.085), (0.065, 0.15, 0.055), rot=(0, 0, R(38))),      # thighs
+    ell((0.27, 0.07, 0.05), (0.04, 0.13, 0.035), rot=(0, 0, R(28))), ell((-0.27, 0.07, 0.05), (0.04, 0.13, 0.035), rot=(0, 0, R(-28))),          # shins
+    ell((0.3, -0.06, 0.02), (0.045, 0.09, 0.012)), ell((-0.3, -0.06, 0.02), (0.045, 0.09, 0.012)),                                              # hind feet
+    ell((0.16, -0.2, 0.06), (0.032, 0.035, 0.07), rot=(0, R(-15), 0)), ell((-0.16, -0.2, 0.06), (0.032, 0.035, 0.07), rot=(0, R(15), 0)),
+    ell((0.18, -0.25, 0.015), (0.04, 0.05, 0.012)), ell((-0.18, -0.25, 0.015), (0.04, 0.05, 0.012)),
+], 'body', TINT(), voxel=0.024, faces=560, paint=frogcoat)
+belly = part([ell((0, -0.06, 0.065), (0.14, 0.2, 0.05)), ell((0, -0.26, 0.095), (0.1, 0.09, 0.04))], 'belly', mat('belly', srgb(0xe6e2c0)))
+animals.append(animal('frog', [body, belly, eyes(0.118, -0.215, 0.225, 0.026)]))
 
-# ---------------------------------------------------------------- mossback
+# ---------------------------------------------------------------- mossback: a small moss-grown shell-back
 shell = fuse([
-    ell((0, 0.03, 0.2), (0.4, 0.46, 0.3)),
-    ell((0.16, 0.1, 0.4), (0.12, 0.12, 0.1)), ell((-0.14, -0.08, 0.42), (0.11, 0.11, 0.09)), ell((0.02, 0.22, 0.4), (0.1, 0.1, 0.08)),
+    ell((0, 0.03, 0.2), (0.38, 0.44, 0.27)),
+    ell((0.16, 0.1, 0.38), (0.12, 0.12, 0.09)), ell((-0.14, -0.08, 0.4), (0.11, 0.11, 0.08)), ell((0.02, 0.22, 0.38), (0.1, 0.1, 0.07)),
     cube((0, 0, -0.2), (1.2, 1.2, 0.5)),
-], 'shell', TINT(), voxel=0.045, faces=420)
-# slice the underside flat
+], 'shell', TINT(), voxel=0.04, faces=440, paint=coat(0.6, 1.0, mottle=0.45, freq=7))
 active(shell)
 bpy.ops.object.mode_set(mode='EDIT')
 bpy.ops.mesh.select_all(action='SELECT')
 bpy.ops.mesh.bisect(plane_co=(0, 0, 0.09), plane_no=(0, 0, 1), clear_inner=True, use_fill=True)
 bpy.ops.object.mode_set(mode='OBJECT')
 skin = fuse([
-    ell((0, -0.44, 0.17), (0.16, 0.17, 0.14)),
-    ell((0, -0.02, 0.07), (0.33, 0.42, 0.07)),
-], 'skin', mat('skin', srgb(0xf2d9a8)), voxel=0.04, faces=260)
-animals.append(animal('mossback', [shell, skin, eyes(0.09, -0.56, 0.23, 0.035)]))
+    ell((0, -0.44, 0.15), (0.11, 0.15, 0.09)), ell((0, -0.02, 0.07), (0.31, 0.4, 0.06)),
+    ell((0.26, -0.2, 0.04), (0.07, 0.09, 0.04)), ell((-0.26, -0.2, 0.04), (0.07, 0.09, 0.04)), ell((0.26, 0.24, 0.04), (0.07, 0.09, 0.04)), ell((-0.26, 0.24, 0.04), (0.07, 0.09, 0.04)),
+], 'skin', mat('skin', srgb(0xc9b48a)), voxel=0.035, faces=300, paint=coat(0.75, 1.0))
+animals.append(animal('mossback', [shell, skin, eyes(0.07, -0.54, 0.19, 0.02)]))
 
 # ---------------------------------------------------------------- rabbit
 body = fuse([
-    ell((0, 0.06, 0.25), (0.22, 0.32, 0.22)),
-    ell((0, 0.2, 0.24), (0.2, 0.2, 0.2)),
-    ell((0, -0.26, 0.46), (0.16, 0.18, 0.16)),
-    ell((0, -0.4, 0.42), (0.09, 0.09, 0.08)),
-    ell((0.14, -0.14, 0.07), (0.06, 0.1, 0.07)), ell((-0.14, -0.14, 0.07), (0.06, 0.1, 0.07)),
-    ell((0.17, 0.2, 0.08), (0.08, 0.17, 0.08)), ell((-0.17, 0.2, 0.08), (0.08, 0.17, 0.08)),
-], 'body', TINT(), voxel=0.04, faces=480)
-earL = fuse([ell((0.08, -0.22, 0.78), (0.05, 0.035, 0.2))], 'earL', TINT(), voxel=0.03, faces=70, pivot=(0.08, -0.22, 0.6))
-earR = fuse([ell((-0.08, -0.22, 0.78), (0.05, 0.035, 0.2))], 'earR', TINT(), voxel=0.03, faces=70, pivot=(-0.08, -0.22, 0.6))
-puff = part([ell((0, 0.4, 0.28), (0.09, 0.09, 0.09), seg=10, rings=7)], 'puff', WHITE())
-animals.append(animal('rabbit', [body, earL, earR, puff, eyes(0.13, -0.33, 0.5, 0.032)]))
+    ell((0, 0.06, 0.2), (0.13, 0.25, 0.15)), ell((0, 0.22, 0.2), (0.155, 0.16, 0.165)), ell((0, -0.13, 0.2), (0.11, 0.13, 0.125)),
+    ell((0, -0.27, 0.33), (0.085, 0.115, 0.09)), ell((0, -0.37, 0.3), (0.052, 0.065, 0.05)),
+    ell((0.115, 0.14, 0.03), (0.04, 0.17, 0.03)), ell((-0.115, 0.14, 0.03), (0.04, 0.17, 0.03)),
+    ell((0.075, -0.17, 0.08), (0.03, 0.035, 0.09)), ell((-0.075, -0.17, 0.08), (0.03, 0.035, 0.09)),
+], 'body', TINT(), voxel=0.026, faces=520, paint=coat(0.66, 1.0, mottle=0.12, freq=16))
+ears = []
+for side, nm in ((1, 'earL'), (-1, 'earR')):
+    ears.append(fuse([ell((side * 0.045, -0.2, 0.54), (0.032, 0.016, 0.14), rot=(R(-14), R(side * 8), 0))], nm, TINT(), voxel=0.016, faces=70,
+                     pivot=(side * 0.045, -0.22, 0.41), paint=coat(0.7, 0.95)))
+puff = part([ell((0, 0.37, 0.24), (0.06, 0.055, 0.06), seg=10, rings=7)], 'puff', WHITE())
+animals.append(animal('rabbit', [body, *ears, puff, eyes(0.078, -0.3, 0.36, 0.018)]))
+
+# ---------------------------------------------------------------- sheep
+wool = fuse([
+    ell((0, 0.04, 0.5), (0.24, 0.36, 0.23)),
+    ell((0.13, -0.14, 0.6), (0.13, 0.14, 0.12)), ell((-0.13, -0.1, 0.6), (0.13, 0.14, 0.12)),
+    ell((0.11, 0.2, 0.62), (0.14, 0.15, 0.12)), ell((-0.12, 0.22, 0.6), (0.14, 0.15, 0.12)),
+    ell((0, 0.38, 0.5), (0.15, 0.12, 0.15)), ell((0, -0.28, 0.66), (0.12, 0.11, 0.1)),
+], 'wool', mat('wool', srgb(0xf0ebdc)), voxel=0.04, faces=480, smooth=2, paint=coat(1.0, 0.72, mottle=0.1, freq=10))
+face = fuse([ell((0, -0.42, 0.6), (0.075, 0.13, 0.085), rot=(R(20), 0, 0)), ell((0, -0.52, 0.55), (0.05, 0.06, 0.05)),
+             ell((0.1, -0.36, 0.66), (0.06, 0.022, 0.03), rot=(0, R(-25), 0)), ell((-0.1, -0.36, 0.66), (0.06, 0.022, 0.03), rot=(0, R(25), 0))],
+            'face', mat('sheepface', srgb(0x4a423a)), voxel=0.022, faces=180)
+legs = [leg(f'leg{k}', x, y, 0.36, mat('sheepface', srgb(0x4a423a)), thick=0.04) for k, (x, y) in enumerate([(0.11, -0.18), (-0.11, -0.18), (0.11, 0.26), (-0.11, 0.26)])]
+animals.append(animal('sheep', [wool, face, *legs, eyes(0.062, -0.47, 0.63, 0.014)]))
 
 # ---------------------------------------------------------------- deer
 body = fuse([
-    ell((0, 0.05, 0.74), (0.2, 0.44, 0.22)),
-    ell((0, -0.3, 0.92), (0.1, 0.14, 0.26), rot=(R(-28), 0, 0)),       # neck
-    ell((0, -0.44, 1.2), (0.12, 0.17, 0.12)),                          # head
-    ell((0, -0.6, 1.16), (0.07, 0.1, 0.07)),                           # muzzle
-    ell((0.12, -0.36, 1.32), (0.03, 0.06, 0.1), rot=(0, R(35), 0)), ell((-0.12, -0.36, 1.32), (0.03, 0.06, 0.1), rot=(0, R(-35), 0)),
-], 'body', TINT(), voxel=0.04, faces=520)
-legs = []
-for k, (x, y) in enumerate([(0.11, -0.26), (-0.11, -0.26), (0.11, 0.34), (-0.11, 0.34)]):
-    legs.append(fuse([ell((x, y, 0.3), (0.05, 0.055, 0.32)), ell((x, y, 0.04), (0.05, 0.06, 0.04))], f'leg{k}', TINT(), voxel=0.03, faces=70, pivot=(x, y, 0.6)))
+    ell((0, 0.04, 0.8), (0.135, 0.4, 0.17)), ell((0, -0.25, 0.8), (0.13, 0.17, 0.2)), ell((0, 0.33, 0.82), (0.14, 0.17, 0.18)),
+    ell((0, -0.42, 1.03), (0.066, 0.09, 0.25), rot=(R(-30), 0, 0)),                              # neck
+    ell((0, -0.57, 1.27), (0.07, 0.13, 0.08), rot=(R(14), 0, 0)), ell((0, -0.7, 1.225), (0.04, 0.085, 0.045)),   # head, muzzle
+    ell((0.105, -0.49, 1.36), (0.022, 0.045, 0.085), rot=(0, R(42), 0)), ell((-0.105, -0.49, 1.36), (0.022, 0.045, 0.085), rot=(0, R(-42), 0)),
+], 'body', TINT(), voxel=0.028, faces=640, paint=coat(0.66, 1.0, mottle=0.08, freq=12))
+legs = [leg(f'leg{k}', x, y, 0.72, TINT(), thick=0.052, paint=hoofed()) for k, (x, y) in enumerate([(0.085, -0.27), (-0.085, -0.27), (0.09, 0.34), (-0.09, 0.34)])]
 antlers = part([
-    cone((0.09, -0.4, 1.44), 0.022, 0.26, rot=(0, R(18), 0), verts=6), cone((-0.09, -0.4, 1.44), 0.022, 0.26, rot=(0, R(-18), 0), verts=6),
-    cone((0.15, -0.4, 1.5), 0.016, 0.14, rot=(0, R(60), 0), verts=6), cone((-0.15, -0.4, 1.5), 0.016, 0.14, rot=(0, R(-60), 0), verts=6),
-], 'antlers', mat('horn', srgb(0xe9dcc0)))
-puff = part([ell((0, 0.5, 0.82), (0.07, 0.06, 0.08), seg=10, rings=7)], 'puff', WHITE())
-nose = part([ell((0, -0.69, 1.17), (0.03, 0.025, 0.025), seg=8, rings=6)], 'nose', DARK())
-animals.append(animal('deer', [body, *legs, antlers, puff, nose, eyes(0.1, -0.5, 1.25, 0.03)]))
+    cone((0.07, -0.5, 1.47), 0.016, 0.24, rot=(R(-10), R(22), 0), verts=6), cone((-0.07, -0.5, 1.47), 0.016, 0.24, rot=(R(-10), R(-22), 0), verts=6),
+    cone((0.13, -0.5, 1.53), 0.012, 0.13, rot=(0, R(62), 0), verts=5), cone((-0.13, -0.5, 1.53), 0.012, 0.13, rot=(0, R(-62), 0), verts=5),
+    cone((0.1, -0.56, 1.5), 0.011, 0.1, rot=(R(60), R(20), 0), verts=5), cone((-0.1, -0.56, 1.5), 0.011, 0.1, rot=(R(60), R(-20), 0), verts=5),
+], 'antlers', mat('horn', srgb(0xd9ccb0)))
+rump = part([ell((0, 0.47, 0.83), (0.085, 0.05, 0.1), seg=10, rings=7), ell((0, 0.52, 0.86), (0.035, 0.03, 0.06), seg=8, rings=6)], 'rump', WHITE())
+nose = part([ell((0, -0.775, 1.225), (0.022, 0.018, 0.018), seg=8, rings=6)], 'nose', DARK())
+animals.append(animal('deer', [body, *legs, antlers, rump, nose, eyes(0.066, -0.6, 1.3, 0.018)]))
 
 # ---------------------------------------------------------------- fox
+def foxcoat(co, n):
+    v = 1.0 - 0.3 * sm(-0.35, 0.6, n.z)
+    if co.z > 0.675 and co.y < -0.3:      # dark ear tips
+        return (0.18, 0.13, 0.1)
+    return (v, v, v)
+
 body = fuse([
-    ell((0, 0.04, 0.36), (0.17, 0.38, 0.17)),
-    ell((0, -0.38, 0.48), (0.15, 0.16, 0.14)),
-    ell((0, -0.55, 0.43), (0.07, 0.11, 0.06)),                         # snout
-    cone((0.09, -0.36, 0.66), 0.06, 0.16, verts=8), cone((-0.09, -0.36, 0.66), 0.06, 0.16, verts=8),
-    ell((0, 0.52, 0.44), (0.11, 0.26, 0.11)),                          # tail
-], 'body', TINT(), voxel=0.035, faces=520)
-tip = fuse([ell((0, 0.74, 0.44), (0.085, 0.11, 0.085))], 'tip', WHITE(), voxel=0.03, faces=80)
-chin = part([ell((0, -0.5, 0.38), (0.08, 0.14, 0.05))], 'chin', WHITE())
-legs = []
-for k, (x, y) in enumerate([(0.1, -0.24), (-0.1, -0.24), (0.1, 0.26), (-0.1, 0.26)]):
-    legs.append(fuse([ell((x, y, 0.15), (0.045, 0.05, 0.16))], f'leg{k}', DARK(), voxel=0.03, faces=50, pivot=(x, y, 0.3)))
-nose = part([ell((0, -0.66, 0.44), (0.028, 0.025, 0.025), seg=8, rings=6)], 'nose', DARK())
-animals.append(animal('fox', [body, tip, chin, *legs, nose, eyes(0.1, -0.5, 0.53, 0.03)]))
+    ell((0, 0.03, 0.36), (0.1, 0.33, 0.12)), ell((0, -0.22, 0.37), (0.1, 0.13, 0.135)), ell((0, 0.28, 0.37), (0.105, 0.13, 0.125)),
+    ell((0, -0.34, 0.46), (0.062, 0.08, 0.1), rot=(R(-35), 0, 0)),
+    ell((0, -0.44, 0.53), (0.08, 0.095, 0.075)), ell((0, -0.57, 0.5), (0.036, 0.09, 0.036)),
+    cone((0.062, -0.415, 0.665), 0.042, 0.15, verts=8), cone((-0.062, -0.415, 0.665), 0.042, 0.15, verts=8),
+    ell((0, 0.54, 0.35), (0.095, 0.25, 0.095), rot=(R(14), 0, 0)),
+], 'body', TINT(), voxel=0.024, faces=640, paint=foxcoat)
+tip = fuse([ell((0, 0.775, 0.295), (0.07, 0.1, 0.07), rot=(R(14), 0, 0))], 'tip', WHITE(), voxel=0.024, faces=70)
+bib = part([ell((0, -0.3, 0.33), (0.07, 0.1, 0.095)), ell((0, -0.51, 0.475), (0.062, 0.09, 0.03))], 'bib', WHITE())
+socks = mat('socks', srgb(0x2a2220))
+legs = [leg(f'leg{k}', x, y, 0.33, socks, thick=0.034) for k, (x, y) in enumerate([(0.07, -0.24), (-0.07, -0.24), (0.075, 0.27), (-0.075, 0.27)])]
+nose = part([ell((0, -0.655, 0.5), (0.02, 0.018, 0.018), seg=8, rings=6)], 'nose', DARK())
+animals.append(animal('fox', [body, tip, bib, *legs, nose, eyes(0.062, -0.5, 0.555, 0.016)]))
 
 # ---------------------------------------------------------------- crab (its front is the long side; the game turns it to walk sideways)
 shapes = [ell((0, 0.02, 0.17), (0.34, 0.22, 0.1)), ell((0, 0.02, 0.2), (0.26, 0.17, 0.1)),
           ell((0.08, -0.16, 0.31), (0.022, 0.022, 0.08)), ell((-0.08, -0.16, 0.31), (0.022, 0.022, 0.08))]
 for s in (1, -1):
-    # an arm reaching forward and a fat pincer held up
     shapes.append(ell((s * 0.3, -0.2, 0.2), (0.05, 0.13, 0.05), rot=(0, 0, R(-30 * s))))
     shapes.append(ell((s * 0.36, -0.36, 0.26), (0.11, 0.13, 0.085)))
     shapes.append(ell((s * 0.33, -0.48, 0.3), (0.035, 0.07, 0.03)))
-    for y, a in ((-0.02, 20), (0.1, 0), (0.2, -22)):   # three walking legs a side, knees up
+    for y, a in ((-0.02, 20), (0.1, 0), (0.2, -22)):
         shapes.append(ell((s * 0.4, y, 0.15), (0.11, 0.028, 0.028), rot=(0, R(-28 * s), R(a * s))))
         shapes.append(ell((s * 0.52, y + a * 0.002, 0.07), (0.028, 0.028, 0.09)))
-body = fuse(shapes, 'body', TINT(), voxel=0.03, faces=520, smooth=2)
-animals.append(animal('crab', [body, eyes(0.08, -0.17, 0.4, 0.038)]))
+body = fuse(shapes, 'body', TINT(), voxel=0.03, faces=560, smooth=2, paint=coat(0.7, 1.0, mottle=0.3, freq=10))
+animals.append(animal('crab', [body, eyes(0.08, -0.17, 0.4, 0.02)]))
 
-# ---------------------------------------------------------------- villager
-torso = fuse([ell((0, 0, 0.62), (0.2, 0.15, 0.24)), ell((0, 0, 0.44), (0.21, 0.16, 0.12))], 'torso', TINT(), voxel=0.035, faces=260)
-headm = fuse([ell((0, 0, 1.03), (0.18, 0.18, 0.18)), ell((0, -0.17, 1.0), (0.03, 0.03, 0.03))], 'head', TINT2(), voxel=0.03, faces=240)
-hair = fuse([ell((0, 0.03, 1.1), (0.195, 0.2, 0.14)), ell((0, 0.14, 1.0), (0.17, 0.09, 0.14))], 'hair', TINT3(), voxel=0.03, faces=200)
+# ---------------------------------------------------------------- turtle
+def scutes(co, n):
+    a = math.atan2(co.y - 0.02, co.x)
+    ring = abs(math.sin(a * 5)) * abs(math.sin((co.x ** 2 + co.y ** 2) ** 0.5 * 26))
+    v = (0.55 + 0.45 * sm(0.05, 0.4, ring)) * (1.0 - 0.25 * sm(0.0, 0.5, n.z) * 0)
+    return (v, v, v)
+
+shell = fuse([ell((0, 0.02, 0.2), (0.29, 0.35, 0.18)), ell((0, 0.02, 0.29), (0.2, 0.25, 0.13)), ell((0, 0.02, 0.12), (0.31, 0.37, 0.05))],
+             'shell', TINT(), voxel=0.03, faces=420, paint=scutes)
+skin = fuse([
+    ell((0, -0.38, 0.19), (0.075, 0.12, 0.07)), ell((0, -0.48, 0.2), (0.06, 0.07, 0.055)), ell((0, 0.0, 0.1), (0.25, 0.31, 0.06)),
+    ell((0.3, -0.2, 0.07), (0.13, 0.065, 0.03), rot=(0, 0, R(-32))), ell((-0.3, -0.2, 0.07), (0.13, 0.065, 0.03), rot=(0, 0, R(32))),
+    ell((0.26, 0.25, 0.07), (0.1, 0.055, 0.03), rot=(0, 0, R(38))), ell((-0.26, 0.25, 0.07), (0.1, 0.055, 0.03), rot=(0, 0, R(-38))),
+    ell((0, 0.4, 0.1), (0.025, 0.07, 0.025)),
+], 'skin', mat('turtleskin', srgb(0x8a9a5e)), voxel=0.028, faces=380, paint=coat(0.7, 1.0, mottle=0.3, freq=18))
+animals.append(animal('turtle', [shell, skin, eyes(0.052, -0.5, 0.225, 0.016)]))
+
+# ---------------------------------------------------------------- heron
+def heroncoat(co, n):
+    v = 1.0 - 0.22 * sm(-0.3, 0.6, n.z)
+    if co.z < 1.05 and abs(co.x) > 0.09:      # slate wings
+        v *= 0.72
+    return (v, v, v)
+
+body = fuse([
+    ell((0, 0.06, 0.92), (0.13, 0.3, 0.15), rot=(R(-12), 0, 0)),
+    ell((0, 0.36, 0.84), (0.06, 0.15, 0.045), rot=(R(-22), 0, 0)),
+    ell((0, -0.2, 1.14), (0.04, 0.055, 0.2), rot=(R(-22), 0, 0)), ell((0, -0.24, 1.4), (0.035, 0.052, 0.16), rot=(R(18), 0, 0)),
+    ell((0, -0.3, 1.56), (0.055, 0.085, 0.052)),
+    ell((0.12, 0.09, 0.92), (0.035, 0.25, 0.115), rot=(R(-10), 0, 0)), ell((-0.12, 0.09, 0.92), (0.035, 0.25, 0.115), rot=(R(-10), 0, 0)),
+], 'body', TINT(), voxel=0.026, faces=560, paint=heroncoat)
+beak = part([cone((0, -0.5, 1.55), 0.024, 0.3, rot=(R(90), 0, 0), verts=6)], 'beak', mat('heronbill', srgb(0xd9a53a)))
+crest = part([ell((0, -0.2, 1.6), (0.012, 0.13, 0.016), rot=(R(-20), 0, 0), seg=8, rings=5), ell((0.045, -0.32, 1.585), (0.012, 0.06, 0.012), seg=6, rings=4), ell((-0.045, -0.32, 1.585), (0.012, 0.06, 0.012), seg=6, rings=4)], 'crest', DARK())
+hl = mat('heronleg', srgb(0x8a7a52))
+legs = [part([cone((x, 0.04, 0.4), 0.014, 0.8, verts=5, r2=0.011), ell((x, 0.04, 0.42), (0.02, 0.02, 0.025), seg=6, rings=4), ell((x, -0.04, 0.015), (0.035, 0.085, 0.012), seg=8, rings=5)], f'leg{k}', hl, (x, 0.04, 0.8)) for k, x in enumerate((0.05, -0.05))]
+animals.append(animal('heron', [body, beak, crest, *legs, eyes(0.045, -0.35, 1.575, 0.013)]))
+
+# ---------------------------------------------------------------- villager: a small person, about six heads tall
+torso = fuse([ell((0, 0, 0.86), (0.145, 0.1, 0.23)), ell((0, 0, 1.0), (0.185, 0.095, 0.075)), ell((0, 0.005, 0.68), (0.15, 0.105, 0.11)), ell((0, 0, 0.58), (0.16, 0.11, 0.07))],
+             'torso', TINT(), voxel=0.026, faces=320, paint=coat(0.8, 1.0))
+headm = fuse([ell((0, 0, 1.105), (0.045, 0.048, 0.07)), ell((0, -0.005, 1.225), (0.092, 0.108, 0.118)), ell((0, -0.1, 1.2), (0.02, 0.028, 0.03)),
+              ell((0.092, 0, 1.22), (0.015, 0.03, 0.04)), ell((-0.092, 0, 1.22), (0.015, 0.03, 0.04))], 'head', TINT2(), voxel=0.02, faces=300, paint=coat(0.9, 1.0))
+hair = fuse([ell((0, 0.02, 1.285), (0.1, 0.118, 0.085)), ell((0, 0.075, 1.2), (0.09, 0.06, 0.1)), ell((0, -0.07, 1.31), (0.085, 0.05, 0.04))], 'hair', TINT3(), voxel=0.02, faces=220)
 limbs = []
-for k, x in enumerate((0.09, -0.09)):
-    limbs.append(fuse([ell((x, 0, 0.2), (0.07, 0.075, 0.2)), ell((x, -0.03, 0.03), (0.07, 0.1, 0.035))], f'leg{k}', mat('trouser', srgb(0x4a4038)), voxel=0.03, faces=70, pivot=(x, 0, 0.38)))
-for k, x in enumerate((0.25, -0.25)):
-    limbs.append(fuse([ell((x, 0, 0.6), (0.055, 0.06, 0.18)), ell((x, 0, 0.44), (0.055, 0.055, 0.05))], f'arm{k}', TINT2(), voxel=0.03, faces=60, pivot=(x, 0, 0.76)))
-animals.append(animal('villager', [torso, headm, hair, *limbs, eyes(0.07, -0.165, 1.05, 0.024)]))
+trou = mat('trouser', srgb(0x5a4a3a))
+for k, x in enumerate((0.075, -0.075)):
+    limbs.append(fuse([ell((x, 0, 0.36), (0.062, 0.07, 0.2)), ell((x, 0, 0.16), (0.048, 0.055, 0.15)), ell((x, -0.035, 0.03), (0.052, 0.1, 0.034))], f'leg{k}', trou,
+                      voxel=0.024, faces=100, pivot=(x, 0, 0.56), paint=lambda co, n: (0.35, 0.28, 0.22) if co.z < 0.065 else (1, 1, 1)))
+for k, x in enumerate((0.215, -0.215)):
+    limbs.append(fuse([ell((x, 0, 0.87), (0.045, 0.05, 0.15)), ell((x, -0.005, 0.67), (0.036, 0.04, 0.14)), ell((x, -0.01, 0.53), (0.03, 0.04, 0.045))], f'arm{k}', TINT2(),
+                      voxel=0.022, faces=90, pivot=(x, 0, 0.99), paint=lambda co, n: (0.82, 0.8, 0.78) if co.z > 0.8 else (1, 1, 1)))
+animals.append(animal('villager', [torso, headm, hair, *limbs, eyes(0.036, -0.1, 1.245, 0.011)]))
 
 # ---------------------------------------------------------------- fliers: wings are separate, hinged where they meet the body
-def wing(name, side, lobes, material, pivot):
-    return part([ell((side * x, y, z), (sx, sy, 0.008), rot=(0, 0, R(side * rz)), seg=12, rings=6) for (x, y, z, sx, sy, rz) in lobes], name, material, pivot)
+def wing(name, side, lobes, material, pivot, paint=None):
+    return part([ell((side * x, y, z), (sx, sy, 0.008), rot=(0, 0, R(side * rz)), seg=12, rings=6) for (x, y, z, sx, sy, rz) in lobes], name, material, pivot, paint=paint)
 
 
 WING = lambda: mat('wing', srgb(0xffffff), alpha=0.5)
 
-body = part([ell((0, 0, 0), (0.035, 0.17, 0.035), seg=8, rings=6), ell((0, -0.17, 0.0), (0.045, 0.045, 0.045), seg=8, rings=6)], 'body', DARK())
+# butterfly: dark borders and veins on a coloured wing
+def bflywing(co, n):
+    d = (co.x ** 2 + co.y ** 2) ** 0.5
+    edge = sm(0.27, 0.36, d)
+    vein = sm(0.75, 1.0, abs(math.sin(math.atan2(co.y, abs(co.x)) * 9)))
+    v = (1 - 0.82 * edge) * (1 - 0.35 * vein)
+    return (v, v, v)
+
+body = part([ell((0, 0, 0), (0.028, 0.17, 0.028), seg=8, rings=6), ell((0, -0.17, 0.0), (0.036, 0.036, 0.036), seg=8, rings=6),
+             ell((0.03, -0.26, 0.03), (0.004, 0.07, 0.004), rot=(0, 0, R(-18)), seg=5, rings=4), ell((-0.03, -0.26, 0.03), (0.004, 0.07, 0.004), rot=(0, 0, R(18)), seg=5, rings=4)], 'body', DARK())
 lobes = [(0.2, -0.1, 0, 0.2, 0.17, 25), (0.16, 0.12, 0, 0.14, 0.13, -30)]
-animals.append(animal('butterfly', [body, wing('wingL', 1, lobes, TINT(), (0.02, 0, 0)), wing('wingR', -1, lobes, TINT(), (-0.02, 0, 0))]))
+animals.append(animal('butterfly', [body, wing('wingL', 1, lobes, TINT(), (0.02, 0, 0), bflywing), wing('wingR', -1, lobes, TINT(), (-0.02, 0, 0), bflywing)]))
 
-body = fuse([ell((0, 0.03, 0), (0.1, 0.15, 0.1)), ell((0, -0.14, 0.0), (0.075, 0.075, 0.075))], 'body', mat('bee', srgb(0xf2c230)), voxel=0.025, faces=220)
-stripes = part([ell((0, 0.0, 0), (0.104, 0.028, 0.104), seg=12, rings=6), ell((0, 0.09, 0), (0.092, 0.026, 0.092), seg=12, rings=6), ell((0, -0.16, 0.0), (0.078, 0.06, 0.078), seg=10, rings=6)], 'stripes', DARK())
-lobes = [(0.14, 0.0, 0.08, 0.13, 0.07, 15)]
-animals.append(animal('bee', [body, stripes, wing('wingL', 1, lobes, WING(), (0.03, 0, 0.08)), wing('wingR', -1, lobes, WING(), (-0.03, 0, 0.08))]))
+body = fuse([ell((0, 0.04, 0), (0.085, 0.14, 0.085)), ell((0, -0.1, 0.0), (0.07, 0.075, 0.07)), ell((0, -0.2, 0.0), (0.055, 0.05, 0.055))], 'body', mat('bee', srgb(0xe2b02a)), voxel=0.018, faces=260,
+            paint=lambda co, n: (0.12, 0.1, 0.08) if (co.y < -0.14 or abs(math.sin(co.y * 34)) > 0.72 and co.y > -0.02) else (1, 1, 1))
+lobes = [(0.14, 0.0, 0.07, 0.13, 0.06, 15), (0.1, 0.07, 0.07, 0.08, 0.045, -10)]
+animals.append(animal('bee', [body, wing('wingL', 1, lobes, WING(), (0.03, 0, 0.07)), wing('wingR', -1, lobes, WING(), (-0.03, 0, 0.07))]))
 
-body = fuse([ell((0, 0, 0), (0.08, 0.13, 0.08)), ell((0, -0.13, 0.01), (0.06, 0.06, 0.06))], 'body', DARK(), voxel=0.025, faces=200)
-lamp = part([ell((0, 0.14, -0.01), (0.085, 0.1, 0.085), seg=10, rings=7)], 'lamp', mat('glow', (1, 1, 0.5)))
-lobes = [(0.16, 0.0, 0.06, 0.16, 0.08, 20)]
+body = fuse([ell((0, 0, 0), (0.07, 0.13, 0.07)), ell((0, -0.13, 0.01), (0.05, 0.05, 0.05))], 'body', DARK(), voxel=0.02, faces=200)
+lamp = part([ell((0, 0.14, -0.01), (0.075, 0.1, 0.075), seg=10, rings=7)], 'lamp', mat('glow', (1, 1, 0.5)))
+lobes = [(0.16, 0.0, 0.06, 0.16, 0.07, 20)]
 animals.append(animal('glimmer', [body, lamp, wing('wingL', 1, lobes, WING(), (0.03, 0, 0.06)), wing('wingR', -1, lobes, WING(), (-0.03, 0, 0.06))]))
 
+# songbird: a small perching bird
 body = fuse([
-    ell((0, 0.02, 0.16), (0.14, 0.2, 0.14)),
-    ell((0, -0.16, 0.3), (0.11, 0.115, 0.11)),
-    ell((0, 0.3, 0.17), (0.07, 0.17, 0.025), rot=(R(8), 0, 0)),        # tail
-], 'body', TINT(), voxel=0.03, faces=360)
-belly = part([ell((0, -0.04, 0.11), (0.115, 0.16, 0.1))], 'belly', mat('belly', srgb(0xe9efc0)))
-beak = part([cone((0, -0.3, 0.29), 0.035, 0.1, rot=(R(90), 0, 0), verts=6)], 'beak', ORANGE())
-lobes = [(0.2, 0.04, 0.2, 0.2, 0.12, 12)]
-animals.append(animal('songbird', [body, belly, beak, eyes(0.085, -0.23, 0.34, 0.024),
-                                    wing('wingL', 1, lobes, TINT(), (0.1, 0, 0.2)), wing('wingR', -1, lobes, TINT(), (-0.1, 0, 0.2))]))
+    ell((0, 0.02, 0.15), (0.085, 0.14, 0.092)), ell((0, -0.115, 0.235), (0.063, 0.068, 0.062)),
+    ell((0, 0.25, 0.155), (0.032, 0.13, 0.012), rot=(R(6), 0, 0)),
+    ell((0.03, 0.02, 0.04), (0.008, 0.008, 0.05)), ell((-0.03, 0.02, 0.04), (0.008, 0.008, 0.05)),
+], 'body', TINT(), voxel=0.018, faces=420, paint=coat(0.7, 1.0, mottle=0.12, freq=22))
+breast = part([ell((0, -0.07, 0.125), (0.066, 0.1, 0.07)), ell((0, -0.15, 0.215), (0.045, 0.04, 0.045))], 'breast', mat('breast', srgb(0xe6dcc6)))
+beak = part([cone((0, -0.2, 0.235), 0.016, 0.07, rot=(R(90), 0, 0), verts=5)], 'beak', mat('beakdark', srgb(0x3a3430)))
+lobes = [(0.17, 0.05, 0.19, 0.17, 0.085, 14), (0.3, 0.07, 0.19, 0.09, 0.05, 22)]
+wshade = lambda co, n: (0.62 + 0.38 * sm(0.34, 0.08, abs(co.x)),) * 3
+animals.append(animal('songbird', [body, breast, beak, eyes(0.05, -0.15, 0.255, 0.012),
+                                    wing('wingL', 1, lobes, TINT(), (0.06, 0, 0.19), wshade), wing('wingR', -1, lobes, TINT(), (-0.06, 0, 0.19), wshade)]))
 
-# ---------------------------------------------------------------- koi (a big, slow pond fish; centred on the origin)
+# owl
 body = fuse([
-    ell((0, 0, 0), (0.2, 0.62, 0.24)),
-    ell((0, -0.42, 0.0), (0.15, 0.26, 0.18)),
-    cone((0, 0.05, 0.25), 0.2, 0.22, rot=(R(-20), 0, 0)),
-    ell((0.17, -0.16, -0.1), (0.03, 0.16, 0.07), rot=(0, R(40), R(25))), ell((-0.17, -0.16, -0.1), (0.03, 0.16, 0.07), rot=(0, R(-40), R(-25))),
-], 'body', TINT(), voxel=0.045, faces=420)
-patch = part([ell((0.02, -0.12, 0.14), (0.15, 0.2, 0.12)), ell((-0.03, 0.26, 0.1), (0.13, 0.14, 0.12))], 'patch', WHITE())
-tail = fuse([
-    ell((0, 0.74, 0.13), (0.03, 0.24, 0.13), rot=(R(-30), 0, 0)), ell((0, 0.74, -0.13), (0.03, 0.24, 0.13), rot=(R(30), 0, 0)),
-    ell((0, 0.58, 0), (0.06, 0.1, 0.09)),
-], 'tail', TINT(), voxel=0.035, faces=140, pivot=(0, 0.55, 0))
-animals.append(animal('koi', [body, patch, tail, eyes(0.13, -0.5, 0.06, 0.04)]))
-
-# ---------------------------------------------------------------- turtle
-shell = fuse([ell((0, 0.02, 0.2), (0.3, 0.36, 0.2)), ell((0, 0.02, 0.3), (0.2, 0.25, 0.14))], 'shell', TINT(), voxel=0.04, faces=320)
-skin = fuse([
-    ell((0, -0.4, 0.2), (0.1, 0.14, 0.09)), ell((0, 0.0, 0.1), (0.27, 0.33, 0.07)),
-    ell((0.3, -0.2, 0.08), (0.13, 0.07, 0.035), rot=(0, 0, R(-30))), ell((-0.3, -0.2, 0.08), (0.13, 0.07, 0.035), rot=(0, 0, R(30))),
-    ell((0.27, 0.24, 0.08), (0.1, 0.06, 0.035), rot=(0, 0, R(35))), ell((-0.27, 0.24, 0.08), (0.1, 0.06, 0.035), rot=(0, 0, R(-35))),
-    ell((0, 0.4, 0.1), (0.03, 0.07, 0.03)),
-], 'skin', mat('turtleskin', srgb(0x9aae6a)), voxel=0.035, faces=320)
-animals.append(animal('turtle', [shell, skin, eyes(0.07, -0.47, 0.24, 0.028)]))
-
-# ---------------------------------------------------------------- heron
-body = fuse([
-    ell((0, 0.06, 0.92), (0.15, 0.3, 0.16), rot=(R(-12), 0, 0)),
-    ell((0, 0.34, 0.86), (0.07, 0.14, 0.05), rot=(R(-20), 0, 0)),            # tail
-    ell((0, -0.2, 1.14), (0.045, 0.06, 0.2), rot=(R(-22), 0, 0)),             # neck, an S in two parts
-    ell((0, -0.24, 1.4), (0.04, 0.06, 0.16), rot=(R(18), 0, 0)),
-    ell((0, -0.3, 1.56), (0.065, 0.09, 0.06)),                                # head
-    ell((0.13, 0.08, 0.92), (0.04, 0.24, 0.12)), ell((-0.13, 0.08, 0.92), (0.04, 0.24, 0.12)),
-], 'body', TINT(), voxel=0.035, faces=460)
-beak = part([cone((0, -0.5, 1.55), 0.028, 0.3, rot=(R(90), 0, 0), verts=6)], 'beak', ORANGE())
-crest = part([ell((0, -0.2, 1.6), (0.015, 0.12, 0.02), rot=(R(-20), 0, 0), seg=8, rings=5)], 'crest', DARK())
-legs = [part([cone((x, 0.04, 0.4), 0.018, 0.8, verts=5, r2=0.014), ell((x, -0.04, 0.02), (0.04, 0.09, 0.015), seg=8, rings=5)], f'leg{k}', ORANGE(), (x, 0.04, 0.8)) for k, x in enumerate((0.06, -0.06))]
-animals.append(animal('heron', [body, beak, crest, *legs, eyes(0.055, -0.34, 1.58, 0.02)]))
-
-# ---------------------------------------------------------------- sheep
-wool = fuse([
-    ell((0, 0.04, 0.5), (0.26, 0.36, 0.24)),
-    ell((0.14, -0.14, 0.62), (0.14, 0.14, 0.13)), ell((-0.14, -0.1, 0.62), (0.14, 0.14, 0.13)),
-    ell((0.12, 0.2, 0.64), (0.15, 0.15, 0.13)), ell((-0.13, 0.22, 0.62), (0.15, 0.15, 0.13)),
-    ell((0, 0.38, 0.52), (0.16, 0.12, 0.16)), ell((0, -0.3, 0.72), (0.13, 0.11, 0.1)),
-], 'wool', WHITE(), voxel=0.045, faces=460, smooth=2)
-face = fuse([ell((0, -0.44, 0.62), (0.1, 0.14, 0.11)), ell((0.12, -0.38, 0.68), (0.07, 0.03, 0.035), rot=(0, R(-20), 0)), ell((-0.12, -0.38, 0.68), (0.07, 0.03, 0.035), rot=(0, R(20), 0))], 'face', mat('sheepface', srgb(0x3a332e)), voxel=0.03, faces=160)
-legs = []
-for k, (x, y) in enumerate([(0.12, -0.18), (-0.12, -0.18), (0.12, 0.26), (-0.12, 0.26)]):
-    legs.append(fuse([ell((x, y, 0.16), (0.045, 0.05, 0.17))], f'leg{k}', mat('sheepface', srgb(0x3a332e)), voxel=0.03, faces=50, pivot=(x, y, 0.32)))
-animals.append(animal('sheep', [wool, face, *legs, part([ell((0.07, -0.53, 0.66), (0.022, 0.02, 0.022), seg=8, rings=6), ell((-0.07, -0.53, 0.66), (0.022, 0.02, 0.022), seg=8, rings=6)], 'eyes', WHITE())]))
-
-# ---------------------------------------------------------------- owl
-body = fuse([
-    ell((0, 0.02, 0.24), (0.19, 0.19, 0.25)),
-    ell((0, -0.03, 0.46), (0.19, 0.17, 0.16)),
-    cone((0.11, -0.02, 0.62), 0.05, 0.1, verts=6), cone((-0.11, -0.02, 0.62), 0.05, 0.1, verts=6),   # ear tufts
-    ell((0, 0.16, 0.08), (0.1, 0.1, 0.05)),
-], 'body', TINT(), voxel=0.035, faces=380)
-discs = part([ell((0.085, -0.17, 0.47), (0.075, 0.03, 0.075), seg=12, rings=6), ell((-0.085, -0.17, 0.47), (0.075, 0.03, 0.075), seg=12, rings=6)], 'discs', mat('owlface', srgb(0xefe2c8)))
-beak = part([cone((0, -0.21, 0.42), 0.03, 0.07, rot=(R(120), 0, 0), verts=5)], 'beak', ORANGE())
-lobes = [(0.24, 0.02, 0.3, 0.22, 0.15, 10)]
-animals.append(animal('owl', [body, discs, beak, eyes(0.085, -0.2, 0.47, 0.035),
-                               wing('wingL', 1, lobes, TINT(), (0.14, 0, 0.3)), wing('wingR', -1, lobes, TINT(), (-0.14, 0, 0.3))]))
+    ell((0, 0.03, 0.22), (0.15, 0.16, 0.23)), ell((0, -0.02, 0.44), (0.16, 0.15, 0.14)),
+    cone((0.1, -0.02, 0.585), 0.04, 0.09, verts=6), cone((-0.1, -0.02, 0.585), 0.04, 0.09, verts=6),
+    ell((0, 0.17, 0.07), (0.08, 0.11, 0.035)),
+], 'body', TINT(), voxel=0.026, faces=460, paint=coat(0.6, 1.0, mottle=0.45, freq=20))
+discs = part([ell((0.07, -0.15, 0.45), (0.068, 0.025, 0.07), seg=12, rings=6), ell((-0.07, -0.15, 0.45), (0.068, 0.025, 0.07), seg=12, rings=6)], 'discs', mat('owlface', srgb(0xb8a07a)))
+iris = part([ell((0.07, -0.172, 0.455), (0.021, 0.01, 0.021), seg=10, rings=6), ell((-0.07, -0.172, 0.455), (0.021, 0.01, 0.021), seg=10, rings=6)], 'iris', mat('iris', srgb(0xe0a020)))
+beak = part([cone((0, -0.18, 0.41), 0.022, 0.06, rot=(R(125), 0, 0), verts=5)], 'beak', mat('beakdark', srgb(0x3a3430)))
+lobes = [(0.22, 0.03, 0.3, 0.2, 0.13, 10), (0.37, 0.05, 0.3, 0.1, 0.08, 18)]
+animals.append(animal('owl', [body, discs, iris, beak, eyes(0.07, -0.18, 0.455, 0.011),
+                               wing('wingL', 1, lobes, TINT(), (0.12, 0, 0.3), wshade), wing('wingR', -1, lobes, TINT(), (-0.12, 0, 0.3), wshade)]))
 
 # ---------------------------------------------------------------- props
 # a rowing boat for villagers on the water: hull hollowed with a boolean, a thwart to sit on
@@ -410,6 +496,6 @@ for o in scene.objects:
         tris += len(o.data.loop_triangles)
 bpy.ops.export_scene.gltf(
     filepath=OUT, export_format='GLB', export_yup=True, export_apply=False, export_normals=True,
-    export_texcoords=False, export_materials='EXPORT', export_animations=False, export_cameras=False, export_lights=False,
+    export_texcoords=False, export_materials='EXPORT', export_vertex_color='ACTIVE', export_all_vertex_colors=False, export_animations=False, export_cameras=False, export_lights=False,
 )
 print(f'animals: {len(animals)}  triangles: {tris}  ->  {os.path.getsize(OUT) / 1024:.0f} KB  {os.path.normpath(OUT)}')
