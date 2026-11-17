@@ -1,5 +1,5 @@
 // Starting dioramas. Everything is placed relative to the world size so any size works.
-import { W, D, RIM, AIR, STONE, SOIL, TURF, SAND, LAVA, WOOD, TUFT, BASALT, PLANK, SNOW, rnd, ri } from './world.js';
+import { W, D, RIM, AIR, STONE, SOIL, TURF, SAND, LAVA, WOOD, TUFT, BASALT, PLANK, SNOW, HEARTH, rnd, ri } from './world.js';
 
 function makeNoise() {
   const P = new Float32Array(4096);
@@ -183,7 +183,7 @@ export function generate(world, preset) {
       if (flat && world.hut(hx, hy, hz)) huts++;
     }
     if (huts >= 2) {
-      world.set(cx, gy - 1, cz, STONE); world.set(cx, gy, cz, PLANK); // the hearth post
+      world.set(cx, gy - 1, cz, STONE); world.set(cx, gy, cz, HEARTH); // the village fire
       villages.push({ x: cx, y: gy, z: cz, huts }); want--;
     }
   }

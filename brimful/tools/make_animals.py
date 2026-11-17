@@ -382,6 +382,26 @@ lobes = [(0.24, 0.02, 0.3, 0.22, 0.15, 10)]
 animals.append(animal('owl', [body, discs, beak, eyes(0.085, -0.2, 0.47, 0.035),
                                wing('wingL', 1, lobes, TINT(), (0.14, 0, 0.3)), wing('wingR', -1, lobes, TINT(), (-0.14, 0, 0.3))]))
 
+# ---------------------------------------------------------------- props
+# a rowing boat for villagers on the water: hull hollowed with a boolean, a thwart to sit on
+hull = join([ell((0, 0, 0.12), (0.34, 0.74, 0.26))], 'hull')
+inner = join([ell((0, 0, 0.2), (0.27, 0.64, 0.24))], 'inner')
+bm = hull.modifiers.new('hollow', 'BOOLEAN')
+bm.operation = 'DIFFERENCE'
+bm.object = inner
+bake(hull)
+bpy.data.objects.remove(inner)
+active(hull)
+bpy.ops.object.mode_set(mode='EDIT')
+bpy.ops.mesh.select_all(action='SELECT')
+bpy.ops.mesh.bisect(plane_co=(0, 0, 0.2), plane_no=(0, 0, 1), clear_outer=True)
+bpy.ops.object.mode_set(mode='OBJECT')
+finish(hull, mat('hull', srgb(0x9a6a3c)))
+thwart = part([cube((0, 0.08, 0.15), (0.56, 0.12, 0.03))], 'thwart', mat('thwart', srgb(0xc79a62)))
+# floorboards above the waterline, so the lake is not seen through the bottom
+floor = part([ell((0, 0, 0.03), (0.275, 0.65, 0.025), seg=16, rings=6)], 'floor', mat('thwart', srgb(0xc79a62)))
+animals.append(animal('boat', [hull, thwart, floor]))
+
 # ---------------------------------------------------------------- export
 tris = 0
 for o in scene.objects:

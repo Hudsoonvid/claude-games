@@ -82,6 +82,7 @@ export function loadModels() {
 // one mesh per tint slot, one vertex-coloured mesh for everything of fixed colour; hinged parts stay separate.
 const MOVING = /^(tail|wing|ear|leg|arm)/;
 const fixedMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const boatMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
 function compact(root) {
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = {}, out = new THREE.Group();
@@ -312,6 +313,12 @@ export class Critters {
   pose(c, night) {
     const m = c.mesh, u = m.userData, sp = Math.hypot(c.vx, c.vz);
     m.position.set(c.x, c.y, c.z);
+    if (c.kind === 'villager') { // afloat: a boat appears under them
+      const sf = this.world.surfAt(c.x, c.z), afloat = sf > 0 && c.y < sf + 0.15 && c.y > sf - 0.5 && this.world.depthAt(c.x, c.z) > 0.45;
+      if (afloat && !u.boat && MODELS.boat) { u.boat = MODELS.boat.clone(true); u.boat.traverse((o) => { if (o.isMesh) { o.material = boatMat; o.castShadow = false; } }); u.boat.position.y = -0.1; u.boat.scale.setScalar(1.3); m.add(u.boat); }
+      if (u.boat) u.boat.visible = afloat;
+      if (afloat) m.position.y = c.y + 0.24 + Math.sin(c.t * 2) * 0.02;   // sit up in the boat, bobbing a little
+    }
     m.scale.setScalar(c.size);
     if (SWIM[c.kind]) {
       m.rotation.set(-Math.atan2(c.vy, Math.max(0.6, sp)) * 0.6, c.yaw, c.dry > 0.3 ? Math.PI / 2 : 0, 'YXZ');
@@ -398,7 +405,10 @@ export class Critters {
   lander(c, dt, ctl, here, cx, cy, cz, night) {
     const w = this.world, kind = c.kind;
     if (w.solid(cx, cy, cz)) { c.y += 4 * dt; c.vy = 0; return; } // dig out when buried
-    const surf = w.surfAt(c.x, c.z), inWater = surf > c.y + 0.3;
+    const surf = w.surfAt(c.x, c.z);
+    // afloat with a little hysteresis, so something riding at the surface does not flicker between swimming and falling
+    if (surf > c.y + 0.3) c.swim = true; else if (surf < c.y - 0.25 || surf - w.bedAt(c.x, c.z) < 0.3) c.swim = false;
+    const inWater = c.swim;
     const hops = kind === 'frog' || kind === 'rabbit';
     let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7, deer: 2.2, fox: 2.8, crab: 1.2, sheep: 1.2, turtle: 0.8, heron: 1.3 }[kind], jump = false;
     if (ctl) {
@@ -437,7 +447,8 @@ export class Critters {
     // vertical
     if (inWater && (kind === 'crab' || kind === 'heron')) { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom
     else if (inWater) {
-      const sink = kind === 'duck' ? 0.16 : kind === 'frog' ? 0.22 : kind === 'deer' ? 0.7 : 0.3;
+      const sink = kind === 'duck' ? 0.16 : kind === 'frog' ? 0.22 : kind === 'deer' ? 0.7 : kind === 'villager' ? 0.05 : 0.3;
+      if (kind === 'villager') sp *= 2.6;   // rowing is quicker than wading
       const want = Math.max(-3, Math.min(4, (surf - sink - c.y) * 9));
       c.vy += (want - c.vy) * Math.min(1, dt * 7);
       sp *= kind === 'duck' ? 1.5 : kind === 'frog' ? 0.7 : 0.55;

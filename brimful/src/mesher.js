@@ -2,7 +2,7 @@
 // solid (lit, shadowed cubes), flora (grass blades, flowers, waterweed), mist (steam) and
 // glow (lava + fire). Water is not meshed here: it is a simulated surface drawn by its own shader.
 import { Color } from 'three';
-import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, OPAQUE } from './world.js';
+import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, HEARTH, OPAQUE } from './world.js';
 
 class Buf {
   constructor(cap) {
@@ -232,6 +232,12 @@ export function buildChunk(world, cx, cz) {
           break;
         }
         case SNOW: { const h = 0.06 + aux[i] * 0.07, k = 0.92 + hash(i) * 0.08; box(S, x + 0.5, y + h, z + 0.5, 0.5, h, 0.5, 0.93 * k, 0.96 * k, 1.0 * k, 1); break; }
+        case HEARTH: {
+          box(S, x + 0.5, y + 0.08, z + 0.5, 0.42, 0.08, 0.42, 0.3, 0.29, 0.31, 1);            // ring of stones
+          box(S, x + 0.5, y + 0.2, z + 0.5, 0.3, 0.06, 0.09, 0.3, 0.17, 0.08, 1); box(S, x + 0.5, y + 0.2, z + 0.5, 0.09, 0.06, 0.3, 0.3, 0.17, 0.08, 1);   // crossed logs
+          const k = hash(i); box(G, x + 0.5, y + 0.5, z + 0.5, 0.2, 0.26, 0.2, C_FIRE[0], C_FIRE[1] * (0.7 + k * 0.4), C_FIRE[2], 1);
+          break;
+        }
         case LAMP: box(G, x + 0.5, y + 0.22, z + 0.5, 0.16, 0.2, 0.16, 2.6, 1.5, 0.5, 1); break;
         case CROP: {
           const a = aux[i], ripe = a >= 3; hs = (i * 7919) | 0 || 1;

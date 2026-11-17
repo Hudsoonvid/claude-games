@@ -16,7 +16,7 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24;
 
 export const OPAQUE = new Uint8Array(32);
 for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN]) OPAQUE[m] = 1;
@@ -25,7 +25,7 @@ const BED = new Uint8Array(32);
 for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH, SPRING, DRAIN]) BED[m] = 1;
 
 const ACTIVE = new Uint8Array(32);
-for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN]) ACTIVE[m] = 1;
+for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN, HEARTH]) ACTIVE[m] = 1;
 
 // What a falling powder may move into: 1 = replace, 2 = swap places
 const PP = new Uint8Array(32);
@@ -172,8 +172,9 @@ export class World {
   ripple(fx, fz, a) {
     const i = this.wcell(fx, fz), wd = this.wd; if (wd[i] < 0.3) return;
     const x = i % WW, z = (i / WW) | 0; let n = 0;
-    for (const j of [x > 0 ? i - 1 : -1, x < WW - 1 ? i + 1 : -1, z > 0 ? i - WW : -1, z < WH - 1 ? i + WW : -1]) if (j >= 0 && wd[j] > a) { wd[j] -= a * 0.25; n++; }
-    wd[i] += a * 0.25 * n;
+    // the swimmer pushes water aside: a dip where it is, a rise around it
+    for (const j of [x > 0 ? i - 1 : -1, x < WW - 1 ? i + 1 : -1, z > 0 ? i - WW : -1, z < WH - 1 ? i + WW : -1]) if (j >= 0 && wd[j] > 0.1) { wd[j] += a * 0.25; n++; }
+    wd[i] -= a * 0.25 * n;
   }
   moist(x, y, z) {
     for (let k = 0; k < 4; k++) {
@@ -340,6 +341,12 @@ export class World {
             continue;
           }
 
+          if (m === HEARTH) { // a tended fire: burns for ever, never spreads, dies only if drowned
+            const c = x + z * W;
+            if (cd[c] > 0.1 && cs[c] > y + 0.3) { mat[i] = AIR; this.markDirty(x, z); }
+            else if (rnd() < 0.12) this.ev('ember', x, y, z);
+            continue;
+          }
           if (m === SPRING) { // wells up from the top of the block
             if (y + 1 >= bed[x + z * W]) this.addWater(x, z, 0.14);
             continue;

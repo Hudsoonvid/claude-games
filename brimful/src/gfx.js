@@ -193,6 +193,9 @@ export function makeWater(renderer) {
         float hz = texture2D(uWater, vUv + vec2(0., uTexel.y)).r - texture2D(uWater, vUv - vec2(0., uTexel.y)).r;
         vec3 n = vec3(-hx, 1.0, -hz);
         float speed = length(w.ba);
+        // a steep sheet is a waterfall only if water is actually moving down it; between a still puddle on a ledge
+        // and the lake below it is just the mesh bridging two levels, so let it vanish
+        float steep = smoothstep(0.8, 0.45, normalize(n).y), moving = smoothstep(0.25, 1.4, speed);
         // wind ripples on top, stronger where the water is moving, calmer in the shallows
         vec2 wp = vWPos.xz;
         float calm = smoothstep(0.02, 0.5, depth);
@@ -235,12 +238,12 @@ export function makeWater(renderer) {
         float fn = fbm2(wp * 2.6 + vec2(uTime * 0.15, -uTime * 0.1) - w.ba * 0.3);
         float shore = smoothstep(0.3, 0.06, depth) * smoothstep(0.55, 0.72, fn + 0.1 * sin(uTime * 1.3 + wp.x + wp.y)) * (1.0 - smoothstep(0.5, 2.0, speed));
         float rapid = smoothstep(3.0, 8.0, speed) * smoothstep(0.45, 0.7, fn);
-        float fall = smoothstep(0.7, 0.35, n.y) * smoothstep(0.4, 0.65, fn + 0.15);
+        float fall = smoothstep(0.7, 0.35, n.y) * smoothstep(0.4, 0.65, fn + 0.15) * moving;
         float foam = clamp(shore * 0.6 + rapid * 0.8 + fall * 0.7, 0.0, 1.0) * smoothstep(0.03, 0.16, depth);
         col = mix(col, vec3(0.95, 0.98, 1.0) * (uAmb * 0.6 + uSunCol * 0.5), foam);
         col += rings * uRain * 0.12 * uAmb;
         col *= 1.0 - uCloud * smoothstep(0.42, 0.72, fbm(wp * 0.032 + uTime * vec2(0.014, 0.009))) * 0.3;
-        alpha = max(alpha, foam * 0.9);
+        alpha = max(alpha, foam * 0.9) * (1.0 - steep * (1.0 - moving));
         if (V.y < 0.0) { col = mix(col, vec3(0.35, 0.75, 0.85) * uAmb, 0.5); alpha = 0.75; }
         gl_FragColor = vec4(col, alpha);
       }`,
@@ -270,11 +273,13 @@ export function makeWater(renderer) {
   }
 
   // copy the simulation state into the texture
+  // films thinner than this are left to the damp-ground shading: drawn as surface they would tent the sheet up onto shore blocks
+  const FILM = 0.05;
   function update(world) {
     const { wd, wb, fl, fr, ft, fb } = world;
     for (let z = 0, i = 0, o = 0; z < WH; z++) for (let x = 0; x < WW; x++, i++, o += 4) {
       const d = wd[i];
-      if (d > 0.01) {
+      if (d > FILM) {
         data[o] = wb[i] + d; data[o + 1] = d;
         const inv = 1 / Math.max(d, 0.25);
         data[o + 2] = (fr[i] - fl[i]) * inv; data[o + 3] = (fb[i] - ft[i]) * inv;
@@ -282,10 +287,10 @@ export function makeWater(renderer) {
         // dry: sit level with wet neighbours when the bank is higher (so the sheet meets the shore flat),
         // or on the ground when it is lower (so water spilling over an edge slopes down to it)
         let s = -1e9;
-        if (x > 0 && wd[i - 1] > 0.01) s = Math.max(s, wb[i - 1] + wd[i - 1]);
-        if (x < WW - 1 && wd[i + 1] > 0.01) s = Math.max(s, wb[i + 1] + wd[i + 1]);
-        if (z > 0 && wd[i - WW] > 0.01) s = Math.max(s, wb[i - WW] + wd[i - WW]);
-        if (z < WH - 1 && wd[i + WW] > 0.01) s = Math.max(s, wb[i + WW] + wd[i + WW]);
+        if (x > 0 && wd[i - 1] > FILM) s = Math.max(s, wb[i - 1] + wd[i - 1]);
+        if (x < WW - 1 && wd[i + 1] > FILM) s = Math.max(s, wb[i + 1] + wd[i + 1]);
+        if (z > 0 && wd[i - WW] > FILM) s = Math.max(s, wb[i - WW] + wd[i - WW]);
+        if (z < WH - 1 && wd[i + WW] > FILM) s = Math.max(s, wb[i + WW] + wd[i + WW]);
         data[o] = s > -1e8 ? Math.min(s, wb[i]) : wb[i] - 0.3;
         data[o + 1] = 0; data[o + 2] = 0; data[o + 3] = 0;
       }

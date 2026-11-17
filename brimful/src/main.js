@@ -914,7 +914,7 @@ const glowPos = new THREE.Vector3(0, 12, 0);
 function trackGlow() {
   const mat = world.mat; let n = 0, sx = 0, sy = 0, sz = 0;
   for (let i = 0; i < mat.length; i += 3) {
-    const m = mat[i]; if (m !== LAVA && m !== FIRE) continue;
+    const m = mat[i]; if (m !== LAVA && m !== FIRE && m !== 24) continue;
     n++; sx += i % W; sz += ((i / W) | 0) % D; sy += (i / (W * D)) | 0;
   }
   glowGoal = Math.min(1, n / 40);
@@ -955,6 +955,11 @@ function frame(now) {
     state.tod = (state.tod + d * Math.min(1, dt * 2.5) + 1) % 1;
   }
 
+  // smoke curls from a few roofs
+  if (!state.paused && gfx.motes && Math.random() < 0.35) {
+    const x = ri(W), z = ri(D), y = world.groundY(x, z) - 1;
+    if (world.get(x, y, z) === 19 && world.get(x, y - 1, z) === 16) fx.emit(x + 0.5, y + 0.6, z + 0.5, 0.25 + Math.random() * 0.3, 0.9, (Math.random() - 0.5) * 0.3, 0xd9d6d0, 4, -0.012);
+  }
   // petals and leaves drift down in the blossom and autumn biomes
   if (!state.paused && gfx.motes) for (let k = 0; k < 2; k++) {
     const x = ri(W), z = ri(D), b = world.biome[x + z * W];
