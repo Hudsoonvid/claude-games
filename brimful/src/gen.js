@@ -109,6 +109,41 @@ export const PRESETS = [
   P('bamboo', 'Bamboo valley', 'Wild', 'Tall green stems around a stream', [14, 14, 0, 7], (c, x, z) => 12.5 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(7, 11) }),
   P('redwoods', 'Redwood coast', 'Wild', 'Giant trees down to the sea', [24, 24, 1, 9], (c, x, z) => 13 + c.n(x, z) * 8 + c.hp(c, x, z) - (1 - sstep(0.1, 0.3, x / W)) * 8, { hp: hillsAndPonds(6, 0) }),
   P('moors', 'Moorland', 'Wild', 'Heather and wind on open hills', [25, 25, 8, 0], (c, x, z) => 13 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(5, 8), trees: 0.4 }),
+  // ---------------------------------------------------------------- second batch
+  P('wildflower', 'Wildflower meadow', 'Gentle', 'Every colour of bloom', [32, 32, 0, 15], (c, x, z) => 12.5 + c.n(x, z) * 4 + c.hp(c, x, z), { hp: hillsAndPonds(3, 8), trees: 0.4, tufts: 1.6 }),
+  P('olivecoast', 'Olive coast', 'Gentle', 'Silver groves above a warm sea', [30, 30, 18, 19], (c, x, z) => 7 + (z / D) * 12 + c.n(x, z) * 5, { trees: 1.2, villages: 1.3 }),
+  P('maple', 'Maple valley', 'Gentle', 'Red woods around a quiet pond', [29, 29, 0, 2], (c, x, z) => 12.5 + c.n(x, z) * 8 + c.hp(c, x, z), { hp: hillsAndPonds(9, 13), trees: 1.3 }),
+  P('aspen', 'Aspen hills', 'Gentle', 'Golden leaves on rolling hills', [31, 31, 9, 0], (c, x, z) => 12.5 + c.n(x, z) * 9 + c.hp(c, x, z), { hp: hillsAndPonds(10, 11), trees: 1.3 }),
+  P('riverbend', 'River bend', 'Water', 'A broad river looping through meadows', [0, 9, 29, 21], (c, x, z) => 7 + sstep(2, 8, Math.abs(z - meander(c, x, 0.3))) * 7 + c.n(x, z) * 3.5),
+  P('bayou', 'Bayou', 'Water', 'Cypress and still black water', [28, 28, 6, 13], (c, x, z) => 9 + c.n(x, z) * 3.2 + c.nn(x, z, 6, 9) * 1.8, { sand: (c, x, z, h) => h < c.WL - 1, tufts: 2.5, trees: 1.3 }),
+  P('floodplain', 'Floodplain', 'Water', 'A wide shallow river and wet fields', [0, 13, 19, 21], (c, x, z) => 8.5 + sstep(4, 14, Math.abs(z - meander(c, x, 0.12))) * 4.5 + c.n(x, z) * 2, { villages: 1.4 }),
+  P('twinlakes', 'Twin lakes', 'Water', 'Two lakes joined by a stream', [0, 1, 9], (c, x, z) => {
+    const a = gauss(x, z, W * 0.3, D * 0.45, 10 * c.S), b = gauss(x, z, W * 0.7, D * 0.55, 10 * c.S);
+    const t = Math.max(0, Math.min(1, ((x - W * 0.3) * 0.4 + (z - D * 0.45) * 0.1) / (W * 0.16 + 0.01))), sz = D * 0.45 + t * D * 0.1, sx = W * 0.3 + t * W * 0.4;
+    const stream = (1 - sstep(1, 2.6, Math.hypot(x - sx, z - sz))) * (x > W * 0.3 && x < W * 0.7 ? 1 : 0);
+    return 13 + c.n(x, z) * 5 - (a + b) * 11 - stream * 3;
+  }),
+  P('frozensea', 'Frozen sea', 'Water', 'Ice floes between snowy islands', [23, 5, 26], (c, x, z) => Math.min(4.5 + c.n(x, z) * 3.5 + sum(c.isles, (p) => gauss(x, z, p[0], p[1], p[2]) * (8 + p[2] * 0.5)), 19 + c.n(x, z) * 3), { freeze: true, villages: 0.4 }),
+  P('volcanicisle', 'Volcanic island', 'Rugged', 'A smoking peak in the middle of the sea', [18, 22, 13], (c, x, z) => {
+    const r = Math.hypot(x - W / 2, z - D / 2) / c.S;
+    return 4 + c.n(x, z) * 3 + Math.exp(-(r * r) / 420) * 10 + Math.max(0, 20 - r * 1.3) - Math.max(0, 4.5 - r) * 3.2;
+  }, { cones: 'center', sand: (c, x, z, h) => h <= c.WL + 2, villages: 0.6 }),
+  P('badcanyons', 'Badlands canyons', 'Rugged', 'Red rock cut by dry gullies', [12, 12, 27], (c, x, z) => {
+    let h = 21 + c.n(x, z) * 4;
+    for (let k = 0; k < 3; k++) { const z0 = D * (0.2 + 0.3 * k) + Math.sin(x / W * 6 + k * 2 + c.ph) * D * 0.08; h -= (1 - sstep(1.5, 7, Math.abs(z - z0))) * 12; }
+    return h;
+  }, { trees: 0.5 }),
+  P('pillars', 'Stone pillars', 'Rugged', 'Tall rock spires over scrub', [27, 12, 19], (c, x, z) => 11 + c.n(x, z) * 3 + sum(c.pillars, (p) => (1 - sstep(p[2] * 0.6, p[2], Math.hypot(x - p[0], z - p[1]))) * p[3]), { stoneAbove: 15, trees: 0.5 }),
+  P('snowmountains', 'Snowy mountains', 'Rugged', 'Deep snow from the treeline up', [0], (c, x, z) => { const rg = c.ridge(x, z, 12); return 13 + c.n(x, z) * 5 + rg * rg * 22; }, { byHeight: [[14, 26], [20, 10], [99, 5]], snowline: 22, villages: 0.5 }),
+  P('moonglade', 'Moonglade', 'Wild', 'Blue willows and glowing pools', [34, 34, 16, 6], (c, x, z) => 12 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(5, 11), pondN: 2, pondR: [4, 8], villages: 0.5 }),
+  P('emberwoods', 'Ember woods', 'Wild', 'Crimson conifers and lava seeps', [33, 33, 22], (c, x, z) => 12.5 + c.n(x, z) * 6, { pools: (c, x, z, h) => (c.nn(x, z, 8, 77) > 0.72 && h < 16 ? 1 : 0), villages: 0.3, wl: 9 }),
+  P('baobab', 'Baobab plains', 'Wild', 'Great flat-topped trees on golden grass', [35, 35, 4, 19], (c, x, z) => 12.5 + c.n(x, z) * 3 + c.hp(c, x, z), { hp: hillsAndPonds(2, 7), pondN: 0.6, trees: 0.8 }),
+  P('checker', 'Biome checkerboard', 'Special', 'Every biome in its own square', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x >> 3) * 7 + (z >> 3) * 13) % BIO.length) }),
+  P('spiral', 'Spiral island', 'Special', 'A ridge winding round a central lake', [0, 3, 9, 21], (c, x, z) => {
+    const dx = x - W / 2, dz = z - D / 2, r = Math.hypot(dx, dz) / c.S, a = (Math.atan2(dz, dx) + Math.PI) / (Math.PI * 2);
+    const d = Math.abs((((r / 7 - a) % 1) + 1) % 1 - 0.5);
+    return 6 + (1 - sstep(0.12, 0.3, d)) * 12 * sstep(3, 8, r) + c.n(x, z) * 2;
+  }, { sand: atollSand }),
   // ---------------------------------------------------------------- special
   P('random', 'Surprise me', 'Special', 'Any of the above, with mixed-up biomes', [0], null),
   P('flat', 'Flat sandbox', 'Special', 'Level ground, nothing else', [0], () => 12, { wl: 0, trees: 0, tufts: 0.2, villages: 0 }),
@@ -153,7 +188,8 @@ export function generate(world, presetId) {
   c.ponds = nFeat === 1 && !pre.pondN ? [[W * (0.3 + rnd() * 0.4), D * (0.3 + rnd() * 0.4), 9 + rnd() * 5]] : spots(nFeat * (pre.pondN || 1), ...(pre.pondR || [9, 14]));
   c.hills = spots(nFeat, 9, 14);
   c.isles = spots(7 * area * (pre.isleN || 1), 5, 10);
-  c.cones = pre.cones === 2 ? [[W * 0.32, D * 0.36], [W * 0.68, D * 0.64]] : [[c.vx, c.vz]];
+  c.cones = pre.cones === 2 ? [[W * 0.32, D * 0.36], [W * 0.68, D * 0.64]] : pre.cones === 'center' ? [[W / 2, D / 2]] : [[c.vx, c.vz]];
+  c.pillars = Array.from({ length: Math.max(3, Math.round(12 * area)) }, () => [W * (0.1 + rnd() * 0.8), D * (0.1 + rnd() * 0.8), 1.3 + rnd() * 1.6, 8 + rnd() * 12]);
 
   // ---------------------------------------------------------------- heights
   const hm = new Int32Array(W * D);
