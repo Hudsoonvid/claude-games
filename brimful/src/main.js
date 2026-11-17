@@ -363,7 +363,7 @@ function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
   $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep', wolf: 'Wolves' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
-  $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name}</label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
+  $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name} <small style="opacity:.55">${TIERS[v.tier ?? 0]}</small></label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
   $('censusDate').textContent = dateLabel();
   $('censusChron').innerHTML = state.chron.length ? state.chron.slice(-8).reverse().map((e) => `<li><small>${e.d}</small>${e.t}${e.n > 1 ? ` <b>×${e.n}</b>` : ''}</li>`).join('') : '<li class="zero">Nothing has happened yet.</li>';
   $('censusWorld').innerHTML = (state.seasons ? row('Season', SEASONS[Math.floor(state.year * 4)]) : '') + row('Type', (WORLD_TYPES.find((t) => t[0] === state.preset) || [0, state.preset])[1]) + row('Seed', state.seed || '—') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
@@ -726,7 +726,7 @@ function lowerCol(x, z) {
 }
 
 // ---------------------------------------------------------------- the chronicle: what happened, and when
-const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'], TIERS = ['hamlet', 'village', 'town'];
 const vname = (c) => (critters.villages[c.vid] || {}).name || 'the wilds';
 function dateLabel() { return `Day ${state.day}` + (state.seasons ? `, ${SEASONS[Math.floor(state.year * 4)].toLowerCase()} of year ${state.yearN}` : ''); }
 function chronicle(text) {
@@ -1048,6 +1048,7 @@ critters.onEvent = (t, c) => {
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') { sound.blip(392, 0.25, 'triangle', 0.07); if (booted) chronicle(`${c.name || 'A villager'} built a hut in ${vname(c)}`); }
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
+  else if (t === 'hall' && booted) { chronicle(`${vname(c)} raised a town hall`); sound.boom(0.2, 0.8, 300); }
   else if (t === 'founded' && booted) { toast(`A new village: ${c.name}`); chronicle(`${c.name} was founded`); }
   else if (t === 'born' && booted) chronicle(`${c.name} was born in ${vname(c)}`);
   else if (t === 'died' && booted) chronicle(`${c.name || 'A villager'} of ${vname(c)} was lost`);
@@ -1464,6 +1465,11 @@ function frame(now) {
   statT += dt;
   if (statT > 0.5) {
     statT = 0; if (selected) syncCard(); banners.sync();
+    critters.villages.forEach((v, i) => { // hamlets grow into villages and villages into towns
+      const pop = critters.population(i), tier = pop >= 15 ? 2 : pop >= 6 ? 1 : 0;
+      if (v.tier === undefined) v.tier = tier;
+      else if (tier > v.tier) { v.tier = tier; chronicle(`${v.name} grew into a ${TIERS[tier]}`); toast(`${v.name} is now a ${TIERS[tier]}`); }
+    });
     renderCensus();
     $('fps').textContent = `${Math.round(perf.fps)} frames per second · ${gfx.mode === 'auto' ? 'Auto: ' + LEVEL_NAMES[gfx.level] : gfx.mode === 'custom' ? 'Custom' : LEVEL_NAMES[gfx.level]} · ${Math.round(innerWidth * renderer.getPixelRatio())}×${Math.round(innerHeight * renderer.getPixelRatio())}`;
   }

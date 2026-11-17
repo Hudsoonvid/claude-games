@@ -698,6 +698,7 @@ export class World {
       this.set(x + dx, y, z + dz, wall && !door ? PLANK : AIR);
       this.set(x + dx, y + 1, z + dz, wall ? PLANK : AIR);
       this.set(x + dx, y + 2, z + dz, THATCH);
+      for (let k = y - 1; k >= y - 3 && !OPAQUE[this.get(x + dx, k, z + dz)]; k--) this.set(x + dx, k, z + dz, STONE);
       if (this.get(x + dx, y - 1, z + dz) === TURF) this.set(x + dx, y - 1, z + dz, SOIL);
     }
     this.set(x, y + 3, z, THATCH);
@@ -721,6 +722,30 @@ export class World {
     this.updateBeds(); this.addWater(x, z, 0.85);
     return true;
   }
+  // a town hall: a 5x5 stone house with plank corners, a door on the south side, a stepped thatch roof and a lantern
+  hall(x, y, z) {
+    if (x < 3 || z < 3 || x > W - 4 || z > D - 4) return false;
+    // sit on the highest ground under the footprint and lay a stone footing over dips of up to two blocks
+    let lo = H; y = 0;
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { const g = this.groundY(x + dx, z + dz); y = Math.max(y, g); lo = Math.min(lo, g); }
+    if (y - lo > 2 || y < 1 || y > H - 9) return false;
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+      for (let k = y - 1; k >= y - 3 && !OPAQUE[this.get(x + dx, k, z + dz)]; k--) if (this.wet(x + dx, k, z + dz) || !OPAQUE[this.get(x + dx, k - 1, z + dz)] && k === y - 3) return false;
+      if (this.wet(x + dx, y, z + dz)) return false;
+      for (let dy = 0; dy < 7; dy++) { const m = this.get(x + dx, y + dy, z + dz); if (m !== AIR && m !== TUFT && m !== SEED && m !== SNOW && m !== CROP) return false; }
+    }
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+      const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2, corner = Math.abs(dx) === 2 && Math.abs(dz) === 2, door = dz === 2 && dx === 0;
+      for (let dy = 0; dy < 3; dy++) this.set(x + dx, y + dy, z + dz, edge && !(door && dy < 2) ? (corner ? PLANK : dy === 1 && (dx === 0 || dz === 0) && !door ? PLANK : STONE) : AIR);
+      for (let k = y - 1; k >= y - 3 && !OPAQUE[this.get(x + dx, k, z + dz)]; k--) this.set(x + dx, k, z + dz, STONE);
+      if (this.get(x + dx, y - 1, z + dz) === TURF) this.set(x + dx, y - 1, z + dz, SOIL);
+      this.set(x + dx, y + 3, z + dz, THATCH);
+      if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1) this.set(x + dx, y + 4, z + dz, THATCH);
+    }
+    this.set(x, y + 5, z, THATCH); this.set(x, y + 6, z, LAMP);
+    return true;
+  }
+
   // a tall plank lookout with a lantern on top
   tower(x, y, z) {
     if (!this.clearFor(x, y, z, 8)) return false;

@@ -658,6 +658,14 @@ export class Critters {
     const here = w.get(cx, cy, cz);
     if (here === CROP && w.getAux(cx, cy, cz) >= 3) { w.set(cx, cy, cz, CROP, 0); c.meal = (c.meal || 0) + 1; this.fx.burst(c.x, c.y + 0.4, c.z, 6, 0xe0b040, 1.5); }
     if (c.eatCd > 0) return;
+    // a town raises its hall near the hearth, once
+    const vil = this.villages[c.vid];
+    if (vil && vil.tier >= 2 && !vil.hall && c.ground && rnd() < 0.02 && Math.hypot(vil.x - c.x, vil.z - c.z) < 12) {
+      for (let k = 0; k < 16; k++) {
+        const a = rnd() * 6.283, r = 5 + rnd() * 5, hx = Math.round(vil.x + Math.cos(a) * r), hz = Math.round(vil.z + Math.sin(a) * r), hy = w.groundY(hx, hz);
+        if (w.hall(hx, hy, hz)) { vil.hall = true; c.eatCd = 6; this.fx.burst(hx + 0.5, hy + 3, hz + 0.5, 30, 0xd9d0c0, 4); this.onEvent('hall', c); return; }
+      }
+    }
     // fish from the bank
     if ((c.meal || 0) < 2 && c.ground && w.surfAt(c.x + Math.sin(c.yaw) * 1.5, c.z + Math.cos(c.yaw) * 1.5) > 0) {
       for (const o of this.list) if (!o.dead && o.kind === 'minnow' && this.possessed !== o && Math.hypot(o.x - c.x, o.z - c.z) < 4) {
