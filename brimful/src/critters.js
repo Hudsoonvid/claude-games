@@ -446,9 +446,9 @@ export class Critters {
       // now and then a fish near the top jumps clear of the water
       if (c.leap > 0) {
         c.leap -= dt;
-        if (c.leap <= 0) { this.fx.burst(c.x, s2, c.z, 7, 0xd8f0f8, 2); w.ripple(c.x, c.z, 0.3); this.onEvent('plop', c); }
+        if (c.leap <= 0) { this.fx.burst(c.x, s2, c.z, 7, 0xd8f0f8, 2); w.ripple(c.x, c.z, 0.12); this.onEvent('plop', c); }
       } else if (!ctl && s2 > 0 && c.y > s2 - 1.8 && rnd() < dt * (c.kind === 'koi' ? 0.015 : 0.03)) {
-        c.leap = 0.75; this.fx.burst(c.x, s2, c.z, 6, 0xd8f0f8, 1.6); w.ripple(c.x, c.z, 0.2);
+        c.leap = 0.75; this.fx.burst(c.x, s2, c.z, 6, 0xd8f0f8, 1.6); w.ripple(c.x, c.z, 0.08);
       }
       if (Math.hypot(c.vx, c.vz) > 0.2) c.yaw = lerpAngle(c.yaw, Math.atan2(c.vx, c.vz), Math.min(1, dt * 8));
       if (here === WEED && c.eatCd <= 0 && c.food < 6) { w.set(cx, cy, cz, AIR); c.food++; c.eatCd = 4; this.fx.burst(c.x, c.y, c.z, 4, 0x58c08a, 1); }
@@ -535,7 +535,7 @@ export class Critters {
       if (c.walk) { dx = Math.sin(c.heading); dz = Math.cos(c.heading); }
     }
     if (c.flee > 0) { c.flee -= dt; sp *= 1.6; }
-    if (inWater && (dx || dz) && rnd() < dt * 6) w.ripple(c.x, c.z, kind === 'deer' || kind === 'villager' ? 0.09 : 0.05);
+    if (inWater && (dx || dz) && rnd() < dt * 6) w.ripple(c.x, c.z, kind === 'deer' || kind === 'villager' ? 0.04 : 0.025);
     if (kind === 'frog' && this.night > 0.6 && inWater && rnd() < dt * 0.04) this.onEvent('croak', c);
     // vertical
     if (inWater && (kind === 'crab' || kind === 'heron')) { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom

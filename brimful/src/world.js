@@ -190,8 +190,11 @@ export class World {
   shaded(x, y, z) { for (let k = 2; k < 8; k++) if (this.get(x, y + k, z) === LEAF) return true; return false; }
   // a small volume-neutral disturbance: swimmers and splashes send rings across the water
   ripple(fx, fz, a) {
-    this.wakeW(fx | 0, fz | 0);
     const i = this.wcell(fx, fz), wd = this.wd; if (wd[i] < 0.3) return;
+    // calm, sleeping water is only stirred by the bigger splashes, so a sea full of fish can still settle
+    const t = ((i % WW) >> 4) + ((((i / WW) | 0) >> 4) * (WW >> 4));
+    if (!this.wact[t] && a < 0.15 && rnd() > 0.02) return;
+    this.wakeW(fx | 0, fz | 0);
     const x = i % WW, z = (i / WW) | 0; let n = 0;
     // the swimmer pushes water aside: a dip where it is, a rise around it
     for (const j of [x > 0 ? i - 1 : -1, x < WW - 1 ? i + 1 : -1, z > 0 ? i - WW : -1, z < WH - 1 ? i + WW : -1]) if (j >= 0 && wd[j] > 0.1) { wd[j] += a * 0.25; n++; }
@@ -314,7 +317,7 @@ export class World {
           for (let x = tx << 4, xe = x + 16; x < xe; x++, i++) {
             const d = wd[i];
             if (d <= 0) { fl[i] = fr[i] = ft[i] = fb[i] = 0; continue; }
-            const h = wb[i] + d, damp = d > 0.4 ? 0.9975 : 0.955, ex = x & 15, ez = z & 15;
+            const h = wb[i] + d, damp = d > 0.4 ? 0.995 : 0.955, ex = x & 15, ez = z & 15;
             let a = (ex === 15 && !openR) ? 0 : fr[i] * damp + k * (x < WW - 1 ? h - wb[i + 1] - wd[i + 1] : Math.min(h - RIM, d));
             let b = (ex === 0 && !openL) ? 0 : fl[i] * damp + k * (x > 0 ? h - wb[i - 1] - wd[i - 1] : Math.min(h - RIM, d));
             let c = (ez === 15 && !openB) ? 0 : fb[i] * damp + k * (z < WH - 1 ? h - wb[i + WW] - wd[i + WW] : Math.min(h - RIM, d));
@@ -354,7 +357,7 @@ export class World {
     for (let t = 0; t < wact.length; t++) {
       if (!wrun[t]) continue;
       nrun++; fsum += tmov[t];
-      if (tmov[t] > 3e-4) wact[t] = 6;
+      if (tmov[t] > 8e-4) wact[t] = 6;
       else if (wact[t] > 0 && --wact[t] === 0) {
         const tx = t % TX, tz = (t / TX) | 0;
         for (let z = tz << 4, ze = z + 16; z < ze; z++) { const i0 = (tx << 4) + z * WW; fl.fill(0, i0, i0 + 16); fr.fill(0, i0, i0 + 16); ft.fill(0, i0, i0 + 16); fb.fill(0, i0, i0 + 16); }
