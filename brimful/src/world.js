@@ -17,13 +17,13 @@ export function setSize(w, d, h = 40) {
 }
 
 export const AIR = 0, STONE = 1, SOIL = 2, TURF = 3, SAND = 4, ICE = 5, LAVA = 6, STEAM = 7,
-  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24, LILY = 25, PATH = 26;
+  WOOD = 8, LEAF = 9, TUFT = 10, WEED = 11, SEED = 12, FIRE = 13, BASALT = 14, PLANK = 15, THATCH = 16, SPRING = 17, DRAIN = 18, LAMP = 19, CROP = 20, SNOW = 21, REED = 22, MUSH = 23, HEARTH = 24, LILY = 25, PATH = 26, DAM = 27;
 
 export const OPAQUE = new Uint8Array(32);
-for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN, PATH]) OPAQUE[m] = 1;
+for (const m of [STONE, SOIL, TURF, SAND, WOOD, LEAF, BASALT, ICE, PLANK, THATCH, SPRING, DRAIN, PATH, DAM]) OPAQUE[m] = 1;
 // what the water treats as ground
 const BED = new Uint8Array(32);
-for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH, SPRING, DRAIN, PATH]) BED[m] = 1;
+for (const m of [STONE, SOIL, TURF, SAND, WOOD, BASALT, LAVA, ICE, PLANK, THATCH, SPRING, DRAIN, PATH, DAM]) BED[m] = 1;
 
 const ACTIVE = new Uint8Array(32);
 for (const m of [SOIL, TURF, SAND, LAVA, STEAM, SEED, FIRE, SPRING, DRAIN, HEARTH]) ACTIVE[m] = 1;
@@ -34,9 +34,9 @@ PP[AIR] = 1; PP[FIRE] = 1; PP[TUFT] = 1; PP[SEED] = 1; PP[WEED] = 1; PP[CROP] = 
 PP[LAVA] = 2; PP[STEAM] = 2;
 
 const FLAM = new Float32Array(32);
-FLAM[WOOD] = 0.07; FLAM[LEAF] = 0.3; FLAM[TUFT] = 0.45; FLAM[SEED] = 0.3; FLAM[PLANK] = 0.1; FLAM[THATCH] = 0.35; FLAM[CROP] = 0.4; FLAM[REED] = 0.35;
+FLAM[WOOD] = 0.07; FLAM[LEAF] = 0.3; FLAM[TUFT] = 0.45; FLAM[SEED] = 0.3; FLAM[PLANK] = 0.1; FLAM[THATCH] = 0.35; FLAM[CROP] = 0.4; FLAM[DAM] = 0.15; FLAM[REED] = 0.35;
 const BURN = new Uint8Array(32);
-BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8; BURN[CROP] = 4; BURN[REED] = 5;
+BURN[WOOD] = 26; BURN[LEAF] = 7; BURN[TUFT] = 4; BURN[SEED] = 5; BURN[PLANK] = 20; BURN[THATCH] = 8; BURN[CROP] = 4; BURN[DAM] = 12; BURN[REED] = 5;
 
 let seed = 0x9e3779b9 | 0;
 // worlds are generated from a seed, so the same seed, type and size always make the same world

@@ -468,6 +468,45 @@ lobes = [(0.22, 0.03, 0.3, 0.2, 0.13, 10), (0.37, 0.05, 0.3, 0.1, 0.08, 18)]
 animals.append(animal('owl', [body, discs, iris, beak, eyes(0.07, -0.18, 0.455, 0.011),
                                wing('wingL', 1, lobes, TINT(), (0.12, 0, 0.3), wshade), wing('wingR', -1, lobes, TINT(), (-0.12, 0, 0.3), wshade)]))
 
+# ---------------------------------------------------------------- wolf: a long-legged grey hunter
+def wolfcoat(co, n):
+    v = 1.0 - 0.38 * sm(-0.3, 0.6, n.z)
+    if co.y < -0.5 and co.z < 0.62:       # pale muzzle and throat
+        v = 1.15
+    return (v, v, v)
+
+body = fuse([
+    ell((0, 0.05, 0.52), (0.13, 0.42, 0.15)), ell((0, -0.26, 0.55), (0.14, 0.16, 0.18)), ell((0, 0.34, 0.53), (0.12, 0.15, 0.14)),
+    ell((0, -0.42, 0.67), (0.08, 0.1, 0.13), rot=(R(-35), 0, 0)),
+    ell((0, -0.55, 0.75), (0.1, 0.12, 0.095)), ell((0, -0.72, 0.71), (0.048, 0.12, 0.05)),
+    cone((0.07, -0.52, 0.88), 0.045, 0.14, verts=8), cone((-0.07, -0.52, 0.88), 0.045, 0.14, verts=8),
+    ell((0, 0.62, 0.48), (0.075, 0.24, 0.08), rot=(R(30), 0, 0)),
+], 'body', TINT(), voxel=0.026, faces=680, paint=wolfcoat)
+legs = [leg(f'leg{k}', x, y, 0.48, TINT(), thick=0.046, paint=coat(0.75, 1.0)) for k, (x, y) in enumerate([(0.08, -0.28), (-0.08, -0.28), (0.085, 0.36), (-0.085, 0.36)])]
+nose = part([ell((0, -0.845, 0.72), (0.024, 0.02, 0.02), seg=8, rings=6)], 'nose', DARK())
+animals.append(animal('wolf', [body, *legs, nose, eyes(0.06, -0.63, 0.79, 0.016)]))
+
+# ---------------------------------------------------------------- bear: heavy, round, hump-shouldered
+body = fuse([
+    ell((0, 0.05, 0.62), (0.3, 0.5, 0.3)), ell((0, -0.28, 0.7), (0.29, 0.24, 0.3)),          # body, shoulder hump
+    ell((0, -0.58, 0.68), (0.17, 0.18, 0.16)), ell((0, -0.75, 0.62), (0.085, 0.11, 0.075)),     # head, muzzle
+    ell((0.12, -0.55, 0.84), (0.05, 0.035, 0.05)), ell((-0.12, -0.55, 0.84), (0.05, 0.035, 0.05)),
+], 'body', TINT(), voxel=0.034, faces=680, paint=coat(0.62, 1.0, mottle=0.1, freq=10))
+legs = [leg(f'leg{k}', x, y, 0.5, TINT(), thick=0.1, paint=coat(0.55, 0.85), foot=0.03) for k, (x, y) in enumerate([(0.17, -0.3), (-0.17, -0.3), (0.18, 0.36), (-0.18, 0.36)])]
+nose = part([ell((0, -0.86, 0.64), (0.035, 0.025, 0.028), seg=8, rings=6)], 'nose', DARK())
+animals.append(animal('bear', [body, *legs, nose, eyes(0.08, -0.7, 0.74, 0.018)]))
+
+# ---------------------------------------------------------------- beaver: a stout rodent with a flat scaly tail
+body = fuse([
+    ell((0, 0.0, 0.17), (0.15, 0.25, 0.15)), ell((0, -0.22, 0.2), (0.11, 0.11, 0.1)), ell((0, -0.31, 0.18), (0.06, 0.06, 0.05)),
+    ell((0.06, -0.19, 0.29), (0.026, 0.02, 0.026)), ell((-0.06, -0.19, 0.29), (0.026, 0.02, 0.026)),
+    ell((0.1, 0.06, 0.05), (0.045, 0.09, 0.05)), ell((-0.1, 0.06, 0.05), (0.045, 0.09, 0.05)), ell((0.08, -0.13, 0.05), (0.035, 0.05, 0.05)), ell((-0.08, -0.13, 0.05), (0.035, 0.05, 0.05)),
+], 'body', TINT(), voxel=0.022, faces=440, paint=coat(0.62, 1.0, mottle=0.1, freq=18))
+tail = fuse([ell((0, 0.36, 0.07), (0.075, 0.13, 0.022))], 'tail', mat('beavertail', srgb(0x3a3430)), voxel=0.018, faces=80, pivot=(0, 0.24, 0.1),
+            paint=lambda co, n: ((0.75 + 0.25 * sm(0.4, 0.6, abs(math.sin(co.x * 60) * math.sin(co.y * 60)))),) * 3)
+teeth = part([cube((0, -0.355, 0.15), (0.03, 0.01, 0.03))], 'teeth', mat('teeth', srgb(0xe8c87a)))
+animals.append(animal('beaver', [body, tail, teeth, eyes(0.05, -0.27, 0.23, 0.013)]))
+
 # ---------------------------------------------------------------- props
 # a rowing boat for villagers on the water: hull hollowed with a boolean, a thwart to sit on
 hull = join([ell((0, 0, 0.12), (0.34, 0.74, 0.26))], 'hull')

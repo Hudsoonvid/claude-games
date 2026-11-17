@@ -3,7 +3,7 @@
 // glow (lava + fire). Water is not meshed here: it is a simulated surface drawn by its own shader.
 import { Color } from 'three';
 import { BIO } from './biomes.js';
-import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, HEARTH, LILY, PATH, OPAQUE } from './world.js';
+import { W, H, D, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, WOOD, LEAF, TUFT, WEED, SEED, FIRE, BASALT, PLANK, THATCH, SPRING, DRAIN, LAMP, CROP, SNOW, REED, MUSH, HEARTH, LILY, PATH, DAM, OPAQUE } from './world.js';
 
 class Buf {
   constructor(cap) {
@@ -41,7 +41,7 @@ const lin = (hex) => { const c = new Color(hex); return [c.r, c.g, c.b]; };
 const COL = [];
 COL[STONE] = lin(0x9d9ca6); COL[SOIL] = lin(0x7f5638); COL[TURF] = lin(0x6aa846); COL[SAND] = lin(0xecd79c);
 COL[WOOD] = lin(0x8a5a34); COL[LEAF] = lin(0x4f9f4c); COL[BASALT] = lin(0x45434d); COL[SEED] = lin(0xd0a65c);
-COL[PATH] = lin(0xa98a5e); COL[SPRING] = lin(0x6fb6d6); COL[DRAIN] = lin(0x55565e);
+COL[PATH] = lin(0xa98a5e); COL[DAM] = lin(0x6e4e30); COL[SPRING] = lin(0x6fb6d6); COL[DRAIN] = lin(0x55565e);
 COL[ICE] = lin(0xbfe6f7); COL[PLANK] = lin(0xc79a62); COL[THATCH] = lin(0xd9b65a);
 const C_STEAM = lin(0xffffff), C_LAVA1 = lin(0xff5a12), C_LAVA2 = lin(0xffc23a), C_FIRE = lin(0xffb028);
 const C_G1 = lin(0x4f9a3c), C_G2 = lin(0x78bf4e), C_G3 = lin(0xa6d568), C_DRY = lin(0xb9b96a), C_WEED = lin(0x2f9a72);
@@ -280,5 +280,5 @@ export function buildChunk(world, cx, cz) {
   return { solid: S.out(), mist: F.out(), glow: G.out(), flora: L.out() };
 }
 
-export const MATERIAL_COLORS = { [STONE]: 0x9d9ca6, [SOIL]: 0x7f5638, [TURF]: 0x6aa846, [SAND]: 0xecd79c, [LAVA]: 0xff6a1a, [WOOD]: 0x8a5a34, [LEAF]: 0x4f9f4c, [BASALT]: 0x45434d, [SEED]: 0xd0a65c, [TUFT]: 0x86cf58, [WEED]: 0x2f9a72, [ICE]: 0xbfe6f7, [PLANK]: 0xc79a62, [THATCH]: 0xd9b65a, [SPRING]: 0x6fb6d6, [DRAIN]: 0x55565e, [CROP]: 0xd9a53a, [PATH]: 0xa98a5e, [SNOW]: 0xf2f6ff, [REED]: 0x6a8a3a, [MUSH]: 0xcc2a1e };
+export const MATERIAL_COLORS = { [STONE]: 0x9d9ca6, [SOIL]: 0x7f5638, [TURF]: 0x6aa846, [SAND]: 0xecd79c, [LAVA]: 0xff6a1a, [WOOD]: 0x8a5a34, [LEAF]: 0x4f9f4c, [BASALT]: 0x45434d, [SEED]: 0xd0a65c, [TUFT]: 0x86cf58, [WEED]: 0x2f9a72, [ICE]: 0xbfe6f7, [PLANK]: 0xc79a62, [THATCH]: 0xd9b65a, [SPRING]: 0x6fb6d6, [DRAIN]: 0x55565e, [CROP]: 0xd9a53a, [PATH]: 0xa98a5e, [DAM]: 0x6e4e30, [SNOW]: 0xf2f6ff, [REED]: 0x6a8a3a, [MUSH]: 0xcc2a1e };
 export const WATER_COLOR = 0x3fb0d6;

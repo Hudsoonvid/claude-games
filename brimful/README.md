@@ -44,8 +44,9 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   through trees, grass and huts; water puts it out; ice melts by heat.
 - **Growth**: soil near water turns to turf with real blade grass, flowers and trees in each biome's colours;
   waterweed takes root on lake beds, cattails stand in the shallows and mushrooms come up in forest shade.
-- **Life**: eighteen creatures — minnows, koi, ducks, turtles, herons, frogs, crabs, mossbacks, rabbits, sheep, deer,
-  foxes, bees, butterflies, songbirds, owls, glimmers and villagers. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
+- **Life**: 21 creatures — minnows, koi, ducks, turtles, herons, frogs, crabs, beavers, mossbacks, rabbits, sheep,
+  deer, foxes, wolves, bears, bees, butterflies, songbirds, owls, glimmers and villagers. Wolves hunt in packs at
+  night, bears fish the shallows, and beavers fell trees and build stick dams that hold back the water. Animals graze, hunt, pollinate and multiply; villagers fell trees, replant, farm fields, build
   lantern-lit huts and raise families. Every village has a name and a coloured pennant by its hearth, its people wear
   footpaths into the grass, and settlers who build far from home found new villages. The menu under the title lists
   each village and its population. Ride along with any of them in
@@ -72,7 +73,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 
 ## Creature models
 
-The eighteen creatures are modelled procedurally in Blender by `tools/make_animals.py` and exported as one GLB that
+The creatures are modelled procedurally in Blender by `tools/make_animals.py` and exported as one GLB that
 is embedded in the build. To regenerate them after editing the script:
 
 ```bash

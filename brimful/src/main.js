@@ -203,8 +203,8 @@ const TOOLS = [
   { id: 'dig', tab: 'earth', label: 'Scoop', type: 'dig', color: '#efe7d8', glyph: '⌣' },
   // life
   ...KIND_IDS.map((k) => ({ id: k, tab: 'life', label: k[0].toUpperCase() + k.slice(1), type: 'critter',
-    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158', koi: '#ffd2bd', turtle: '#cfe6b8', heron: '#dfe8f2', sheep: '#f4f0e6', owl: '#d9c4a6' }[k] || '#eee',
-    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦', koi: '➤', turtle: '◒', heron: '⌇', sheep: '☁', owl: '◉' }[k] || k[0].toUpperCase(), gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
+    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158', koi: '#ffd2bd', turtle: '#cfe6b8', heron: '#dfe8f2', sheep: '#f4f0e6', owl: '#d9c4a6', wolf: '#c9c6c0', bear: '#b89a80', beaver: '#c8a684' }[k] || '#eee',
+    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦', koi: '➤', turtle: '◒', heron: '⌇', sheep: '☁', owl: '◉', wolf: '◭', bear: '●', beaver: '⌒' }[k] || k[0].toUpperCase(), gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
   { id: 'possess', tab: 'life', label: 'Ride along', type: 'possess', color: '#f6d9c9', glyph: '⌖' },
   // powers
   { id: 'fire', tab: 'powers', label: 'Spark', type: 'fire', color: '#ffb028', glyph: '♨' },
@@ -290,7 +290,7 @@ $('brand').onclick = (e) => { e.stopPropagation(); openSheet('census'); };
 function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
-  $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
+  $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep', wolf: 'Wolves' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
   $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name}</label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
   $('censusDate').textContent = dateLabel();
   $('censusChron').innerHTML = state.chron.length ? state.chron.slice(-8).reverse().map((e) => `<li><small>${e.d}</small>${e.t}${e.n > 1 ? ` <b>×${e.n}</b>` : ''}</li>`).join('') : '<li class="zero">Nothing has happened yet.</li>';
@@ -378,7 +378,7 @@ const perf = {
 function populate(villages) {
   if (state.preset === 'bare') return;
   const area = (W * D) / 4096, n = (k) => Math.max(1, Math.round(k * area));
-  const left = { minnow: n(8), koi: n(2), duck: n(2), turtle: n(1), heron: n(1), frog: n(3), crab: n(3), mossback: n(4), rabbit: n(4), deer: n(2), fox: n(1), bee: n(4), butterfly: n(5), songbird: n(3), owl: n(1), glimmer: n(6) };
+  const left = { minnow: n(8), koi: n(2), duck: n(2), turtle: n(1), heron: n(1), frog: n(3), crab: n(3), mossback: n(4), rabbit: n(4), deer: n(2), fox: n(1), beaver: n(1), bear: area >= 1.5 ? n(0.5) : 0, wolf: area >= 1.5 ? n(1.5) : 0, bee: n(4), butterfly: n(5), songbird: n(3), owl: n(1), glimmer: n(6) };
   let tries = 6000 * area;
   while (tries-- > 0 && Object.values(left).some((v) => v > 0)) {
     const x = 3 + rnd() * (W - 6), z = 3 + rnd() * (D - 6), gy = world.groundY(x, z), top = world.get(x | 0, gy - 1, z | 0);
@@ -390,9 +390,11 @@ function populate(villages) {
     else if (s > 0 && dep > 0.7 && left.duck > 0) { critters.spawn('duck', x, s, z, true); left.duck--; }
     else if (s > 0 && dep > 0.2 && dep < 1.5 && left.frog > 0) { critters.spawn('frog', x, s, z, true); left.frog--; }
     else if (s > 0 && dep < 1.2 && left.crab > 0) { critters.spawn('crab', x, s, z, true); left.crab--; }
+    else if (s > 0 && dep > 0.4 && dep < 1.5 && left.beaver > 0) { critters.spawn('beaver', x, s, z, true); left.beaver--; }
     else if (top === TURF && s < 0) {
-      const k = ['mossback', 'rabbit', 'deer', 'fox', 'bee', 'butterfly', 'glimmer', 'songbird', 'owl'].find((q) => left[q] > 0 && rnd() < 0.3);
-      if (k) { critters.spawn(k, x, gy + (['mossback', 'rabbit', 'deer', 'fox'].includes(k) ? 0.1 : 2 + rnd() * 3), z, true); left[k]--; }
+      const k = ['mossback', 'rabbit', 'deer', 'fox', 'bear', 'wolf', 'bee', 'butterfly', 'glimmer', 'songbird', 'owl'].find((q) => left[q] > 0 && rnd() < 0.3);
+      if (k === 'wolf') { for (let j = 0; j < 3 && left.wolf > 0; j++) { critters.spawn('wolf', x + rnd() * 2, gy + 0.1, z + rnd() * 2, true); left.wolf--; } }   // wolves come in packs
+      else if (k) { critters.spawn(k, x, gy + (['mossback', 'rabbit', 'deer', 'fox', 'bear'].includes(k) ? 0.1 : 2 + rnd() * 3), z, true); left[k]--; }
     }
   }
   for (const v of villages || []) for (let k = 0, vid = critters.found(v.x, v.z); k < 2 + v.huts; k++) {
@@ -890,6 +892,8 @@ critters.onEvent = (t, c) => {
   else if (t === 'born' && booted) chronicle(`${c.name} was born in ${vname(c)}`);
   else if (t === 'died' && booted) chronicle(`${c.name || 'A villager'} of ${vname(c)} was lost`);
   else if (t === 'hunt' && booted && Math.random() < 0.35) chronicle(`A fox caught a${/^[aeiou]/.test(c.kind) ? 'n' : ''} ${c.kind}`);
+  else if (t === 'howl') { sound.blip(300, 1.2, 'sine', 0.035); setTimeout(() => sound.blip(390, 1.0, 'sine', 0.03), 500); if (booted && Math.random() < 0.15) chronicle('Wolves howled in the night'); }
+  else if (t === 'dam') { sound.blip(180, 0.06, 'square', 0.04); if (booted && Math.random() < 0.08) chronicle('Beavers worked on their dam'); }
   else if (t === 'plop') sound.blip(520 + Math.random() * 200, 0.08, 'sine', 0.035);
   else if (t === 'hoot') { sound.blip(330, 0.3, 'sine', 0.05); setTimeout(() => sound.blip(290, 0.45, 'sine', 0.05), 380); }
   else if (t === 'croak') { sound.blip(150 + Math.random() * 50, 0.12, 'square', 0.03); setTimeout(() => sound.blip(170, 0.1, 'square', 0.025), 160); }

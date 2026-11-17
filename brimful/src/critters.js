@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import animalsGlb from './animals.glb?inline';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, CROP, OPAQUE, rnd, ri } from './world.js';
+import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, CROP, DAM, OPAQUE, rnd, ri } from './world.js';
+const DXS = [1, -1, 0, 0], DZS = [0, 0, 1, -1];
 
 export const KINDS = {
   minnow: { name: 'minnow', cap: 70, hint: 'WASD swim · Space up · Shift down' },
@@ -15,6 +16,9 @@ export const KINDS = {
   turtle: { name: 'turtle', cap: 20, hint: 'WASD paddle or plod · Space hop' },
   heron: { name: 'heron', cap: 10, hint: 'WASD wade · Space hop' },
   sheep: { name: 'sheep', cap: 30, hint: 'WASD walk · Space hop' },
+  beaver: { name: 'beaver', cap: 14, hint: 'WASD swim or waddle · Space hop' },
+  bear: { name: 'bear', cap: 6, hint: 'WASD lumber · Space rear up' },
+  wolf: { name: 'wolf', cap: 12, hint: 'WASD lope · Space leap' },
   deer: { name: 'deer', cap: 25, hint: 'WASD walk · Space leap' },
   fox: { name: 'fox', cap: 12, hint: 'WASD run · Space leap' },
   crab: { name: 'crab', cap: 25, hint: 'WASD scuttle · Space hop' },
@@ -122,6 +126,7 @@ export function setCritterShadows(v) { critterShadows = v; }
 const TINTS = {
   minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
   villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
+  wolf: [[std(0x9a9894), std(0x8a8680), std(0xb0aca4), std(0x6a6662)]], bear: [[std(0x7a5236), std(0x6a4630), std(0x8a6440)]], beaver: [[std(0x7a5232), std(0x6a462c)]],
   koi: [[std(0xf7f3ea), std(0xfbe8c8), std(0xf2ead8)]], turtle: [[std(0x7a8a4a), std(0x8a7a4e), std(0x5f7a5a)]], heron: [[std(0xdfe6ee), std(0xc2cedc)]], owl: [[std(0xa88a62), std(0xb9a27e), std(0xd6ccba)]],
 };
 const plain = {};   // one shared Lambert per exported material colour
@@ -295,7 +300,7 @@ export class Critters {
   spawn(kind, x, y, z, quiet) {
     if (this.counts[kind] >= KINDS[kind].cap) return null;
     const c = {
-      kind, x, y, z, vx: 0, vy: 0, vz: 0, yaw: rnd() * 6.28, food: 0, age: quiet ? rnd() * 40 : 0, dry: 0, t: rnd() * 10,
+      kind, x, y, z, vx: 0, vy: 0, vz: 0, yaw: rnd() * 6.28, food: kind === 'beaver' ? 4 : 0, age: quiet ? rnd() * 40 : 0, dry: 0, t: rnd() * 10,
       tx: x, ty: y, tz: z, retarget: 0, ground: false, eatCd: 1 + rnd() * 3, hopCd: 0, walk: false, heading: rnd() * 6.28, rest: 0,
       hx: x, hz: z, mesh: build(kind), dead: false, size: quiet ? 1 : 0.2, name: kind === 'villager' ? personName() : '',
     };
@@ -474,7 +479,7 @@ export class Critters {
     if (surf > c.y + 0.3) c.swim = true; else if (surf < c.y - 0.25 || surf - w.bedAt(c.x, c.z) < 0.3) c.swim = false;
     const inWater = c.swim;
     const hops = kind === 'frog' || kind === 'rabbit';
-    let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7, deer: 2.2, fox: 2.8, crab: 1.2, sheep: 1.2, turtle: 0.8, heron: 1.3 }[kind], jump = false;
+    let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7, deer: 2.2, fox: 2.8, crab: 1.2, sheep: 1.2, turtle: 0.8, heron: 1.3, wolf: 3.2, bear: 1.4, beaver: 1.1 }[kind], jump = false;
     if (ctl) {
       dx = ctl.x; dz = ctl.z; sp *= kind === 'mossback' ? 2.4 : 1.6; jump = ctl.up > 0;
     } else {
@@ -482,7 +487,7 @@ export class Critters {
       if (c.retarget <= 0) {
         c.retarget = 2 + rnd() * 4; c.walk = rnd() < (kind === 'frog' ? 0.45 : 0.8);
         let ang = c.heading + (rnd() - 0.5) * 2.4, t = null;
-        const herd = kind === 'sheep' || kind === 'deer' || kind === 'duck', dayAnimal = herd || kind === 'rabbit' || kind === 'mossback' || kind === 'heron';
+        const herd = kind === 'sheep' || kind === 'deer' || kind === 'duck' || kind === 'wolf', dayAnimal = herd || kind === 'rabbit' || kind === 'mossback' || kind === 'heron';
         if (dayAnimal && this.night > 0.7 && !c.flee) c.walk = rnd() < 0.12;        // settle down after dark
         let herdAng = null;
         if (herd && rnd() < 0.75) { // keep with the herd: drift toward the nearest of its own kind when it strays
@@ -492,9 +497,17 @@ export class Critters {
         }
         if (GRAZE[kind]) { if (c.food < 5) t = this.find(c, TUFT, 6); if (kind === 'sheep' && !t && Math.hypot(c.hx - c.x, c.hz - c.z) > 15) { ang = Math.atan2(c.hx - c.x, c.hz - c.z); c.walk = true; } }
         if (kind === 'rabbit' || kind === 'deer' || kind === 'duck' || kind === 'sheep') { // bolt from a fox that gets close
-          for (const o of this.list) if (o.kind === 'fox' && !o.dead && Math.hypot(o.x - c.x, o.z - c.z) < 5.5) { t = null; ang = Math.atan2(c.x - o.x, c.z - o.z) + (rnd() - 0.5) * 0.6; c.walk = true; c.flee = 2.5; c.retarget = 1; break; }
+          for (const o of this.list) if ((o.kind === 'fox' || o.kind === 'wolf' || o.kind === 'bear') && !o.dead && Math.hypot(o.x - c.x, o.z - c.z) < 5.5) { t = null; ang = Math.atan2(c.x - o.x, c.z - o.z) + (rnd() - 0.5) * 0.6; c.walk = true; c.flee = 2.5; c.retarget = 1; break; }
         }
-        else if (kind === 'fox') {
+        else if (kind === 'wolf' && (this.night > 0.55 || c.food < 1) && c.eatCd <= 0) { // the pack hunts at night
+          let bd = 16; for (const o of this.list) if (!o.dead && (o.kind === 'deer' || o.kind === 'sheep' || o.kind === 'rabbit')) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < bd) { bd = d; t = [o.x - 0.5, 0, o.z - 0.5]; } }
+          if (t) c.retarget = 0.5;
+        } else if (kind === 'bear') {
+          if (c.food < 4) for (let k = 0; k < 8 && !t; k++) { const x = c.x + (rnd() - 0.5) * 16, z = c.z + (rnd() - 0.5) * 16, d = w.depthAt(x, z); if (d > 0.3 && d < 1.2) t = [x, 0, z]; }
+        } else if (kind === 'beaver') {
+          if (!inWater || rnd() < 0.3) for (let k = 0; k < 8 && !t; k++) { const x = c.x + (rnd() - 0.5) * 14, z = c.z + (rnd() - 0.5) * 14; if (w.depthAt(x, z) > 0.4) t = [x, 0, z]; }
+          if (c.food < 2 && rnd() < 0.5) { const tr = this.find(c, WOOD, 7, 10); if (tr) t = tr; }
+        } else if (kind === 'fox') {
           if (c.eatCd <= 0) { let bd = 11; for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback' || o.kind === 'sheep')) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < bd) { bd = d; t = [o.x - 0.5, 0, o.z - 0.5]; } } if (t) c.retarget = 0.6; }
         } else if (kind === 'crab') {
           for (let k = 0; k < 8 && !t; k++) { const x = c.x + (rnd() - 0.5) * 14, z = c.z + (rnd() - 0.5) * 14, d = w.depthAt(x, z); if (d > 0.05 && d < 1.6) t = [x, 0, z]; }
@@ -520,7 +533,7 @@ export class Critters {
     // vertical
     if (inWater && (kind === 'crab' || kind === 'heron')) { c.vy -= 9 * dt; sp *= 0.8; if (jump && c.ground) c.vy = 4; } // crabs walk the bottom
     else if (inWater) {
-      const sink = kind === 'duck' ? 0.16 : kind === 'frog' ? 0.22 : kind === 'deer' ? 0.7 : kind === 'villager' ? 0.05 : 0.3;
+      const sink = kind === 'beaver' ? 0.12 : kind === 'bear' ? 0.6 : kind === 'wolf' ? 0.4 : kind === 'duck' ? 0.16 : kind === 'frog' ? 0.22 : kind === 'deer' ? 0.7 : kind === 'villager' ? 0.05 : 0.3;
       if (kind === 'villager') sp *= 2.6;   // rowing is quicker than wading
       const want = Math.max(-3, Math.min(4, (surf - sink - c.y) * 9));
       c.vy += (want - c.vy) * Math.min(1, dt * 7);
@@ -555,7 +568,35 @@ export class Critters {
     if (dx || dz) c.yaw = lerpAngle(c.yaw, Math.atan2(dx, dz), Math.min(1, dt * 7));
 
     // appetites
-    if (kind === 'fox') {
+    if (kind === 'wolf') {
+      if (c.eatCd <= 0) for (const o of this.list) if (!o.dead && (o.kind === 'deer' || o.kind === 'sheep' || o.kind === 'rabbit') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.5) {
+        this.remove(o, 0xffffff); c.food += 2; c.eatCd = 90; this.onEvent('hunt', o); for (const m of this.list) if (m.kind === 'wolf' && Math.hypot(m.x - c.x, m.z - c.z) < 8) { m.food += 1; m.eatCd = 90; } break;
+      }
+      if (this.night > 0.65 && rnd() < dt * 0.012) this.onEvent('howl', c);
+      if (c.food >= 4 && c.age > 400 && this.counts.wolf < 8) { c.food = 0; c.age = 0; this.spawn('wolf', c.x, c.y + 0.2, c.z); }
+    } else if (kind === 'bear') {
+      if (c.eatCd <= 0 && inWater) for (const o of this.list) if (!o.dead && (o.kind === 'minnow' || o.kind === 'koi') && this.possessed !== o && Math.hypot(o.x - c.x, o.z - c.z) < 1.8) {
+        this.fx.burst(o.x, surf, o.z, 10, 0xbfe6f7, 3); this.remove(o); c.food++; c.eatCd = 40; break;
+      }
+      if (here === TUFT && c.eatCd <= 0) { w.set(cx, cy, cz, AIR); c.food += 0.5; c.eatCd = 6; }
+      if (c.food >= 6 && c.age > 600 && this.counts.bear < 4) { c.food = 0; c.age = 0; this.spawn('bear', c.x, c.y + 0.2, c.z); }
+    } else if (kind === 'beaver') {
+      // gnaw a trunk at its foot: the beaver takes the whole tree for its dam
+      if (c.eatCd <= 0 && !inWater) for (let k = 0; k < 12; k++) {
+        const x = cx + ri(5) - 2, z = cz + ri(5) - 2, y0 = cy - 1 + ri(3);
+        if (w.get(x, y0, z) === WOOD && w.get(x, y0 - 1, z) !== WOOD) { for (let y = y0; y < y0 + 12 && w.get(x, y, z) === WOOD; y++) w.set(x, y, z, AIR); c.food += 3; c.eatCd = 20; this.fx.burst(x + 0.5, cy + 0.5, z + 0.5, 8, 0x8a5a34, 2); this.onEvent('chop', c); break; }
+      }
+      // carry sticks to where the water is shallow, and build a dam there
+      if (c.food >= 1 && inWater && c.eatCd <= 0 && rnd() < dt * 2) {
+        for (let k = 0; k < 6; k++) {
+          const x = cx + ri(7) - 3, z = cz + ri(7) - 3, d = w.depthAt(x + 0.5, z + 0.5);
+          if (d < 0.15 || d > 2.2) continue;
+          const by = Math.floor(w.bedAt(x + 0.5, z + 0.5));
+          if (w.get(x, by, z) === AIR || w.get(x, by, z) === WEED) { w.set(x, by, z, DAM); c.food--; c.eatCd = 3; this.onEvent('dam', c); break; }
+        }
+      }
+      if (c.food >= 4 && c.age > 400 && inWater && this.counts.beaver < 10) { c.food = 0; c.age = 0; this.spawn('beaver', c.x, c.y + 0.2, c.z); }
+    } else if (kind === 'fox') {
       if (c.eatCd <= 0) for (const o of this.list) if (!o.dead && (o.kind === 'rabbit' || o.kind === 'duck' || o.kind === 'mossback') && this.possessed !== o && Math.hypot(o.x - c.x, o.y - c.y, o.z - c.z) < 1.3) { this.remove(o, 0xffffff); c.food++; c.eatCd = 70; this.onEvent('hunt', o); break; }
       if (c.food >= 4 && c.age > 320 && this.counts.fox < 5) { c.food = 0; c.age = 0; this.spawn('fox', c.x, c.y + 0.2, c.z); }
     } else if (kind === 'crab') {
