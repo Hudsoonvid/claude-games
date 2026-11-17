@@ -662,6 +662,7 @@ export class World {
         }
         case PATH: // a footpath grows back over if nobody walks it
           if (OPAQUE[up] || under) { mat[i] = SOIL; aux[i] = 0; this.markDirty(x, z); }
+          else if (aux[i] === 255) break;          // laid by hand: it stays
           else if (aux[i] > 0) aux[i]--;
           else if (rnd() < 0.05) { mat[i] = TURF; this.markDirty(x, z); }
           break;
@@ -756,7 +757,7 @@ export class World {
     if (m === TURF) {
       if (this.aux[i] + n >= 24) { this.mat[i] = PATH; this.aux[i] = 60; if (this.mat[i + WD] === TUFT) this.mat[i + WD] = AIR; this.quiet = true; this.markDirty(x, z); this.quiet = false; }
       else this.aux[i] += n;
-    } else if (m === PATH) this.aux[i] = Math.min(255, this.aux[i] + 20);
+    } else if (m === PATH && this.aux[i] < 255) this.aux[i] = Math.min(254, this.aux[i] + 20);
   }
 
   growLily(x, z, c) {

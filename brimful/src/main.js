@@ -1,7 +1,7 @@
 // Brimful — renderer, camera, tools and powers, graphics settings, saved worlds, UI and the main loop.
 import * as THREE from 'three';
 import * as WM from './world.js';
-import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
+import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, SNOW, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
 import { BIO } from './biomes.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity, setEdgeSolid } from './mesher.js';
@@ -218,13 +218,21 @@ const TOOLS = [
   { id: 'freeze', tab: 'powers', label: 'Freeze', type: 'freeze', color: '#cfeefa', glyph: '❄' },
   { id: 'thaw', tab: 'powers', label: 'Thaw', type: 'thaw', color: '#ffc9a8', glyph: '♒' },
   { id: 'bloom', tab: 'powers', label: 'Bloom', type: 'bloom', color: '#ffd0e6', glyph: '✿' },
-  { id: 'hut', tab: 'powers', label: 'Hut', type: 'hut', color: '#d9b65a', glyph: '⌂' },
+  { id: 'hut', tab: 'build', label: 'Hut', type: 'hut', color: '#d9b65a', glyph: '⌂' },
+  { id: 'well', tab: 'build', label: 'Well', type: 'well', color: '#b8b8c0', glyph: '◎' },
+  { id: 'tower', tab: 'build', label: 'Tower', type: 'tower', color: '#c79a62', glyph: '♜' },
+  { id: 'path', tab: 'build', label: 'Path', type: 'surface', to: 26, color: '#a98a5e', glyph: '⋯' },
+  { id: 'field', tab: 'build', label: 'Field', type: 'field', color: '#d9a53a', glyph: '⁙' },
+  { id: 'planks', tab: 'build', label: 'Planks', type: 'build', mat: 15 },
+  { id: 'thatch', tab: 'build', label: 'Thatch', type: 'build', mat: 16 },
+  { id: 'fence', tab: 'build', label: 'Fence', type: 'post', mat: 15, color: '#8a6a44', glyph: '‖' },
+  { id: 'lantern', tab: 'build', label: 'Lantern', type: 'post', mat: 19, color: '#ffd27a', glyph: '✧' },
   { id: 'settlers', tab: 'powers', label: 'Settlers', type: 'settlers', color: '#f3c9b0', glyph: '⚑' },
   { id: 'gift', tab: 'powers', label: 'Harvest gift', type: 'gift', color: '#f2d27a', glyph: '❦' },
   { id: 'shower', tab: 'powers', label: 'Meteor shower', type: 'shower', color: '#3a2e46', glyph: '✶', gc: '#ffb060' },
 ];
 const toolById = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
-const TABS = [['earth', 'Earth'], ['life', 'Life'], ['powers', 'Powers']];
+const TABS = [['earth', 'Earth'], ['life', 'Life'], ['build', 'Build'], ['powers', 'Powers']];
 
 const TIPS = {
   look: 'Drag to look around', sand: 'Pour sand: it slides into dunes', soil: 'Pour soil: holds steeper slopes and grows turf near water',
@@ -234,7 +242,7 @@ const TIPS = {
   biome: 'Paint a biome: changes grass, leaves and tree shapes', dig: 'Scoop away anything, water included',
   possess: 'Click a creature to steer it yourself', fire: 'Set things alight', bolt: 'Call down lightning', meteor: 'Drop a meteor',
   quake: 'Shake and crack the ground', tornado: 'A twister that tears up the ground and flings things about', surge: 'Raise a wall of water that crashes outward', cloud: 'A local downpour', dry: 'Boil water off into steam', freeze: 'Turn standing water to ice',
-  thaw: 'Melt ice back to water', bloom: 'Make everything nearby grow', hut: 'Raise a hut and a villager to live in it', settlers: 'Send a band of settlers to found a new village here', gift: 'Feed the villagers nearby and ripen their crops', shower: 'A scatter of small meteors over a wide area',
+  thaw: 'Melt ice back to water', bloom: 'Make everything nearby grow', hut: 'Raise a hut and a villager to live in it', well: 'Dig a stone well', tower: 'Raise a lookout tower with a lantern', path: 'Lay a footpath that stays', field: 'Sow a crop field', planks: 'Build with wooden planks', thatch: 'Build with thatch', fence: 'Set fence posts, one block at a time', lantern: 'Hang a lantern that glows at night', settlers: 'Send a band of settlers to found a new village here', gift: 'Feed the villagers nearby and ripen their crops', shower: 'A scatter of small meteors over a wide area',
 };
 
 // ---------------------------------------------------------------- toolbar UI
@@ -843,6 +851,31 @@ function useTool(first) {
       }, R + 1);
       world.randomTicks(1200);
       if (first) sound.blip(990, 0.3, 'triangle', 0.08); break;
+    case 'surface': // turn the top of the ground into something else
+      cols(at.x, at.z, (x, z) => {
+        const y = world.groundY(x, z) - 1, m = world.get(x, y, z);
+        if ((m === TURF || m === SOIL || m === SAND) && !world.wet(x, y + 1, z)) { world.set(x, y, z, tool.to, 255); const u = world.get(x, y + 1, z); if (u === TUFT || u === SNOW) world.set(x, y + 1, z, AIR); }
+      }, Math.max(0.6, R - 0.5));
+      break;
+    case 'field':
+      cols(at.x, at.z, (x, z) => {
+        const y = world.groundY(x, z) - 1, m = world.get(x, y, z), u = world.get(x, y + 1, z);
+        if ((m === TURF || m === SOIL) && (u === AIR || u === TUFT) && !world.wet(x, y + 1, z) && ((x + z) & 1) === 0) { world.set(x, y, z, SOIL); world.set(x, y + 1, z, 20, 0); }
+      }, R + 0.5);
+      break;
+    case 'post': {
+      if (!first && toolTick % 4) break;
+      const y = tool.mat === 19 ? p.y : world.groundY(p.x, p.z);
+      if (world.get(p.x, y, p.z) === AIR) { world.set(p.x, y, p.z, tool.mat); sound.blip(tool.mat === 19 ? 880 : 200, 0.06, 'triangle', 0.06); }
+      break;
+    }
+    case 'well': case 'tower': {
+      if (!first) break;
+      const gy = world.groundY(at.x, at.z);
+      if (type === 'well' ? world.well(at.x, gy, at.z) : world.tower(at.x, gy, at.z)) sound.blip(300, 0.2, 'triangle', 0.07);
+      else toast(`A ${type} needs a flat, dry 3×3 patch`);
+      break;
+    }
     case 'settlers': {
       if (!first) break;
       const gy = world.groundY(at.x, at.z), top = world.get(at.x, gy - 1, at.z);

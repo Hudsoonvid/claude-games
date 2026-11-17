@@ -28,7 +28,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 | Use the selected tool | Hold left button | One finger |
 | Orbit | Right-drag (or the Look tool) | Two fingers (or the Look tool) |
 | Zoom / pan | Scroll / Shift-drag | Pinch |
-| Pick a tool | Earth / Life / Powers tabs, 1–9 | Tap |
+| Pick a tool | Earth / Life / Build / Powers tabs, 1–9 | Tap |
 | Brush size | `[` `]` | + / − |
 | Pause, rain, help | P, R, H | Top bar |
 | Undo / redo a stroke or power | Ctrl/Cmd + Z, Shift + Ctrl/Cmd + Z | ↶ ↷ in the top bar |
@@ -52,6 +52,8 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   footpaths into the grass, and settlers who build far from home found new villages. The menu under the title lists
   each village and its population. Ride along with any of them in
   third or first person.
+- **Build**: huts, wells, lookout towers, footpaths that stay, crop fields, planks, thatch, fence posts and lanterns,
+  so you can lay out villages yourself.
 - **Powers**: spark, lightning, meteor, meteor shower, quake, tornado, surge, downpour, dry up, freeze, thaw, bloom,
   hut, settlers (a band who found a new village) and harvest gift.
 - **Chronicle**: a running history with a calendar (day, season and year): villages founded, births, new huts, losses,
