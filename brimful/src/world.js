@@ -72,13 +72,15 @@ export class World {
     this.wd = new Float32Array(n);        // water depth per water cell
     this.wb = new Float32Array(n);        // ground height per water cell
     this.fl = new Float32Array(n); this.fr = new Float32Array(n); this.ft = new Float32Array(n); this.fb = new Float32Array(n);
+    const nt = (WW >> 4) * (WH >> 4);
+    this.wact = new Uint8Array(nt).fill(6); this.wrun = new Uint8Array(nt); this.tmov = new Float32Array(nt);
   }
 
   resize(w, d) { setSize(w, d); this.alloc(); }
 
   clear() {
     this.mat.fill(0); this.aux.fill(0); this.dirty.fill(1); this.colDirty.fill(1); this.awake.fill(40);
-    this.biome.fill(0); this.wd.fill(0); this.fl.fill(0); this.fr.fill(0); this.ft.fill(0); this.fb.fill(0); this.cd.fill(0);
+    this.wact.fill(6); this.biome.fill(0); this.wd.fill(0); this.fl.fill(0); this.fr.fill(0); this.ft.fill(0); this.fb.fill(0); this.cd.fill(0);
   }
 
   inb(x, y, z) { return x >= 0 && x < W && z >= 0 && z < D && y >= 0 && y < H; }
@@ -160,21 +162,25 @@ export class World {
     return this.cd[c] > 0.05 && y < this.cs[c] && y + 0.5 >= this.bed[c];
   }
   addWater(x, z, vol) {
+    this.wakeW(x, z);
     if (x < 0 || x >= W || z < 0 || z >= D) return;
     const i = x * WR + z * WR * WW, wd = this.wd;
     wd[i] += vol; wd[i + 1] += vol; wd[i + WW] += vol; wd[i + WW + 1] += vol;
   }
   addWaterF(fx, fz, vol) {
+    this.wakeW(fx | 0, fz | 0);
     if (fx < 0 || fx >= W || fz < 0 || fz >= D) return;
     this.wd[this.wcell(fx, fz)] += vol * WR * WR;
   }
   takeWater(x, z, vol) {
+    this.wakeW(x, z);
     if (x < 0 || x >= W || z < 0 || z >= D) return 0;
     const i = x * WR + z * WR * WW, wd = this.wd; let got = 0;
     for (const j of [i, i + 1, i + WW, i + WW + 1]) { const t = Math.min(wd[j], vol); wd[j] -= t; got += t; }
     return got / 4;
   }
   fillTo(level) {
+    this.wakeAllWater();
     this.updateBeds();
     for (let i = 0; i < this.wd.length; i++) this.wd[i] = Math.max(0, level - this.wb[i]);
     this.aggregate();
@@ -184,6 +190,7 @@ export class World {
   shaded(x, y, z) { for (let k = 2; k < 8; k++) if (this.get(x, y + k, z) === LEAF) return true; return false; }
   // a small volume-neutral disturbance: swimmers and splashes send rings across the water
   ripple(fx, fz, a) {
+    this.wakeW(fx | 0, fz | 0);
     const i = this.wcell(fx, fz), wd = this.wd; if (wd[i] < 0.3) return;
     const x = i % WW, z = (i / WW) | 0; let n = 0;
     // the swimmer pushes water aside: a dip where it is, a rise around it
@@ -264,7 +271,7 @@ export class World {
       let y = 0, i = c;
       while (y < H && BED[mat[i]]) { y++; i += WD; }
       if (bed[c] === y) continue;
-      bed[c] = y;
+      bed[c] = y; this.wakeW(c % W, (c / W) | 0);
       const x = c % W, z = (c / W) | 0, j = x * WR + z * WR * WW;
       wb[j] = wb[j + 1] = wb[j + WW] = wb[j + WW + 1] = y;
     }
@@ -279,38 +286,82 @@ export class World {
     }
   }
 
+  // Water sleeps in 16x16-cell tiles: a tile runs while anything in it moved recently, and so do the tiles
+  // around it (so water can flow in). Anything that adds or removes water wakes the tile it touches.
+  wakeW(x, z) {   // voxel coordinates
+    const tx = Math.max(0, Math.min((WW >> 4) - 1, (x * WR) >> 4)), tz = Math.max(0, Math.min((WH >> 4) - 1, (z * WR) >> 4));
+    this.wact[tx + tz * (WW >> 4)] = 6;
+  }
+  wakeAllWater() { this.wact.fill(6); }
+
   stepWater() {
     this.updateBeds();
-    const { wd, wb, fl, fr, ft, fb } = this, k = WDT * GRAV;
-    for (let sub = 0; sub < 2; sub++) {
-      // accelerate the flow between neighbouring columns by their surface difference
-      for (let z = 0, i = 0; z < WH; z++) for (let x = 0; x < WW; x++, i++) {
-        const d = wd[i];
-        if (d <= 0) { fl[i] = fr[i] = ft[i] = fb[i] = 0; continue; }
-        const h = wb[i] + d, damp = d > 0.4 ? 0.9975 : 0.955;
-        let a = fr[i] * damp + k * (x < WW - 1 ? h - wb[i + 1] - wd[i + 1] : Math.min(h - RIM, d));
-        let b = fl[i] * damp + k * (x > 0 ? h - wb[i - 1] - wd[i - 1] : Math.min(h - RIM, d));
-        let c = fb[i] * damp + k * (z < WH - 1 ? h - wb[i + WW] - wd[i + WW] : Math.min(h - RIM, d));
-        let e = ft[i] * damp + k * (z > 0 ? h - wb[i - WW] - wd[i - WW] : Math.min(h - RIM, d));
-        if (a < 0) a = 0; if (b < 0) b = 0; if (c < 0) c = 0; if (e < 0) e = 0;
-        const out = (a + b + c + e) * WDT;
-        if (out > d) { const s = d / out; a *= s; b *= s; c *= s; e *= s; }
-        fr[i] = a; fl[i] = b; fb[i] = c; ft[i] = e;
+    const { wd, wb, fl, fr, ft, fb, wact, wrun, tmov } = this, k = WDT * GRAV, TX = WW >> 4, TZ = WH >> 4;
+    let any = 0;
+    for (let tz = 0, t = 0; tz < TZ; tz++) for (let tx = 0; tx < TX; tx++, t++) {
+      const r = wact[t] > 0 || (tx > 0 && wact[t - 1] > 0) || (tx < TX - 1 && wact[t + 1] > 0) || (tz > 0 && wact[t - TX] > 0) || (tz < TZ - 1 && wact[t + TX] > 0);
+      wrun[t] = r ? 1 : 0; any |= r;
+    }
+    tmov.fill(0);
+    if (any) for (let sub = 0; sub < 2; sub++) {
+      // accelerate the flow between neighbouring columns by their surface difference; a sleeping tile counts as a wall
+      for (let tz = 0, t = 0; tz < TZ; tz++) for (let tx = 0; tx < TX; tx++, t++) {
+        if (!wrun[t]) continue;
+        const openR = tx === TX - 1 || wrun[t + 1], openL = tx === 0 || wrun[t - 1], openB = tz === TZ - 1 || wrun[t + TX], openT = tz === 0 || wrun[t - TX];
+        let mv = tmov[t];
+        for (let z = tz << 4, ze = z + 16; z < ze; z++) {
+          let i = (tx << 4) + z * WW;
+          for (let x = tx << 4, xe = x + 16; x < xe; x++, i++) {
+            const d = wd[i];
+            if (d <= 0) { fl[i] = fr[i] = ft[i] = fb[i] = 0; continue; }
+            const h = wb[i] + d, damp = d > 0.4 ? 0.9975 : 0.955, ex = x & 15, ez = z & 15;
+            let a = (ex === 15 && !openR) ? 0 : fr[i] * damp + k * (x < WW - 1 ? h - wb[i + 1] - wd[i + 1] : Math.min(h - RIM, d));
+            let b = (ex === 0 && !openL) ? 0 : fl[i] * damp + k * (x > 0 ? h - wb[i - 1] - wd[i - 1] : Math.min(h - RIM, d));
+            let c = (ez === 15 && !openB) ? 0 : fb[i] * damp + k * (z < WH - 1 ? h - wb[i + WW] - wd[i + WW] : Math.min(h - RIM, d));
+            let e = (ez === 0 && !openT) ? 0 : ft[i] * damp + k * (z > 0 ? h - wb[i - WW] - wd[i - WW] : Math.min(h - RIM, d));
+            if (a < 0) a = 0; if (b < 0) b = 0; if (c < 0) c = 0; if (e < 0) e = 0;
+            const out = (a + b + c + e) * WDT;
+            if (out > d) { const s = d / out; a *= s; b *= s; c *= s; e *= s; }
+            fr[i] = a; fl[i] = b; fb[i] = c; ft[i] = e;
+          }
+        }
+        tmov[t] = mv;
       }
       // move the water
-      for (let z = 0, i = 0; z < WH; z++) for (let x = 0; x < WW; x++, i++) {
-        let v = -(fr[i] + fl[i] + fb[i] + ft[i]);
-        if (x > 0) v += fr[i - 1]; else if (fl[i] > 0.4 && rnd() < 0.02) this.ev('spill', -1, RIM, z / WR | 0);
-        if (x < WW - 1) v += fl[i + 1]; else if (fr[i] > 0.4 && rnd() < 0.02) this.ev('spill', W, RIM, z / WR | 0);
-        if (z > 0) v += fb[i - WW]; else if (ft[i] > 0.4 && rnd() < 0.02) this.ev('spill', x / WR | 0, RIM, -1);
-        if (z < WH - 1) v += ft[i + WW]; else if (fb[i] > 0.4 && rnd() < 0.02) this.ev('spill', x / WR | 0, RIM, D);
-        let d = wd[i] + v * WDT;
-        if (d < 0.015) d -= 0.0002;       // thin films soak into the ground
-        wd[i] = d > 1e-5 ? d : 0;
+      for (let tz = 0, t = 0; tz < TZ; tz++) for (let tx = 0; tx < TX; tx++, t++) {
+        if (!wrun[t]) continue;
+        let mv = tmov[t];
+        for (let z = tz << 4, ze = z + 16; z < ze; z++) {
+          let i = (tx << 4) + z * WW;
+          for (let x = tx << 4, xe = x + 16; x < xe; x++, i++) {
+            let v = -(fr[i] + fl[i] + fb[i] + ft[i]);
+            if (x > 0) v += fr[i - 1]; else if (fl[i] > 0.4 && rnd() < 0.02) this.ev('spill', -1, RIM, z / WR | 0);
+            if (x < WW - 1) v += fl[i + 1]; else if (fr[i] > 0.4 && rnd() < 0.02) this.ev('spill', W, RIM, z / WR | 0);
+            if (z > 0) v += fb[i - WW]; else if (ft[i] > 0.4 && rnd() < 0.02) this.ev('spill', x / WR | 0, RIM, -1);
+            if (z < WH - 1) v += ft[i + WW]; else if (fb[i] > 0.4 && rnd() < 0.02) this.ev('spill', x / WR | 0, RIM, D);
+            const dv = v * WDT;
+            if (dv > mv) mv = dv; else if (-dv > mv) mv = -dv;
+            let d = wd[i] + dv;
+            if (d < 0.015) d -= 0.0002;       // thin films soak into the ground
+            wd[i] = d > 1e-5 ? d : 0;
+          }
+        }
+        tmov[t] = mv;
       }
     }
-    let fsum = 0; for (let i = 0; i < fr.length; i += 3) fsum += fr[i] + fb[i];
-    this.flow = fsum * 3 / fr.length;       // how much water is on the move (for sound)
+    // tiles where nothing moved count down to sleep; a sleeping tile's flow is stopped dead
+    let fsum = 0, nrun = 0;
+    for (let t = 0; t < wact.length; t++) {
+      if (!wrun[t]) continue;
+      nrun++; fsum += tmov[t];
+      if (tmov[t] > 3e-4) wact[t] = 6;
+      else if (wact[t] > 0 && --wact[t] === 0) {
+        const tx = t % TX, tz = (t / TX) | 0;
+        for (let z = tz << 4, ze = z + 16; z < ze; z++) { const i0 = (tx << 4) + z * WW; fl.fill(0, i0, i0 + 16); fr.fill(0, i0, i0 + 16); ft.fill(0, i0, i0 + 16); fb.fill(0, i0, i0 + 16); }
+      }
+    }
+    this.waterTiles = nrun;
+    this.flow = fsum * 6 / Math.max(1, wact.length);       // how much water is on the move (for sound)
     this.aggregate();
   }
 
@@ -735,7 +786,7 @@ export class World {
     unrle(unb64(o.m), this.mat); unrle(unb64(o.a), this.aux); if (o.b) unrle(unb64(o.b), this.biome);
     const q = new Uint16Array(this.wd.length); unrle(unb64(o.q), new Uint8Array(q.buffer));
     for (let i = 0; i < q.length; i++) this.wd[i] = q[i] / 512;
-    this.updateBeds(); this.aggregate(); this.awake.fill(40);
+    this.updateBeds(); this.aggregate(); this.awake.fill(40); this.wakeAllWater();
   }
 }
 
