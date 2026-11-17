@@ -300,6 +300,7 @@ const TOOLS = [
   { id: 'sinkhole', tab: 'powers', label: 'Sinkhole', type: 'landform', form: 'sinkhole', color: '#6a5a4a', glyph: '◡', gc: '#fff' },
   { id: 'forest', tab: 'powers', label: 'Forest', type: 'forest', color: '#4f9f4c', glyph: '♣', gc: '#fff' },
   { id: 'wither', tab: 'powers', label: 'Wither', type: 'wither', color: '#8a7a5a', glyph: '✗', gc: '#fff' },
+  { id: 'windmill', tab: 'build', label: 'Windmill', type: 'windmill', color: '#efe6d2', glyph: '✣' },
   { id: 'hall', tab: 'build', label: 'Town hall', type: 'hall', color: '#9d9ca6', glyph: '⌂', gc: '#fff' },
 ];
 const toolById = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
@@ -550,7 +551,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null;
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; syncMills([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -562,13 +563,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at) });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -741,6 +742,33 @@ function syncUndo() { $('bUndo').disabled = !history.past.length; $('bRedo').dis
 $('bUndo').onclick = () => history.undo();
 $('bRedo').onclick = () => history.redo();
 
+// ---- windmills: the sails are a scene object that turns with the wind; the mill itself is voxels
+const mills = [];   // { at: [x, y, z], g }
+const sailMat = new THREE.MeshLambertMaterial({ color: 0xefe6d2 }), frameMat = new THREE.MeshLambertMaterial({ color: 0x7a5232 });
+function makeSails() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.5, 8).rotateX(Math.PI / 2), frameMat));
+  for (let k = 0; k < 4; k++) {
+    const arm = new THREE.Group(); arm.rotation.z = k * Math.PI / 2;
+    const spar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.6, 0.12), frameMat); spar.position.y = 1.8;
+    const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.75, 2.7, 0.04), sailMat); cloth.position.set(0.42, 2.15, 0.02);
+    spar.castShadow = cloth.castShadow = true; arm.add(spar, cloth); g.add(arm);
+  }
+  return g;
+}
+function addMill(at) {
+  const g = makeSails(); g.position.set(at[0] + 0.5, at[1] + 0.5, at[2] + 1.05); g.rotation.z = rnd() * 6.28;
+  grid.add(g); mills.push({ at, g });
+}
+function syncMills(list) { for (const m of mills) grid.remove(m.g); mills.length = 0; for (const at of list || []) addMill(at); }
+function turnMills(dt) {
+  for (let i = mills.length - 1; i >= 0; i--) {
+    const m = mills[i];
+    if (world.get(m.at[0], m.at[1], m.at[2]) !== 15) { grid.remove(m.g); mills.splice(i, 1); continue; }   // the mill was knocked down
+    m.g.rotation.z -= dt * (0.6 + (world.raining ? 0.8 : 0) + (state.storm ? 1.2 : 0));
+  }
+}
+function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 function resetScene() {
   history.clear();
   for (const o of live) { grid.remove(o); o.geometry.dispose(); }
@@ -1127,6 +1155,10 @@ function useTool(first) {
       });
       if (first) sound.blip(160, 0.4, 'sawtooth', 0.04);
       break;
+    case 'windmill':
+      if (!first) break;
+      if (buildMill(at.x, at.z)) sound.blip(260, 0.2, 'triangle', 0.07); else toast('A windmill needs a dry 3×3 patch with room above');
+      break;
     case 'hall':
       if (!first) break;
       if (world.hall(at.x, world.groundY(at.x, at.z), at.z)) { sound.boom(0.15, 0.6, 300); const v = critters.villageAt(at.x, at.z); if (critters.villages[v]) critters.villages[v].hall = true; }
@@ -1450,7 +1482,7 @@ function frame(now) {
     let n = 0;
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
-    if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); }
+    if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
@@ -1606,6 +1638,9 @@ function frame(now) {
       const pop = critters.population(i), tier = pop >= 15 ? 2 : pop >= 6 ? 1 : 0;
       if (v.tier === undefined) v.tier = tier;
       else if (tier > v.tier) { v.tier = tier; chronicle(`${v.name} grew into a ${TIERS[tier]}`); toast(`${v.name} is now a ${TIERS[tier]}`); }
+      if (v.tier >= 1 && !v.mill && rnd() < 0.12) { // a village with fields puts up a windmill
+        for (let k = 0; k < 12 && !v.mill; k++) { const a = rnd() * 6.283, r = 6 + rnd() * 5, at = buildMill(Math.round(v.x + Math.cos(a) * r), Math.round(v.z + Math.sin(a) * r)); if (at) { v.mill = true; chronicle(`${v.name} built a windmill`); } }
+      }
       if (v.tier >= 1 && !v.road) { // a growing village lays a road to its nearest neighbour
         v.road = true; let best = null, bd = Math.max(W, D) * 0.9;
         critters.villages.forEach((o, j) => { const d = Math.hypot(o.x - v.x, o.z - v.z); if (j !== i && d < bd && !(o.roadTo === i)) { bd = d; best = j; } });
@@ -1633,4 +1668,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, get frames() { return frames; } };

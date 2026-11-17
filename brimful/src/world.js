@@ -749,6 +749,35 @@ export class World {
     return true;
   }
 
+  // find a building spot of (2r+1)^2 on uneven ground: sit on the highest column and fill dips of up to two with stone; returns y or -1
+  footing(x, z, r, h) {
+    if (x < r + 1 || z < r + 1 || x > W - r - 2 || z > D - r - 2) return -1;
+    let y = 0, lo = H;
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { const g = this.groundY(x + dx, z + dz); y = Math.max(y, g); lo = Math.min(lo, g); }
+    if (y - lo > 2 || y < 1 || y > H - h - 2) return -1;
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (this.wet(x + dx, y, z + dz) || this.wet(x + dx, y - 1, z + dz)) return -1;
+      for (let dy = 0; dy < h; dy++) { const m = this.get(x + dx, y + dy, z + dz); if (m !== AIR && m !== TUFT && m !== SEED && m !== SNOW && m !== CROP) return -1; }
+    }
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) for (let k = y - 1; k >= y - 3 && !OPAQUE[this.get(x + dx, k, z + dz)]; k--) this.set(x + dx, k, z + dz, STONE);
+    return y;
+  }
+
+  // a windmill: stone base, plank tower, thatch cap and an axle on the south face; returns the axle position or null
+  windmill(x, z) {
+    const y = this.footing(x, z, 1, 9);
+    if (y < 0 || this.wet(x, y, z + 2)) return null;
+    for (let k = 0; k < 6; k++) for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      const edge = dx || dz, door = k < 2 && dz === 1 && !dx;
+      this.set(x + dx, y + k, z + dz, !edge ? AIR : door ? AIR : k < 2 ? STONE : PLANK);
+      if (k === 0 && this.get(x + dx, y - 1, z + dz) === TURF) this.set(x + dx, y - 1, z + dz, SOIL);
+    }
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.set(x + dx, y + 6, z + dz, THATCH);
+    this.set(x, y + 7, z, THATCH);
+    this.set(x, y + 4, z + 2, PLANK);
+    return [x, y + 4, z + 2];
+  }
+
   // a tall plank lookout with a lantern on top
   tower(x, y, z) {
     if (!this.clearFor(x, y, z, 8)) return false;

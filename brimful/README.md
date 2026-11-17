@@ -53,7 +53,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   footpaths into the grass, and settlers who build far from home found new villages. The menu under the title lists
   each village and its population. Ride along with any of them in
   third or first person.
-- **Build**: huts, wells, lookout towers, town halls, footpaths that stay, crop fields, planks, thatch, fence posts and lanterns,
+- **Build**: huts, wells, lookout towers, windmills, town halls, footpaths that stay, crop fields, planks, thatch, fence posts and lanterns,
   so you can lay out villages yourself.
 - **Powers**: spark, lightning, meteor, meteor shower, quake, tornado, surge, mountain, volcano, sinkhole, forest, wither, downpour, dry up, freeze, thaw, bloom,
   hut, settlers (a band who found a new village) and harvest gift.
