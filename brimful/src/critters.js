@@ -272,6 +272,7 @@ export function describe(c, world, night) {
   }
   if (k === 'fox') return c.eatCd <= 0 ? 'Hunting' : 'Prowling, well fed';
   if (k === 'heron') return c.eatCd <= 0 ? 'Stalking fish' : 'Wading';
+  if (k === 'villager' && c.trip != null && c.vid !== undefined) return 'Off to trade';
   if (k === 'bee') return 'Visiting flowers';
   if (k === 'butterfly' || k === 'glimmer' || k === 'songbird' || k === 'owl') return 'On the wing';
   if (wet) return k === 'duck' || k === 'turtle' ? (c.food < 4 ? 'Dabbling for weed' : 'Paddling') : 'Swimming';
@@ -638,7 +639,18 @@ export class Critters {
 
   // villagers: gather wood, build huts near home, replant, and raise families beside a roof
   villagerPlan(c, ang) {
-    const w = this.world, home = Math.hypot(c.hx - c.x, c.hz - c.z);
+    const w = this.world, home = Math.hypot(c.hx - c.x, c.hz - c.z), vil = this.villages[c.vid];
+    // trade: now and then someone walks the road to a neighbouring village and comes back fed
+    if (c.trip !== undefined && c.trip !== null) {
+      const o = this.villages[c.trip];
+      if (!o) c.trip = null;
+      else if (Math.hypot(o.x - c.x, o.z - c.z) < 3) { c.trip = null; c.meal = (c.meal || 0) + 3; c.food = (c.food || 0) + 2; this.fx.burst(c.x, c.y + 1.2, c.z, 8, 0xf2d27a, 1.6); this.onEvent('trade', c, o); }
+      else { c.walk = true; return Math.atan2(o.x - c.x, o.z - c.z); }
+    }
+    if (vil && this.night < 0.5 && home < 8 && rnd() < 0.03) {
+      const links = []; this.villages.forEach((o, j) => { if (j !== c.vid && (vil.roadTo === j || o.roadTo === c.vid)) links.push(j); });
+      if (links.length && !this.list.some((o) => o.trip === links[0] && o.vid === c.vid && !o.dead)) { c.trip = links[ri(links.length)]; c.walk = true; return ang; }
+    }
     if (home > 16) return Math.atan2(c.hx - c.x, c.hz - c.z);
     if (this.night > 0.7) { // evenings are spent by the huts
       if (home > 3.5) { c.walk = true; return Math.atan2(c.hx - c.x, c.hz - c.z); }

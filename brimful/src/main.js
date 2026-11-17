@@ -1129,12 +1129,13 @@ function release() {
   document.body.classList.remove('riding'); $('ride').classList.remove('on');
   if (camSaved) Object.assign(camGoal, camSaved);
 }
-critters.onEvent = (t, c) => {
+critters.onEvent = (t, c, extra) => {
   if (t === 'lost') { release(); toast('Your creature is gone'); }
   else if (t === 'chirp') { sound.blip(1700 + Math.random() * 700, 0.09, 'sine', 0.04); setTimeout(() => sound.blip(2100 + Math.random() * 500, 0.07, 'sine', 0.035), 110); }
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') { sound.blip(392, 0.25, 'triangle', 0.07); if (booted) chronicle(`${c.name || 'A villager'} built a hut in ${vname(c)}`); }
   else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
+  else if (t === 'trade' && booted) chronicle(`Traders from ${vname(c)} reached ${extra?.name || 'a neighbouring village'}`);
   else if (t === 'hall' && booted) { chronicle(`${vname(c)} raised a town hall`); sound.boom(0.2, 0.8, 300); }
   else if (t === 'founded' && booted) { toast(`A new village: ${c.name}`); chronicle(`${c.name} was founded`); }
   else if (t === 'born' && booted) chronicle(`${c.name} was born in ${vname(c)}`);
