@@ -23,7 +23,7 @@ export const U = {
   uTexel: { value: new THREE.Vector2(1 / 128, 1 / 128) },
   uDetail: { value: 1 },
   uCloud: { value: 0 },                      // strength of drifting cloud shadows
-  uAutumn: { value: 0 }, uWinter: { value: 0 },
+  uAutumn: { value: 0 }, uWinter: { value: 0 }, uAurora: { value: 0 },
   uRain: { value: 0 },
 };
 
@@ -354,11 +354,11 @@ export function makeSky() {
     uniforms: {
       uTop: U.uSkyTop, uBot: U.uSkyBot, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) },
       uMoonDir: { value: new THREE.Vector3(-0.35, 0.87, -0.26).normalize() },
-      uTime: U.uTime, uNight: U.uNight,
+      uTime: U.uTime, uNight: U.uNight, uAurora: U.uAurora,
     },
     vertexShader: /* glsl */ `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight; varying vec3 vDir;
+      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight, uAurora; varying vec3 vDir;
       ${NOISE}
       void main(){
         vec3 d = normalize(vDir);
@@ -370,6 +370,16 @@ export function makeSky() {
         vec3 sp = d * 140.0; vec3 cell = floor(sp);
         float st = h31(cell); float tw = 0.6 + 0.4 * sin(uTime * 2.0 + st * 60.0);
         col += vec3(0.9, 0.95, 1.0) * step(0.9988, st) * smoothstep(0.32, 0.05, length(fract(sp) - 0.5)) * uNight * tw * 2.2 * smoothstep(0.0, 0.25, d.y);
+        if (uAurora * uNight > 0.01) { // northern lights: slow folded curtains, green at the hem fading to violet above
+          float az = atan(d.z, d.x), ht = d.y;
+          float fold = fbm(vec2(az * 2.2 + uTime * 0.02, uTime * 0.03)) * 1.6;
+          float lane = sin(az * 3.0 + fold * 3.0 + uTime * 0.05) * 0.5 + 0.5;
+          float base = 0.1 + fold * 0.08, hem = smoothstep(base - 0.03, base + 0.03, ht) * (1.0 - smoothstep(base + 0.1, base + 0.6, ht));
+          float rays = 0.55 + 0.45 * fbm(vec2(az * 40.0, uTime * 0.25));
+          float a = hem * smoothstep(0.35, 0.9, lane) * rays;
+          vec3 ac = mix(vec3(0.2, 1.0, 0.55), vec3(0.6, 0.3, 1.0), smoothstep(base, base + 0.35, ht));
+          col += ac * a * uAurora * uNight;
+        }
         vec2 cp = d.xz / (d.y + 0.35) * 1.6 + vec2(uTime * 0.008, uTime * 0.004);
         float cl = smoothstep(0.52, 0.85, fbm(cp + fbm(cp * 2.0) * 0.6)) * smoothstep(0.02, 0.3, d.y);
         vec3 cc = mix(vec3(1.0, 0.98, 0.95) + uSunCol * 0.15, vec3(0.12, 0.15, 0.3), uNight);
