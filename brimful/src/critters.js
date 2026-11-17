@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import animalsGlb from './animals.glb?inline';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, CROP, OPAQUE, rnd, ri } from './world.js';
 
 export const KINDS = {
@@ -73,10 +74,46 @@ export function loadModels() {
     try {
       const bin = atob(animalsGlb.split(',')[1]), buf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      new GLTFLoader().parse(buf.buffer, '', (g) => { for (const n of [...g.scene.children]) MODELS[n.name] = n; done(true); }, () => done(false));
+      new GLTFLoader().parse(buf.buffer, '', (g) => { for (const n of [...g.scene.children]) MODELS[n.name] = compact(n); done(true); }, () => done(false));
     } catch { done(false); }
   });
 }
+// Fold a model's static pieces together so a creature costs a few draw calls instead of a dozen:
+// one mesh per tint slot, one vertex-coloured mesh for everything of fixed colour; hinged parts stay separate.
+const MOVING = /^(tail|wing|ear|leg|arm)/;
+const fixedMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+function compact(root) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), groups = {}, out = new THREE.Group();
+  out.name = root.name;
+  const bake = (mesh, rel) => {
+    const g = mesh.geometry.clone().applyMatrix4(rel);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    const mn = mesh.material.name, slot = /^(tint|glow|wing)/.test(mn) ? mn : 'fixed';
+    if (slot === 'fixed') {
+      const c = mesh.material.color, n = g.attributes.position.count, col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    }
+    return [slot, g];
+  };
+  for (const child of [...root.children]) {
+    if (MOVING.test(child.name)) {
+      // keep the hinge: a pivot group carrying the part's own merged geometry
+      const pivot = new THREE.Group(); pivot.name = child.name; pivot.position.copy(child.position);
+      child.updateMatrixWorld(true);
+      const cinv = new THREE.Matrix4().copy(child.matrixWorld).invert(), parts = {};
+      child.traverse((o) => { if (o.isMesh) { const [slot, g] = bake(o, new THREE.Matrix4().multiplyMatrices(cinv, o.matrixWorld)); (parts[slot] ||= []).push(g); } });
+      for (const [slot, gs] of Object.entries(parts)) { const m = new THREE.Mesh(gs.length > 1 ? mergeGeometries(gs) : gs[0], slot === 'fixed' ? fixedMat : new THREE.MeshBasicMaterial({ name: slot })); m.material.name = slot; pivot.add(m); }
+      out.add(pivot);
+    } else child.traverse((o) => { if (o.isMesh) { const [slot, g] = bake(o, new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); (groups[slot] ||= []).push(g); } });
+  }
+  for (const [slot, gs] of Object.entries(groups)) { const m = new THREE.Mesh(gs.length > 1 ? mergeGeometries(gs) : gs[0], slot === 'fixed' ? fixedMat : new THREE.MeshBasicMaterial({ name: slot })); m.material.name = slot; m.name = 'static-' + slot; out.add(m); }
+  return out;
+}
+let critterShadows = true;
+export function setCritterShadows(v) { critterShadows = v; }
+
 const TINTS = {
   minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
   villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
@@ -94,11 +131,11 @@ function fromModel(kind) {
     else if (n.startsWith('leg') || n.startsWith('arm')) u.limbs.push(o);
     if (!o.isMesh) return;
     const mn = o.material.name;
-    o.castShadow = !FLY[kind] || kind === 'songbird';
+    o.castShadow = critterShadows && !FLY[kind];
     if (mn.startsWith('tint')) o.material = picks[mn === 'tint' ? 0 : mn === 'tint2' ? 1 : 2] || M.white;
     else if (mn === 'glow') { o.material = M.glow; o.castShadow = false; }
     else if (mn === 'wing') { o.material = M.wing; o.castShadow = false; }
-    else o.material = plain[mn] ||= new THREE.MeshLambertMaterial({ color: o.material.color });
+    else o.material = fixedMat;
   });
   if (!u.limbs.length) delete u.limbs; if (!u.ears.length) delete u.ears; if (u.wings.length < 2) delete u.wings;
   if (kind === 'glimmer') {

@@ -4,7 +4,7 @@ import * as WM from './world.js';
 import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity } from './mesher.js';
-import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels } from './critters.js';
+import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
 import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makePost } from './gfx.js';
@@ -268,6 +268,8 @@ function applyGfx(save = true) {
   if (appliedAA !== gfx.aa || !post) { appliedAA = gfx.aa; if (post) post.dispose(); post = makePost(renderer, scene, camera, gfx.aa ? 4 : 0); }
   post.bloom.enabled = gfx.bloom;
   U.uDetail.value = gfx.detail ? 1 : 0;
+  setCritterShadows(gfx.shadows >= 2048);
+  for (const c of critters.list) c.mesh.traverse((o) => { if (o.isMesh && o.material.name !== 'wing' && o.material.name !== 'glow') o.castShadow = gfx.shadows >= 2048 && !['glimmer', 'butterfly', 'songbird', 'bee', 'owl'].includes(c.kind); });
   motes.visible = gfx.motes;
   resize();
   // reflect in the panel
