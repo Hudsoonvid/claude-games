@@ -427,6 +427,34 @@ for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt']
 $('gSound').onchange = (e) => { sound.init(); sound.setMuted(!e.target.checked); };
 function setSeasons(v) { state.seasons = !!v; $('gSeasons').checked = state.seasons; }
 $('gSeasons').onchange = (e) => setSeasons(e.target.checked);
+
+// ---------------------------------------------------------------- cinematic: a slow drift around the world, controls hidden, until any input
+const cine = {
+  on: false, idle: 0, auto: true, t: 0, saved: null,
+  start(auto) {
+    if (this.on || critters.possessed) return;
+    this.on = true; this.t = 0; this.saved = { ...camGoal }; document.body.classList.add('hideui', 'cine');
+    if (!auto) toast('Cinematic: any key or click to stop');
+  },
+  stop() {
+    if (!this.on) return;
+    this.on = false; document.body.classList.remove('hideui', 'cine');
+    if (this.saved) Object.assign(camGoal, this.saved);
+  },
+  poke() { this.idle = 0; if (this.on) { this.stop(); return true; } return false; },
+  update(dt) {
+    if (!this.on) { this.idle += dt; if (this.auto && this.idle > 120 && !critters.possessed && !$('help').classList.contains('open')) this.start(true); return; }
+    this.t += dt;
+    camGoal.yaw += dt * 0.05;
+    camGoal.pitch = 0.32 + 0.14 * Math.sin(this.t * 0.05);
+    camGoal.dist = 105 * SF * (0.85 + 0.25 * Math.sin(this.t * 0.031));
+    camGoal.tx = Math.sin(this.t * 0.023) * W * 0.12; camGoal.tz = Math.cos(this.t * 0.019) * D * 0.12;
+  },
+};
+try { cine.auto = localStorage.getItem('brimful-cine') !== '0'; } catch { /* unavailable */ }
+$('gCine').checked = cine.auto;
+$('gCine').onchange = (e) => { cine.auto = e.target.checked; try { localStorage.setItem('brimful-cine', cine.auto ? '1' : '0'); } catch { /* unavailable */ } };
+for (const ev of ['pointerdown', 'wheel', 'touchstart']) addEventListener(ev, () => cine.poke(), { capture: true, passive: true });
 $('gContainer').onchange = (e) => { gfx.container = e.target.value; ls.set(GFX_KEY, gfx); buildContainer(); };
 
 // Auto quality: watch real frame times, step down when it struggles, creep back up when there is clear headroom.
@@ -1122,6 +1150,7 @@ function pan(dx, dy) {
 }
 
 addEventListener('keydown', (e) => {
+  if (cine.poke()) return;   // the first key only wakes the view
   if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'z' && e.target.tagName !== 'INPUT') { e.preventDefault(); if (e.shiftKey) history.redo(); else history.undo(); return; }
   if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'y' && e.target.tagName !== 'INPUT') { e.preventDefault(); history.redo(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -1136,6 +1165,7 @@ addEventListener('keydown', (e) => {
   else if (k === ']') setSize(state.size + 1);
   else if (k === 'p' || k === ' ') { e.preventDefault(); setPaused(!state.paused); }
   else if (k === 'r') setRain(!world.raining);
+  else if (k === 'c') cine.start(false);
   else if (k === 'u') { document.body.classList.toggle('hideui'); if (document.body.classList.contains('hideui')) toast('Photo mode: press U to bring the controls back'); }
   else if (k === 'h' || k === '?') showHelp(!$('help').classList.contains('open'));
 });
@@ -1330,7 +1360,7 @@ function frame(now) {
   if (pourLevel <= 0) sound.pour(0);
   for (let i = transients.length - 1; i >= 0; i--) if (transients[i](dt)) transients.splice(i, 1);
 
-  readInput(); keyCamera(dt);
+  readInput(); keyCamera(dt); cine.update(dt);
   if (!state.paused) critters.update(dt * Math.min(3, state.speed), input, night);
   fx.update(dt);
   remesh(gfx.level === 0 ? 3 : 6);
