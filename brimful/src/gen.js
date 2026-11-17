@@ -173,6 +173,36 @@ export const PRESETS = [
   P('lichen', 'Lichen tundra', 'Wild', 'Rust-coloured moss on cold rock', [48, 48, 5, 23], (c, x, z) => 12.5 + c.n(x, z) * 5 + c.hp(c, x, z), { hp: hillsAndPonds(4, 8), pondN: 2, villages: 0.4 }),
   P('mistwood', 'Mistwood', 'Wild', 'Pale blue pines and still water', [50, 50, 10, 6], (c, x, z) => 12.5 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(6, 10), pondN: 1.5 }),
   P('cenotes', 'Cenotes', 'Wild', 'Deep round pools in the jungle floor', [7, 20, 41], (c, x, z) => 14 + c.n(x, z) * 4 - sum(c.ponds, (p) => (1 - sstep(p[2] * 0.3, p[2] * 0.42, Math.hypot(x - p[0], z - p[1])))) * 9, { pondN: 3, pondR: [6, 10], trees: 1.2 }),
+  P('savanna', 'Savanna', 'Gentle', 'Golden grass, lone trees and waterholes', [4, 4, 35, 19], (c, x, z) => 12.5 + c.n(x, z) * 3 + c.hp(c, x, z), { hp: hillsAndPonds(2, 9), pondN: 1.4, pondR: [4, 7], trees: 0.9 }),
+  P('autumnvalley', 'Autumn valley', 'Gentle', 'Red, gold and orange woods round a lake', [2, 29, 31, 0], (c, x, z) => 12.5 + c.n(x, z) * 8 + c.hp(c, x, z), { hp: hillsAndPonds(9, 13), trees: 1.4 }),
+  P('heathmoor', 'Heath and moor', 'Gentle', 'Purple heather, bog pools and wind', [8, 25, 26, 15], (c, x, z) => 13 + c.n(x, z) * 5 + c.hp(c, x, z), { hp: hillsAndPonds(4, 9), pondN: 3, pondR: [4, 6], trees: 0.4 }),
+  P('threerivers', 'Three rivers', 'Water', 'Three streams running side by side', [0, 9, 1, 21], (c, x, z) => {
+    let h = 14 + c.n(x, z) * 3;
+    for (let k = 0; k < 3; k++) { const zc = D * (0.2 + 0.3 * k) + Math.sin(x / W * 6.28 * 1.1 + k * 2 + c.ph) * D * 0.06; h -= (1 - sstep(1.2, 3.5, Math.abs(z - zc))) * 7.5; }
+    return h;
+  }, { springs: 2, villages: 1.2 }),
+  P('peninsula', 'Peninsula', 'Water', 'A long tongue of land into the sea', [0, 3, 21, 18], (c, x, z) => {
+    const across = Math.abs(z - D / 2 - Math.sin(x / W * 4 + c.ph) * D * 0.08) / (D * 0.2), along = x / W;
+    return 5 + c.n(x, z) * 3 + (1 - sstep(0.6, 1.1, across + along * 0.6)) * (12 + c.n(x, z) * 5);
+  }, { sand: atollSand, villages: 1 }),
+  P('bay', 'Sheltered bay', 'Water', 'A round bay behind a narrow mouth', [0, 18, 3, 13], (c, x, z) => {
+    const r = Math.hypot(x - W / 2, z - D * 0.55) / (Math.min(W, D) * 0.32), mouth = (1 - sstep(0.05, 0.12, Math.abs(x / W - 0.5))) * sstep(0.85, 1, z / D);
+    return 16 + c.n(x, z) * 5 - (1 - sstep(0.8, 1.05, r)) * 12 - mouth * 12;
+  }, { villages: 1.2 }),
+  P('mangrovemaze', 'Mangrove maze', 'Water', 'Countless little islands of roots', [13, 13, 28, 18], (c, x, z) => 8.5 + c.n(x, z) * 3 + sstep(0.48, 0.58, c.nn(x, z, 5, 17)) * 4, { trees: 1.6, villages: 0.5 }),
+  P('jungleisle', 'Jungle island', 'Water', 'A smoking peak wrapped in jungle', [7, 20, 18], (c, x, z) => {
+    const r = Math.hypot(x - W / 2, z - D / 2) / c.S;
+    return 5 + c.n(x, z) * 3 + Math.max(0, 15 - r * 0.6) + Math.max(0, 14 - r * 1.1) - Math.max(0, 3.5 - r) * 3;
+  }, { cones: 'center', sand: (c, x, z, h) => h < c.WL + 2, trees: 1.3, villages: 0.6 }),
+  P('mushroomisle', 'Mushroom isle', 'Water', 'A violet island of giant caps', [16, 16, 34], (c, x, z) => 5 + c.n(x, z) * 3 + gauss(x, z, W / 2, D / 2, Math.min(W, D) * 0.3) * 14, { sand: (c, x, z, h) => h < c.WL + 2, trees: 1.3, villages: 0.4 }),
+  P('mountainlakes', 'Mountain lakes', 'Rugged', 'Tarns strung between rocky ridges', [10, 17, 5, 1], (c, x, z) => { const rg = c.ridge(x, z, 12); return 12 + c.n(x, z) * 4 + rg * rg * 16 + c.hp(c, x, z); }, { hp: hillsAndPonds(0, 12), pondN: 4, pondR: [3, 6], stoneAbove: 23, snowline: 28 }),
+  P('basin', 'Great basin', 'Rugged', 'A salt lake in a wide dry bowl', [38, 12, 19, 51], (c, x, z) => {
+    const r = Math.hypot((x - W / 2) / W, (z - D / 2) / D) * 2;
+    return 8 + c.n(x, z) * 2 + sstep(0.15, 1, r) * 15 + c.nn(x, z, 10, 4) * 3 * r;
+  }, { biomeAt: (c, x, z) => { const r = Math.hypot((x - W / 2) / W, (z - D / 2) / D) * 2 + (c.n(x, z) - 0.5) * 0.2; return r < 0.35 ? 38 : r < 0.7 ? 19 : 51; }, villages: 0.5 }),
+  P('taigalakes', 'Taiga lakes', 'Wild', 'Dark spruce around cold blue lakes', [10, 10, 5, 50], (c, x, z) => 13 + c.n(x, z) * 5 + c.hp(c, x, z), { hp: hillsAndPonds(5, 9), pondN: 4, pondR: [4, 8], trees: 1.2 }),
+  P('hotsprings', 'Hot springs', 'Wild', 'Steaming pools in the snow', [26, 5, 23], (c, x, z) => 13 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(5, 9), pondN: 3, pondR: [4, 6], springs: 4, pools: (c, x, z, h) => (c.nn(x, z, 6, 91) > 0.8 && h < 14 ? 1 : 0), villages: 0.5 }),
+  P('craters', 'Crater field', 'Wild', 'Plains pocked by old impacts', [0, 22, 19, 4], (c, x, z) => 13 + c.n(x, z) * 3 + sum(c.pillars, (p) => { const d = Math.hypot(x - p[0], z - p[1]) / (p[2] * 2.2); return d < 1.3 ? (d < 1 ? -(1 - d * d) * p[3] * 0.4 : (1.3 - d) * 6) : 0; }), { trees: 0.6 }),
   P('stripes', 'Biome stripes', 'Special', 'Bands of every biome side by side', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x + (c.n(x, z) - 0.5) * 6) / Math.max(4, W / 12)) | 0) * 5 % BIO.length }),
   P('rings', 'Biome rings', 'Special', 'Biomes in rings around a central pond', [0], (c, x, z) => 13 + c.n(x, z) * 3 - gauss(x, z, W / 2, D / 2, 6 * c.S) * 6, { biomeAt: (c, x, z) => (((Math.hypot(x - W / 2, z - D / 2) / Math.max(4, Math.min(W, D) / 14)) | 0) * 7 + 3) % BIO.length }),
   P('checker', 'Biome checkerboard', 'Special', 'Every biome in its own square', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x >> 3) * 7 + (z >> 3) * 13) % BIO.length) }),
