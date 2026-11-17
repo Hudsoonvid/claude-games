@@ -5,5 +5,6 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 export default defineConfig({
   base: './',
   plugins: [viteSingleFile()],
+  assetsInclude: ['**/*.glb'],
   build: { target: 'es2020', chunkSizeWarningLimit: 4000 },
 });

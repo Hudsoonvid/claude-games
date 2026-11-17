@@ -56,6 +56,19 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   (resolution, shadows, grass density, bloom, light shafts, miniature blur, water detail, anti-aliasing) can also be
   set by hand.
 
+## Creature models
+
+The thirteen creatures are modelled procedurally in Blender by `tools/make_animals.py` and exported as one GLB that
+is embedded in the build. To regenerate them after editing the script:
+
+```bash
+pip install bpy
+```
+
+```bash
+python tools/make_animals.py
+```
+
 ## Layout
 
 ```
@@ -63,7 +76,9 @@ src/world.js     voxel grid and rules, shallow-water simulation, growth, huts, s
 src/gen.js       world types, biomes, village placement
 src/mesher.js    chunk meshing: cubes with ambient occlusion, grass blades, lava
 src/gfx.js       shaders: water surface, sky, underwater light, grass, post-processing
-src/critters.js  creature models and behaviour
+src/critters.js  creature behaviour; loads the Blender-made models
+src/animals.glb  the creature models (generated, do not edit by hand)
+tools/make_animals.py  models every creature in Blender and exports animals.glb
 src/fx.js        particles
 src/audio.js     synthesised sound
 src/main.js      renderer, camera, tools and powers, settings, saved worlds, UI, main loop

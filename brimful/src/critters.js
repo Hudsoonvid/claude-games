@@ -1,5 +1,7 @@
 // The living things. Swimmers, walkers, hoppers, floaters, fliers — and villagers who fell trees and build huts.
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import animalsGlb from './animals.glb?inline';
 import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, CROP, OPAQUE, rnd, ri } from './world.js';
 
 export const KINDS = {
@@ -59,8 +61,51 @@ function part(geo, mat, sx, sy, sz, x = 0, y = 0, z = 0) {
 }
 const eyes = (g, x, y, z, s = 0.08) => g.add(part(G.body, M.eye, s, s, s, x, y, z), part(G.body, M.eye, s, s, s, -x, y, z));
 
+// ---- Blender-made models (tools/make_animals.py -> animals.glb, embedded in the bundle)
+const MODELS = {};
+export function loadModels() {
+  return new Promise((done) => {
+    try {
+      const bin = atob(animalsGlb.split(',')[1]), buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      new GLTFLoader().parse(buf.buffer, '', (g) => { for (const n of [...g.scene.children]) MODELS[n.name] = n; done(true); }, () => done(false));
+    } catch { done(false); }
+  });
+}
+const TINTS = {
+  minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
+  villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
+};
+const plain = {};   // one shared Lambert per exported material colour
+function fromModel(kind) {
+  const g = MODELS[kind].clone(true), u = g.userData, picks = (TINTS[kind] || []).map(pickOf);
+  u.limbs = []; u.wings = []; u.ears = [];
+  g.traverse((o) => {
+    const n = o.name;
+    if (n.startsWith('tail')) u.tail = o;
+    else if (n.startsWith('wingL')) u.wings[0] = o; else if (n.startsWith('wingR')) u.wings[1] = o;
+    else if (n.startsWith('ear')) u.ears.push(o);
+    else if (n.startsWith('leg') || n.startsWith('arm')) u.limbs.push(o);
+    if (!o.isMesh) return;
+    const mn = o.material.name;
+    o.castShadow = true;
+    if (mn.startsWith('tint')) o.material = picks[mn === 'tint' ? 0 : mn === 'tint2' ? 1 : 2] || M.white;
+    else if (mn === 'glow') { o.material = M.glow; o.castShadow = false; }
+    else if (mn === 'wing') { o.material = M.wing; o.castShadow = false; }
+    else o.material = plain[mn] ||= new THREE.MeshLambertMaterial({ color: o.material.color });
+  });
+  if (!u.limbs.length) delete u.limbs; if (!u.ears.length) delete u.ears; if (u.wings.length < 2) delete u.wings;
+  if (kind === 'glimmer') {
+    glowTex ||= glowTexture();
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    sp.scale.setScalar(2.2); g.add(sp); u.halo = sp;
+  }
+  return g;
+}
+
 function build(kind) {
-  const g = new THREE.Group(), u = g.userData; // models face +Z
+  if (MODELS[kind]) return fromModel(kind);
+  const g = new THREE.Group(), u = g.userData; // fallback: primitive stand-ins, facing +Z
   if (kind === 'minnow') {
     g.add(part(G.body, pickOf(M.fish), 0.34, 0.42, 0.95));
     const tail = new THREE.Group(); tail.position.z = -0.42;
@@ -233,8 +278,8 @@ export class Critters {
     } else {
       const air = c.ground ? 0 : Math.max(-0.5, Math.min(0.5, c.vy * 0.06));
       m.rotation.set(c.kind === 'villager' ? 0 : -air, c.yaw + (c.kind === 'crab' ? 1.5708 : 0), Math.sin(c.t * 9) * 0.05 * Math.min(1, sp), 'YXZ');
-      if (u.limbs) { const s = Math.sin(c.t * 10) * Math.min(1, sp) * 0.7; u.limbs[0].rotation.x = s; u.limbs[1].rotation.x = -s; u.limbs[2].rotation.x = -s; u.limbs[3].rotation.x = s; }
-      if (u.ears) { u.ears[0].rotation.x = u.ears[1].rotation.x = -0.25 - air; }
+      if (u.limbs) { const s = Math.sin(c.t * 10) * Math.min(1, sp) * 0.7; u.limbs[0].rotation.x = s; u.limbs[1].rotation.x = -s; if (u.limbs[3]) { u.limbs[2].rotation.x = -s; u.limbs[3].rotation.x = s; } }
+      if (u.ears) { u.ears[0].rotation.x = u.ears[1].rotation.x = -0.12 - air + Math.sin(c.t * 1.3) * 0.05; }
     }
   }
 
@@ -425,6 +470,12 @@ export class Critters {
     const here = w.get(cx, cy, cz);
     if (here === CROP && w.getAux(cx, cy, cz) >= 3) { w.set(cx, cy, cz, CROP, 0); c.meal = (c.meal || 0) + 1; this.fx.burst(c.x, c.y + 0.4, c.z, 6, 0xe0b040, 1.5); }
     if (c.eatCd > 0) return;
+    // fish from the bank
+    if ((c.meal || 0) < 2 && c.ground && w.surfAt(c.x + Math.sin(c.yaw) * 1.5, c.z + Math.cos(c.yaw) * 1.5) > 0) {
+      for (const o of this.list) if (!o.dead && o.kind === 'minnow' && this.possessed !== o && Math.hypot(o.x - c.x, o.z - c.z) < 4) {
+        this.fx.burst(o.x, w.surfAt(o.x, o.z), o.z, 8, 0xbfe6f7, 2.5); this.remove(o); c.meal = (c.meal || 0) + 1; c.eatCd = 12; this.onEvent('fish', c); return;
+      }
+    }
     // sow a field in rows near home
     if (c.ground && rnd() < 0.02 && (here === AIR || here === TUFT) && ((cx + cz) & 1) === 0 && Math.hypot(c.hx - c.x, c.hz - c.z) < 9 && Math.hypot(c.hx - c.x, c.hz - c.z) > 2.5) {
       const below = w.get(cx, cy - 1, cz);

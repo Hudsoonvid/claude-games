@@ -4,7 +4,7 @@ import * as WM from './world.js';
 import { World, RIM, CH, AIR, STONE, SOIL, TURF, SAND, ICE, LAVA, STEAM, TUFT, WEED, SEED, FIRE, WOOD, BASALT, SPRING, DRAIN, OPAQUE, rnd, ri } from './world.js';
 import { generate, WORLD_TYPES } from './gen.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity } from './mesher.js';
-import { Critters, KINDS, KIND_IDS, setNightGlow } from './critters.js';
+import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
 import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makePost } from './gfx.js';
@@ -157,6 +157,8 @@ const TOOLS = [
   { id: 'bolt', tab: 'powers', label: 'Lightning', type: 'bolt', color: '#ffe98a', glyph: 'ϟ' },
   { id: 'meteor', tab: 'powers', label: 'Meteor', type: 'meteor', color: '#5a4a5a', glyph: '☄', gc: '#ffb060' },
   { id: 'quake', tab: 'powers', label: 'Quake', type: 'quake', color: '#b9a68a', glyph: '≋' },
+  { id: 'tornado', tab: 'powers', label: 'Tornado', type: 'tornado', color: '#b8b8c2', glyph: '֍' },
+  { id: 'surge', tab: 'powers', label: 'Surge', type: 'surge', color: '#7fc6e6', glyph: '∿', gc: '#fff' },
   { id: 'cloud', tab: 'powers', label: 'Downpour', type: 'cloud', color: '#c9d6e6', glyph: '☂' },
   { id: 'dry', tab: 'powers', label: 'Dry up', type: 'dry', color: '#ffd978', glyph: '☀' },
   { id: 'freeze', tab: 'powers', label: 'Freeze', type: 'freeze', color: '#cfeefa', glyph: '❄' },
@@ -174,7 +176,7 @@ const TIPS = {
   seed: 'Scatter seeds: they sprout on damp soil', raise: 'Raise the land', lower: 'Lower the land', smooth: 'Even out the land',
   biome: 'Paint a biome: changes grass, leaves and tree shapes', dig: 'Scoop away anything, water included',
   possess: 'Click a creature to steer it yourself', fire: 'Set things alight', bolt: 'Call down lightning', meteor: 'Drop a meteor',
-  quake: 'Shake and crack the ground', cloud: 'A local downpour', dry: 'Boil water off into steam', freeze: 'Turn standing water to ice',
+  quake: 'Shake and crack the ground', tornado: 'A twister that tears up the ground and flings things about', surge: 'Raise a wall of water that crashes outward', cloud: 'A local downpour', dry: 'Boil water off into steam', freeze: 'Turn standing water to ice',
   thaw: 'Melt ice back to water', bloom: 'Make everything nearby grow', hut: 'Raise a hut and a villager to live in it',
 };
 
@@ -218,11 +220,18 @@ $('bRain').onclick = () => { if (!world.raining) setRain(true); else if (!state.
 const TIME_MODES = { auto: 'Day cycle', noon: 'Noon', dusk: 'Dusk', night: 'Night' };
 function setTimeMode(m) { state.timeMode = m; $('bTime').textContent = TIME_MODES[m]; }
 $('bTime').onclick = () => { const k = Object.keys(TIME_MODES); setTimeMode(k[(k.indexOf(state.timeMode) + 1) % k.length]); };
-const sheets = ['worlds', 'settings'];
-function openSheet(id) { for (const s of sheets) $(s).classList.toggle('open', s === id && !$(s).classList.contains('open')); if (id === 'worlds') renderSlots(); }
+const sheets = ['worlds', 'settings', 'census'];
+function openSheet(id) { for (const s of sheets) $(s).classList.toggle('open', s === id && !$(s).classList.contains('open')); if (id === 'worlds') renderSlots(); $('brand').classList.toggle('on', $('census').classList.contains('open')); if (id === 'census') renderCensus(); }
+$('brand').onclick = (e) => { e.stopPropagation(); openSheet('census'); };
+function renderCensus() {
+  if (!$('census').classList.contains('open')) return;
+  const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
+  $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
+  $('censusWorld').innerHTML = row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
+}
 $('bWorld').onclick = (e) => { e.stopPropagation(); openSheet('worlds'); };
 $('bSet').onclick = (e) => { e.stopPropagation(); openSheet('settings'); };
-document.addEventListener('pointerdown', (e) => { if (!sheets.some((s) => $(s).contains(e.target)) && !$('ctl').contains(e.target)) for (const s of sheets) $(s).classList.remove('open'); });
+document.addEventListener('pointerdown', (e) => { if (!sheets.some((s) => $(s).contains(e.target)) && !$('ctl').contains(e.target) && !$('brand').contains(e.target)) { for (const s of sheets) $(s).classList.remove('open'); $('brand').classList.remove('on'); } });
 const showHelp = (v) => $('help').classList.toggle('open', v);
 $('bHelp').onclick = () => showHelp(true);
 $('bStart').onclick = () => { showHelp(false); sound.init(); };
@@ -506,6 +515,41 @@ function quake(p, size) {
   state.shake = Math.max(state.shake, 0.8); sound.boom(0.7, 1.8, 70);
 }
 
+function tornado(p) {
+  let x = p.x + 0.5, z = p.z + 0.5, life = 11, ang = Math.random() * 6.28, t = 0;
+  sound.boom(0.35, 3, 240);
+  transients.push((dt) => {
+    life -= dt; t += dt; ang += (Math.random() - 0.5) * dt * 3;
+    x = Math.max(4, Math.min(W - 4, x + Math.cos(ang) * 5 * dt)); z = Math.max(4, Math.min(D - 4, z + Math.sin(ang) * 5 * dt));
+    const gy = world.groundY(x, z);
+    for (let k = 0; k < 14; k++) { // the funnel
+      const h = Math.random() * 16, r = 0.8 + h * 0.28, a = t * 9 + h * 0.9 + k;
+      fx.emit(x + Math.cos(a) * r, gy + h, z + Math.sin(a) * r, -Math.sin(a) * 7, 1.5, Math.cos(a) * 7, k % 3 ? 0xc9c9d2 : 0x8f8f9a, 0.35, 0);
+    }
+    if (!state.paused) for (let k = 0; k < 3; k++) { // rip up the ground and throw it
+      const cx = Math.floor(x + (Math.random() - 0.5) * 5), cz = Math.floor(z + (Math.random() - 0.5) * 5);
+      if (cx < 1 || cz < 1 || cx >= W - 1 || cz >= D - 1) continue;
+      const top = world.groundY(cx, cz) - 1, m = world.get(cx, top, cz);
+      if (top > 1 && m !== AIR && m !== STONE && m !== BASALT && m !== LAVA) {
+        world.set(cx, top, cz, AIR);
+        const tx = cx + ri(13) - 6, tz = cz + ri(13) - 6, ty = Math.min(H - 2, top + 5 + ri(6));
+        if (OPAQUE[m] && world.inb(tx, ty, tz) && world.get(tx, ty, tz) === AIR) world.set(tx, ty, tz, m === TURF ? SOIL : m === WOOD ? SAND : m);
+      }
+      const got = world.takeWater(cx, cz, 0.4); if (got > 0) world.addWater(Math.max(0, Math.min(W - 1, cx + ri(11) - 5)), Math.max(0, Math.min(D - 1, cz + ri(11) - 5)), got);
+    }
+    for (const c of critters.list) if (!c.dead && Math.hypot(c.x - x, c.z - z) < 3.2 && c !== critters.possessed) { c.vy = 9; c.y += 0.3; c.x = Math.max(1, Math.min(W - 1, c.x + (Math.random() - 0.5) * 3)); c.z = Math.max(1, Math.min(D - 1, c.z + (Math.random() - 0.5) * 3)); c.ground = false; }
+    state.shake = Math.max(state.shake, 0.12); pourLevel = 1; sound.pour(1, 300);
+    return life <= 0;
+  });
+}
+function surge(p) {
+  // a ridge of water across the world through the point, along whichever axis the camera faces
+  const alongX = Math.abs(Math.sin(cam.yaw)) > Math.abs(Math.cos(cam.yaw));
+  const n = alongX ? D : W;
+  for (let k = 0; k < n; k++) for (let o = -1; o <= 1; o++) { const x = alongX ? p.x + o : k, z = alongX ? k : p.z + o; world.addWater(x, z, 2.2 - Math.abs(o) * 0.6); }
+  state.shake = Math.max(state.shake, 0.4); sound.boom(0.5, 2.4, 300);
+}
+
 function useTool(first) {
   const tool = toolById[state.tool], type = tool.type;
   if (type === 'look') return;
@@ -588,6 +632,8 @@ function useTool(first) {
     case 'bolt': if (first || toolTick % 8 === 0) strike(at); break;
     case 'meteor': if (first) meteor(at, state.size); break;
     case 'quake': if (first || toolTick % 12 === 0) quake(at, state.size); break;
+    case 'tornado': if (first) tornado(at); break;
+    case 'surge': if (first) surge(at); break;
     case 'dry':
       cols(at.x, at.z, (x, z) => {
         const got = world.takeWater(x, z, 0.12); if (got <= 0) return;
@@ -653,6 +699,7 @@ critters.onEvent = (t, c) => {
   else if (t === 'chirp') { sound.blip(1700 + Math.random() * 700, 0.09, 'sine', 0.04); setTimeout(() => sound.blip(2100 + Math.random() * 500, 0.07, 'sine', 0.035), 110); }
   else if (t === 'chop') sound.blip(140, 0.07, 'square', 0.05);
   else if (t === 'build') sound.blip(392, 0.25, 'triangle', 0.07);
+  else if (t === 'fish') sound.blip(820, 0.1, 'sine', 0.05);
 };
 
 // ---------------------------------------------------------------- input
@@ -798,7 +845,8 @@ function updateSky() {
   hemi.intensity = 0.95 + 0.15 * day + dusk * 0.15;
   hemi.color.set(0x7f93d8).lerp(cTmp.copy(cTop).lerp(cWhite, 0.45), day);
   hemi.groundColor.set(0x4a5078).lerp(cTmp.set(0x9a8468), day);
-  U.uNight.value = night; U.uCaustic.value = 0.25 + 0.75 * day;
+  U.uNight.value = night; U.uCaustic.value = (0.25 + 0.75 * day) * (1 - overcast * 0.7);
+  U.uCloud.value = day * (0.55 + overcast * 0.45); U.uRain.value += ((world.raining ? 1 : 0) - U.uRain.value) * 0.03;
   U.uSky.value.copy(cTop).lerp(cBot, 0.5).multiplyScalar(0.25 + 0.75 * day);
   U.uSunDir.value.copy(sun.position).normalize();
   U.uSunCol.value.copy(sun.color).multiplyScalar(Math.min(1.2, sun.intensity / 2.4));
@@ -864,6 +912,15 @@ function frame(now) {
     const goal = { noon: 0.5, dusk: 0.765, night: 0.02 }[state.timeMode];
     let d = goal - state.tod; d -= Math.round(d);
     state.tod = (state.tod + d * Math.min(1, dt * 2.5) + 1) % 1;
+  }
+
+  // petals and leaves drift down in the blossom and autumn biomes
+  if (!state.paused && gfx.motes) for (let k = 0; k < 2; k++) {
+    const x = ri(W), z = ri(D), b = world.biome[x + z * W];
+    if (b !== 2 && b !== 3) continue;
+    const y = world.groundY(x, z) - 1;
+    if (world.get(x, y, z) !== 9) continue;
+    fx.emit(x + Math.random(), y - 0.2, z + Math.random(), 0.5 + Math.random() * 0.6, -0.3, (Math.random() - 0.5) * 0.8, b === 3 ? (Math.random() < 0.5 ? 0xf7b4d0 : 0xfdd3e2) : (Math.random() < 0.5 ? 0xe07a2a : 0xe6aa30), 4.5, 0.045);
   }
 
   toolAcc += dt; critterCd -= dt;
@@ -945,8 +1002,7 @@ function frame(now) {
   statT += dt;
   if (statT > 0.5) {
     statT = 0;
-    const c = critters.counts, parts = KIND_IDS.filter((q) => c[q] > 0).map((q) => `${c[q]} ${c[q] === 1 ? q : q === 'butterfly' ? 'butterflies' : q + 's'}`);
-    $('stats').textContent = parts.join(' · ') || 'Nothing lives here yet';
+    renderCensus();
     $('fps').textContent = `${Math.round(perf.fps)} frames per second · ${gfx.mode === 'auto' ? 'Auto: ' + LEVEL_NAMES[gfx.level] : gfx.mode === 'custom' ? 'Custom' : LEVEL_NAMES[gfx.level]} · ${Math.round(innerWidth * renderer.getPixelRatio())}×${Math.round(innerHeight * renderer.getPixelRatio())}`;
   }
   saveT += dt;
@@ -958,10 +1014,12 @@ addEventListener('pagehide', autosave);
 // ---------------------------------------------------------------- boot
 setTab('earth'); setTool('sand'); setSize(2); setTimeMode('auto');
 applyGfx(false);
-if (!restore(ls.get(AUTO_KEY))) { const v = generate(world, 'valley'); buildStage(); populate(v); showHelp(true); }
-resize();
-remesh(999);
-updateSky();
-requestAnimationFrame(frame);
+loadModels().then(() => {   // the Blender-made creature models unpack first, then the world starts
+  if (!restore(ls.get(AUTO_KEY))) { const v = generate(world, 'valley'); buildStage(); populate(v); showHelp(true); }
+  resize();
+  remesh(999);
+  updateSky();
+  requestAnimationFrame(frame);
+});
 
 window.__brimful = { world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, get frames() { return frames; } };

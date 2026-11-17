@@ -17,9 +17,13 @@
   button { border:0; background:none; cursor:pointer; padding:0; }
 
   #top { position:fixed; top:max(10px, env(safe-area-inset-top)); left:10px; right:10px; display:flex; gap:10px; align-items:flex-start; justify-content:space-between; pointer-events:none; }
-  #brand { pointer-events:auto; padding:8px 14px; max-width:min(420px, 46vw); }
-  #brand b { font-size:17px; letter-spacing:.02em; }
-  #brand span { display:block; font-size:12px; opacity:.72; min-height:16px; }
+  #brand { pointer-events:auto; padding:9px 14px; max-width:min(420px, 46vw); display:flex; align-items:center; gap:8px; }
+  #brand b { font-size:17px; letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #brand i { font-style:normal; opacity:.55; transition:transform .15s; }
+  #brand.on i { transform:rotate(180deg); }
+  #census { left:10px; right:auto; width:min(250px, calc(100vw - 20px)); }
+  #census .row { margin:4px 2px; } #census .row span { font-variant-numeric:tabular-nums; font-weight:700; }
+  #census .row.zero { opacity:.4; }
   #ctl { pointer-events:auto; display:flex; gap:4px; padding:5px; flex-wrap:wrap; justify-content:flex-end; }
   #ctl button { padding:7px 11px; border-radius:11px; font-weight:600; font-size:13px; white-space:nowrap; }
   #ctl button:hover { background:var(--hover); }
@@ -98,14 +102,14 @@
   #help .cta { width:100%; padding:12px; font-size:15px; }
   #toast { position:fixed; left:50%; top:74px; transform:translateX(-50%); padding:8px 14px; font-weight:600; opacity:0; transition:opacity .25s; pointer-events:none; z-index:6; }
   #toast.on { opacity:1; }
-  @media (max-width:640px) { #ctl button { padding:7px 8px; font-size:12px; } #brand b { font-size:15px; } .tool { width:52px; } #brand { max-width:40vw; } #stats { display:none; } }
+  @media (max-width:640px) { #ctl button { padding:7px 8px; font-size:12px; } #brand b { font-size:15px; } .tool { width:52px; } #brand { max-width:40vw; } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
 <div id="top">
-  <div id="brand" class="panel"><b id="wname">Brimful</b><span id="stats"></span></div>
+  <button id="brand" class="panel" title="Show what lives here"><b id="wname">Brimful</b><i id="caret">▾</i></button>
   <div id="ctl" class="panel">
     <button id="bPause" title="Pause (P)">Pause</button>
     <button id="bSpeed" title="Simulation speed">1×</button>
@@ -116,6 +120,8 @@
     <button id="bHelp" title="Help (H)">?</button>
   </div>
 </div>
+
+<div id="census" class="panel sheet"><h4>Living here</h4><div id="censusList"></div><h4>The world</h4><div id="censusWorld"></div></div>
 
 <div id="worlds" class="panel sheet">
   <h4>New world</h4>

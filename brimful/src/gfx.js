@@ -22,6 +22,8 @@ export const U = {
   uWorld: { value: new THREE.Vector2(64, 64) },
   uTexel: { value: new THREE.Vector2(1 / 128, 1 / 128) },
   uDetail: { value: 1 },
+  uCloud: { value: 0 },                      // strength of drifting cloud shadows
+  uRain: { value: 0 },
 };
 
 const NOISE = /* glsl */ `
@@ -43,7 +45,7 @@ const NOISE = /* glsl */ `
   }
 `;
 const DECL = /* glsl */ `
-  uniform float uTime, uNight, uCaustic, uUnder, uDetail; uniform vec3 uSky; uniform sampler2D uWater; uniform vec2 uWorld;
+  uniform float uTime, uNight, uCaustic, uUnder, uDetail, uCloud, uRain; uniform vec3 uSky; uniform sampler2D uWater; uniform vec2 uWorld;
   varying vec3 vWPos; varying vec3 vWNrm;
 `;
 const VERT_OUT = /* glsl */ `
@@ -72,6 +74,14 @@ function patch(mat, { vertex = '', frag = {} }) {
   return mat;
 }
 
+// soft shadows of clouds sliding over the land
+const CLOUDS = /* glsl */ `
+  if (uCloud > 0.01 && uDetail > 0.5) {
+    float cl = fbm(vWPos.xz * 0.032 + uTime * vec2(0.014, 0.009));
+    diffuseColor.rgb *= 1.0 - uCloud * smoothstep(0.42, 0.72, cl) * 0.4;
+  }
+`;
+
 // what the water does to anything beneath it: colour absorption with depth, caustics, a wet band at the shoreline
 const SUBMERGE = /* glsl */ `
   vec4 wt = texture2D(uWater, (vWPos.xz + uWorld * 0.5) / uWorld);
@@ -92,6 +102,8 @@ export function patchSolid(mat) {
         vec3 absorb = exp(-max(below, 0.0) * vec3(0.40, 0.12, 0.07));
         diffuseColor.rgb *= mix(vec3(1.0), absorb * vec3(0.8, 0.95, 1.0), uw);
         diffuseColor.rgb *= 1.0 - 0.28 * smoothstep(0.45, 0.0, -below) * hasWater * (1.0 - uw); // damp shoreline
+        diffuseColor.rgb *= 1.0 - uRain * 0.16 * (1.0 - uw);   // rain darkens the ground
+        ${CLOUDS}
       `,
       emissivemap_fragment: /* glsl */ `
         if (uw > 0.01 && uDetail > 0.5) {
@@ -140,6 +152,7 @@ export function patchFlora(mat) {
       color_fragment: /* glsl */ `
         ${SUBMERGE}
         diffuseColor.rgb *= mix(vec3(1.0), exp(-max(below, 0.0) * vec3(0.3, 0.09, 0.05)), uw);
+        ${CLOUDS}
       `,
       emissivemap_fragment: /* glsl */ `
         float lum = step(0.75, vColor.a);
@@ -167,7 +180,7 @@ export function makeWater(renderer) {
         gl_Position = projectionMatrix * viewMatrix * vec4(vWPos, 1.0);
       }`,
     fragmentShader: /* glsl */ `
-      uniform sampler2D uWater; uniform vec2 uWorld, uTexel; uniform float uTime, uNight, uAmb, uDetail, uUnder;
+      uniform sampler2D uWater; uniform vec2 uWorld, uTexel; uniform float uTime, uNight, uAmb, uDetail, uUnder, uRain, uCloud;
       uniform vec3 uSkyTop, uSkyBot, uSunDir, uSunCol;
       varying vec2 vUv; varying vec3 vWPos;
       ${NOISE}
@@ -192,6 +205,16 @@ export function makeWater(renderer) {
           float nz = fbm2(a + vec2(0., e)) + 0.5 * fbm2(b + vec2(0., e));
           n.xz += vec2(n0 - nx, n0 - nz) * (0.9 + min(speed, 3.0) * 0.5) * (0.35 + 0.65 * calm);
         }
+        float rings = 0.0;
+        if (uRain > 0.01) { // raindrop rings
+          for (int k = 0; k < 2; k++) {
+            vec2 g = wp * (k == 0 ? 1.3 : 2.1) + float(k) * 17.3, id = floor(g), f = fract(g) - 0.5;
+            f += (vec2(h21(id + 3.1), h21(id + 7.7)) - 0.5) * 0.4;
+            float t = fract(uTime * (1.1 + 0.5 * h21(id)) + h21(id + 1.3)), d = length(f);
+            float ring = smoothstep(0.05, 0.0, abs(d - t * 0.42)) * (1.0 - t);
+            n.xz += (f / max(d, 0.001)) * ring * uRain * 1.6; rings += ring;
+          }
+        }
         n = normalize(n);
         vec3 V = normalize(cameraPosition - vWPos);
         if (V.y < 0.0) n = -n;                       // seen from below
@@ -215,6 +238,8 @@ export function makeWater(renderer) {
         float fall = smoothstep(0.7, 0.35, n.y) * smoothstep(0.4, 0.65, fn + 0.15);
         float foam = clamp(shore * 0.6 + rapid * 0.8 + fall * 0.7, 0.0, 1.0) * smoothstep(0.03, 0.16, depth);
         col = mix(col, vec3(0.95, 0.98, 1.0) * (uAmb * 0.6 + uSunCol * 0.5), foam);
+        col += rings * uRain * 0.12 * uAmb;
+        col *= 1.0 - uCloud * smoothstep(0.42, 0.72, fbm(wp * 0.032 + uTime * vec2(0.014, 0.009))) * 0.3;
         alpha = max(alpha, foam * 0.9);
         if (V.y < 0.0) { col = mix(col, vec3(0.35, 0.75, 0.85) * uAmb, 0.5); alpha = 0.75; }
         gl_FragColor = vec4(col, alpha);
