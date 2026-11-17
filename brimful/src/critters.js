@@ -21,6 +21,10 @@ export const KINDS = {
   wolf: { name: 'wolf', cap: 12, hint: 'WASD lope · Space leap' },
   deer: { name: 'deer', cap: 25, hint: 'WASD walk · Space leap' },
   fox: { name: 'fox', cap: 12, hint: 'WASD run · Space leap' },
+  camel: { name: 'camel', cap: 14, hint: 'WASD plod · Space hop' },
+  goat: { name: 'goat', cap: 20, hint: 'WASD climb · Space leap' },
+  penguin: { name: 'penguin', cap: 30, hint: 'WASD waddle or swim · Space hop' },
+  flamingo: { name: 'flamingo', cap: 16, hint: 'WASD wade · Space hop' },
   crab: { name: 'crab', cap: 25, hint: 'WASD scuttle · Space hop' },
   villager: { name: 'villager', cap: 40, hint: 'WASD walk · Space jump' },
   bee: { name: 'bee', cap: 40, hint: 'WASD fly · Space up · Shift down' },
@@ -127,6 +131,7 @@ const TINTS = {
   minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
   villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
   wolf: [[std(0x9a9894), std(0x8a8680), std(0xb0aca4), std(0x6a6662)]], bear: [[std(0x7a5236), std(0x6a4630), std(0x8a6440)]], beaver: [[std(0x7a5232), std(0x6a462c)]],
+  camel: [[std(0xd8b483), std(0xc9a070), std(0xe2c49a)]], goat: [[std(0xf2eee6), std(0x8a6a4a), std(0x4a4440), std(0xc8b49a)]],
   koi: [[std(0xf7f3ea), std(0xfbe8c8), std(0xf2ead8)]], turtle: [[std(0x7a8a4a), std(0x8a7a4e), std(0x5f7a5a)]], heron: [[std(0xdfe6ee), std(0xc2cedc)]], owl: [[std(0xa88a62), std(0xb9a27e), std(0xd6ccba)]],
 };
 const plain = {};   // one shared Lambert per exported material colour
@@ -241,6 +246,7 @@ function build(kind) {
 const lerpAngle = (a, b, t) => { let d = (b - a) % 6.2832; if (d > 3.1416) d -= 6.2832; else if (d < -3.1416) d += 6.2832; return a + d * t; };
 const FLY = { glimmer: 1, butterfly: 1, songbird: 1, bee: 1, owl: 1 };
 const SWIM = { minnow: 1, koi: 1 };
+export const BEH = { camel: 'sheep', goat: 'deer', penguin: 'duck', flamingo: 'heron' };   // newer animals borrow an older one's habits
 const GRAZE = { mossback: 1, rabbit: 1, deer: 1, sheep: 1 };
 
 const NAME_A = ['Al', 'Bri', 'Cor', 'Del', 'El', 'Fen', 'Gar', 'Hal', 'Is', 'Jor', 'Kes', 'Lin', 'Mar', 'Nel', 'Or', 'Per', 'Ros', 'Sil', 'Tam', 'Wil'];
@@ -253,7 +259,7 @@ const personName = () => NAME_A[ri(NAME_A.length)] + NAME_B[ri(NAME_B.length)];
 
 // a few words on what a creature is up to, for the inspect card
 export function describe(c, world, night) {
-  const wet = world.surfAt(c.x, c.z) > c.y - 0.1 && world.depthAt(c.x, c.z) > 0.3, k = c.kind;
+  const wet = world.surfAt(c.x, c.z) > c.y - 0.1 && world.depthAt(c.x, c.z) > 0.3, k = BEH[c.kind] || c.kind;
   if (c.flee > 0) return 'Running from a fox';
   if (c.rest > 0) return night > 0.6 || k === 'owl' ? 'Asleep on a perch' : 'Resting';
   if (k === 'minnow' || k === 'koi') return c.dry > 0.3 ? 'Stranded, gasping' : c.food < 4 ? 'Looking for waterweed' : 'Swimming with the school';
@@ -472,7 +478,7 @@ export class Critters {
   }
 
   lander(c, dt, ctl, here, cx, cy, cz, night) {
-    const w = this.world, kind = c.kind;
+    const w = this.world, kind = BEH[c.kind] || c.kind;
     if (w.solid(cx, cy, cz)) { c.y += 4 * dt; c.vy = 0; return; } // dig out when buried
     const surf = w.surfAt(c.x, c.z);
     // afloat with a little hysteresis, so something riding at the surface does not flicker between swimming and falling

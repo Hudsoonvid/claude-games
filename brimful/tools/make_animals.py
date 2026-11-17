@@ -507,6 +507,65 @@ tail = fuse([ell((0, 0.36, 0.07), (0.075, 0.13, 0.022))], 'tail', mat('beavertai
 teeth = part([cube((0, -0.355, 0.15), (0.03, 0.01, 0.03))], 'teeth', mat('teeth', srgb(0xe8c87a)))
 animals.append(animal('beaver', [body, tail, teeth, eyes(0.05, -0.27, 0.23, 0.013)]))
 
+# ---------------------------------------------------------------- camel: long-legged, one hump, a swan neck
+body = fuse([
+    ell((0, 0.05, 1.12), (0.19, 0.46, 0.2)), ell((0, -0.05, 1.32), (0.15, 0.2, 0.17)),                 # body, hump
+    ell((0, 0.42, 1.08), (0.15, 0.14, 0.16)),
+    ell((0, -0.5, 1.12), (0.075, 0.2, 0.09), rot=(R(30), 0, 0)), ell((0, -0.66, 1.34), (0.065, 0.06, 0.2), rot=(R(-15), 0, 0)),   # neck dips then rises
+    ell((0, -0.74, 1.56), (0.075, 0.15, 0.075), rot=(R(10), 0, 0)), ell((0, -0.88, 1.53), (0.05, 0.06, 0.05)),                  # head, muzzle
+    ell((0.06, -0.68, 1.64), (0.018, 0.02, 0.04)), ell((-0.06, -0.68, 1.64), (0.018, 0.02, 0.04)),
+    ell((0, 0.58, 1.02), (0.03, 0.03, 0.16), rot=(R(25), 0, 0)),
+], 'body', TINT(), voxel=0.03, faces=640, paint=coat(0.78, 1.0, mottle=0.06, freq=10))
+legs = [leg(f'leg{k}', x, y, 0.98, TINT(), thick=0.06, paint=coat(0.8, 1.0, extra=lambda co, n, c: (0.55, 0.5, 0.45) if co.z < 0.06 else c), foot=0.02)
+        for k, (x, y) in enumerate([(0.11, -0.28), (-0.11, -0.28), (0.11, 0.4), (-0.11, 0.4)])]
+animals.append(animal('camel', [body, *legs, eyes(0.07, -0.79, 1.6, 0.016)]))
+
+# ---------------------------------------------------------------- goat: nimble, bearded, horns swept back
+body = fuse([
+    ell((0, 0.04, 0.6), (0.14, 0.32, 0.15)), ell((0, -0.22, 0.63), (0.13, 0.14, 0.16)), ell((0, 0.28, 0.62), (0.13, 0.13, 0.14)),
+    ell((0, -0.36, 0.8), (0.06, 0.08, 0.16), rot=(R(-30), 0, 0)),
+    ell((0, -0.46, 0.96), (0.065, 0.12, 0.07), rot=(R(25), 0, 0)), ell((0, -0.57, 0.9), (0.042, 0.06, 0.045)),
+    ell((0, -0.52, 0.8), (0.022, 0.03, 0.07)),                                                              # beard
+    ell((0.09, -0.42, 1.0), (0.05, 0.02, 0.022), rot=(0, R(-20), 0)), ell((-0.09, -0.42, 1.0), (0.05, 0.02, 0.022), rot=(0, R(20), 0)),
+    ell((0, 0.4, 0.72), (0.03, 0.06, 0.05), rot=(R(-40), 0, 0)),
+], 'body', TINT(), voxel=0.024, faces=560, paint=coat(0.7, 1.0, mottle=0.12, freq=12))
+legs = [leg(f'leg{k}', x, y, 0.5, TINT(), thick=0.04, paint=hoofed(0.05)) for k, (x, y) in enumerate([(0.07, -0.22), (-0.07, -0.22), (0.075, 0.28), (-0.075, 0.28)])]
+horns = part([cone((0.04, -0.38, 1.1), 0.022, 0.24, rot=(R(-45), R(10), 0), verts=6), cone((-0.04, -0.38, 1.1), 0.022, 0.24, rot=(R(-45), R(-10), 0), verts=6)], 'horns', mat('goathorn', srgb(0x8a7a62)))
+animals.append(animal('goat', [body, *legs, horns, eyes(0.055, -0.5, 1.0, 0.015)]))
+
+# ---------------------------------------------------------------- penguin: upright, black back, white front, orange beak and feet
+def pengcoat(co, n):
+    front = sm(-0.1, -0.45, n.y) * (1 - sm(0.92, 1.05, co.z)) if co.z < 1.0 else 0.0
+    v = 0.16 + 0.84 * front
+    return (v, v, v)
+
+body = fuse([
+    ell((0, 0, 0.36), (0.17, 0.15, 0.3)), ell((0, -0.01, 0.66), (0.115, 0.11, 0.12)), ell((0, 0.13, 0.12), (0.06, 0.06, 0.05)),
+], 'body', mat('penguin', srgb(0xf4f4f0)), voxel=0.024, faces=380, paint=pengcoat)
+beak = part([cone((0, -0.15, 0.66), 0.028, 0.1, rot=(R(95), 0, 0), verts=6)], 'beak', mat('pengbill', srgb(0xe89a2a)))
+fl = mat('pengwing', srgb(0x2a2a30))
+flips = [part([ell((side * 0.17, 0.0, 0.32), (0.025, 0.07, 0.17), rot=(0, R(side * -12), 0), seg=8, rings=6)], f'arm{k}', fl, (side * 0.16, 0.0, 0.5)) for k, side in enumerate((1, -1))]
+feet = [part([ell((x, -0.06, 0.02), (0.045, 0.07, 0.018), seg=8, rings=5)], f'leg{k}', mat('pengfeet', srgb(0xe8902a)), (x, 0, 0.1)) for k, x in enumerate((0.07, -0.07))]
+cheek = part([ell((0.06, -0.08, 0.72), (0.03, 0.03, 0.02), seg=8, rings=5), ell((-0.06, -0.08, 0.72), (0.03, 0.03, 0.02), seg=8, rings=5)], 'cheek', mat('pengcheek', srgb(0xf2d050)))
+animals.append(animal('penguin', [body, beak, *flips, *feet, cheek, eyes(0.05, -0.095, 0.7, 0.012)]))
+
+# ---------------------------------------------------------------- flamingo: a pink wader with an S-neck and a bent bill
+def flamcoat(co, n):
+    v = 1.0 - 0.18 * sm(-0.3, 0.6, n.z)
+    if co.y > 0.2 and co.z < 1.02:        # darker flight feathers at the back
+        v *= 0.8
+    return (v, v, v)
+
+body = fuse([
+    ell((0, 0.05, 0.94), (0.13, 0.26, 0.13), rot=(R(-8), 0, 0)), ell((0, 0.3, 0.92), (0.07, 0.12, 0.05), rot=(R(-20), 0, 0)),
+    ell((0, -0.14, 1.12), (0.035, 0.05, 0.18), rot=(R(-35), 0, 0)), ell((0, -0.13, 1.36), (0.032, 0.05, 0.14), rot=(R(30), 0, 0)),
+    ell((0, -0.2, 1.52), (0.034, 0.05, 0.1), rot=(R(-10), 0, 0)), ell((0, -0.23, 1.62), (0.05, 0.07, 0.045)),
+], 'body', mat('flamingo', srgb(0xf49aa8)), voxel=0.022, faces=500, paint=flamcoat)
+bill = part([cone((0, -0.33, 1.6), 0.026, 0.14, rot=(R(80), 0, 0), verts=6), cone((0, -0.4, 1.53), 0.017, 0.1, rot=(R(150), 0, 0), verts=6)], 'bill', mat('flambill', srgb(0x2a2626)))
+fleg = mat('flamleg', srgb(0xe07a8a))
+legs = [part([cone((x, 0.05, 0.42), 0.012, 0.84, verts=5, r2=0.01), ell((x, 0.05, 0.44), (0.018, 0.018, 0.022), seg=6, rings=4), ell((x, -0.02, 0.015), (0.03, 0.07, 0.01), seg=8, rings=5)], f'leg{k}', fleg, (x, 0.05, 0.84)) for k, x in enumerate((0.045, -0.045))]
+animals.append(animal('flamingo', [body, bill, *legs, eyes(0.04, -0.27, 1.64, 0.011)]))
+
 # ---------------------------------------------------------------- props
 # a rowing boat for villagers on the water: hull hollowed with a boolean, a thwart to sit on
 hull = join([ell((0, 0, 0.12), (0.34, 0.74, 0.26))], 'hull')
