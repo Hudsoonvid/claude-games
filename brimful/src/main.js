@@ -550,7 +550,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = [];
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null;
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -769,6 +769,31 @@ function lowerCol(x, z) {
 // ---------------------------------------------------------------- the chronicle: what happened, and when
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'], TIERS = ['hamlet', 'village', 'town'];
 const vname = (c) => (critters.villages[c.vid] || {}).name || 'the wilds';
+// ---- festivals: on the first night of each season every village sets off fireworks over its hearth
+const FIRE_COLS = [0xff5a6a, 0xffd84a, 0x6ad0ff, 0xb08aff, 0x7aff9a, 0xffffff, 0xff9a3a];
+function firework(x, y, z) {
+  let t = 0, py = y; const top = y + 9 + rnd() * 6, col = FIRE_COLS[ri(FIRE_COLS.length)], col2 = FIRE_COLS[ri(FIRE_COLS.length)];
+  sound.blip(300 + rnd() * 200, 0.5, 'sine', 0.025);
+  transients.push((dt) => {
+    t += dt; py += dt * 16;
+    fx.emit(x + (rnd() - 0.5) * 0.2, py, z + (rnd() - 0.5) * 0.2, 0, -1, 0, 0xffd8a0, 0.35, 0.2);
+    if (py < top) return false;
+    for (let k = 0; k < 120; k++) {
+      const u = rnd() * 2 - 1, a = rnd() * 6.283, r = Math.sqrt(1 - u * u), sp = 6 + rnd() * 1.5;
+      fx.emit(x, py, z, Math.cos(a) * r * sp, u * sp, Math.sin(a) * r * sp, k & 1 ? col : col2, 1.1 + rnd() * 0.8, 0.12);
+    }
+    sound.boom(0.08, 0.6, 600); return true;
+  });
+}
+function festivals(dt) {
+  if (state.festival === 'due' && night > 0.6) {
+    state.festival = 22; chronicle(`The villages held a${state.seasons ? ' ' + SEASONS[Math.floor(state.year * 4)].toLowerCase() : ''} festival`);
+  }
+  if (typeof state.festival !== 'number') return;
+  state.festival -= dt;
+  if (state.festival <= 0) { state.festival = null; return; }
+  for (const v of critters.villages) if (rnd() < dt * 0.7) firework(v.x + (rnd() - 0.5) * 4, world.groundY(Math.round(v.x), Math.round(v.z)), v.z + (rnd() - 0.5) * 4);
+}
 function dateLabel() { return `Day ${state.day}` + (state.seasons ? `, ${SEASONS[Math.floor(state.year * 4)].toLowerCase()} of year ${state.yearN}` : ''); }
 function chronicle(text) {
   const last = state.chron[state.chron.length - 1];
@@ -1425,12 +1450,12 @@ function frame(now) {
     let n = 0;
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
-    if (!state.paused) sampleHistory(dt * state.speed);
+    if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); }
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
       state.year = (state.year + dt * state.speed / 1800) % 1;
-      if (Math.floor(state.year * 4) !== season0) { if (season0 === 3) state.yearN++; chronicle(`${SEASONS[Math.floor(state.year * 4)]} came`); }
+      if (Math.floor(state.year * 4) !== season0) { if (season0 === 3) state.yearN++; chronicle(`${SEASONS[Math.floor(state.year * 4)]} came`); if (critters.villages.length) state.festival = 'due'; }
       state.weatherT -= dt * state.speed;
       if (state.weatherT <= 0) {
         const season = Math.floor(state.year * 4), r = Math.random(), on = world.raining || world.snowing;
