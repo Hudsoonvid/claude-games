@@ -1691,9 +1691,15 @@ function frame(now) {
         for (let k = 0; k < 12 && !v.mill; k++) { const a = rnd() * 6.283, r = 6 + rnd() * 5, at = buildMill(Math.round(v.x + Math.cos(a) * r), Math.round(v.z + Math.sin(a) * r)); if (at) { v.mill = true; chronicle(`${v.name} built a windmill`); } }
       }
       if (v.tier >= 2 && !v.light && rnd() < 0.1) { // a town by the sea raises a lighthouse on its shore
-        let best = null;
-        for (let k = 0; k < 40; k++) { const a = rnd() * 6.283, r = 5 + rnd() * 12, x = Math.round(v.x + Math.cos(a) * r), z = Math.round(v.z + Math.sin(a) * r); if (world.depthAt(x + 2.5, z) > 1.5 || world.depthAt(x - 1.5, z) > 1.5 || world.depthAt(x, z + 2.5) > 1.5 || world.depthAt(x, z - 1.5) > 1.5) { best = [x, z]; if (buildLight(x, z)) break; best = null; } }
-        v.light = true; if (best) chronicle(`${v.name} lit a lighthouse`);
+        let lit = false;
+        for (let k = 0; k < 120 && !lit; k++) {
+          const a = rnd() * 6.283, r = 4 + rnd() * 16, x = Math.round(v.x + Math.cos(a) * r), z = Math.round(v.z + Math.sin(a) * r);
+          if (world.depthAt(x + 0.5, z + 0.5) > 0) continue;
+          const coast = [[3.5, 0.5], [-2.5, 0.5], [0.5, 3.5], [0.5, -2.5]].some(([ox, oz]) => world.depthAt(x + ox, z + oz) > 1.2);
+          if (coast && buildLight(x, z)) lit = true;
+        }
+        v.lightTries = (v.lightTries || 0) + 1;
+        if (lit) { v.light = true; chronicle(`${v.name} lit a lighthouse`); } else if (v.lightTries >= 4) v.light = true;   // an inland town stops looking
       }
       if (v.tier >= 1 && !v.road) { // a growing village lays a road to its nearest neighbour
         v.road = true; let best = null, bd = Math.max(W, D) * 0.9;
