@@ -138,6 +138,43 @@ export const PRESETS = [
   P('moonglade', 'Moonglade', 'Wild', 'Blue willows and glowing pools', [34, 34, 16, 6], (c, x, z) => 12 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(5, 11), pondN: 2, pondR: [4, 8], villages: 0.5 }),
   P('emberwoods', 'Ember woods', 'Wild', 'Crimson conifers and lava seeps', [33, 33, 22], (c, x, z) => 12.5 + c.n(x, z) * 6, { pools: (c, x, z, h) => (c.nn(x, z, 8, 77) > 0.72 && h < 16 ? 1 : 0), villages: 0.3, wl: 9 }),
   P('baobab', 'Baobab plains', 'Wild', 'Great flat-topped trees on golden grass', [35, 35, 4, 19], (c, x, z) => 12.5 + c.n(x, z) * 3 + c.hp(c, x, z), { hp: hillsAndPonds(2, 7), pondN: 0.6, trees: 0.8 }),
+  // ---------------------------------------------------------------- more lands
+  P('cherry', 'Cherry hills', 'Gentle', 'Pink blossom over rolling hills', [36, 36, 3, 0], (c, x, z) => 12.5 + c.n(x, z) * 7 + c.hp(c, x, z), { hp: hillsAndPonds(7, 11), trees: 1.2, villages: 1.2 }),
+  P('sunflowers', 'Sunflower fields', 'Gentle', 'Gold blooms on a wide plain', [49, 49, 0, 21], (c, x, z) => 12.5 + c.n(x, z) * 3 + c.hp(c, x, z), { hp: hillsAndPonds(2, 7), pondN: 0.7, trees: 0.4, villages: 1.4 }),
+  P('paddies', 'Rice terraces', 'Gentle', 'Flooded steps down a green hillside', [46, 46, 14], (c, x, z) => quant(8 + (1 - x / W) * 14 + c.n(x, z) * 5, 2), { springs: 3, villages: 1.6 }),
+  P('wisteria', 'Wisteria gardens', 'Gentle', 'Purple willows over quiet ponds', [45, 45, 3, 32], (c, x, z) => 12.5 + c.n(x, z) * 4 + c.hp(c, x, z), { hp: hillsAndPonds(3, 9), pondN: 3, pondR: [4, 7], villages: 1.2 }),
+  P('highveld', 'Highveld', 'Gentle', 'High open grassland and lone trees', [40, 40, 4, 35], (c, x, z) => 14 + c.n(x, z) * 4 + c.hp(c, x, z), { hp: hillsAndPonds(3, 9), pondN: 0.7, trees: 0.8 }),
+  P('coral', 'Coral coast', 'Water', 'Pale sand and bright islands in a warm sea', [37, 37, 18], (c, x, z) => Math.min(5 + c.n(x, z) * 3 + sum(c.isles, (p) => gauss(x, z, p[0], p[1], p[2]) * (7 + p[2] * 0.6)), 17 + c.n(x, z) * 2), { sand: atollSand, isleN: 1.3 }),
+  P('blacksand', 'Black sand coast', 'Water', 'Dark beaches under a smoking hill', [44, 44, 22, 18], (c, x, z) => {
+    const r = Math.hypot(x - W * 0.7, z - D * 0.3) / c.S;
+    return 6 + (1 - z / D) * 9 + c.n(x, z) * 4 + Math.max(0, 16 - r * 1.3);
+  }, { sand: (c, x, z, h) => h < c.WL + 3, rock: (c, x, z, h, depth) => (h < c.WL + 3 && depth < 3 ? BASALT : 0), villages: 0.7 }),
+  P('inlandsea', 'Inland sea', 'Water', 'A great sea ringed by hills', [0, 1, 37, 2, 9], (c, x, z) => 18 + c.n(x, z) * 5 - gauss(x, z, W / 2, D / 2, Math.min(W, D) * 0.42) * 15 + sum(c.hills, (p) => gauss(x, z, p[0], p[1], p[2])) * 3, { villages: 1.2 }),
+  P('canals', 'Canal country', 'Water', 'Fields cut by straight canals', [0, 21, 46, 13], (c, x, z) => {
+    const sx = Math.max(12, Math.round(W / 5)), sz = Math.max(12, Math.round(D / 5)), gx = Math.abs(((x + sx / 2) % sx) - sx / 2), gz = Math.abs(((z + sz / 2) % sz) - sz / 2);
+    return 12.5 + c.n(x, z) * 1.2 - (Math.min(gx, gz) < 1.2 ? 3.5 : 0);
+  }, { villages: 2, trees: 0.6 }),
+  P('islandchain', 'Island chain', 'Water', 'A long string of islands across the sea', [18, 37, 0, 7], (c, x, z) => {
+    const lz = D / 2 + Math.sin(x / W * 6.28 + c.ph) * D * 0.18;
+    return 5 + c.n(x, z) * 3 + Math.max(0, c.nn(x, z, 7, 13) - 0.35) * 30 * gauss(0, z, 0, lz, D * 0.16);
+  }, { sand: atollSand, villages: 0.8 }),
+  P('saltflats', 'Salt flats', 'Rugged', 'A white plain ringed by red hills', [38, 38, 51], (c, x, z) => {
+    const r = Math.hypot((x - W / 2) / W, (z - D / 2) / D) * 2;
+    return 12.5 + c.n(x, z) * 1.2 + sstep(0.55, 0.95, r + (c.n(x, z) - 0.5) * 0.2) * (10 + c.n(x, z) * 6) - sum(c.ponds, (p) => gauss(x, z, p[0], p[1], p[2])) * 3;
+  }, { biomeAt: (c, x, z) => (Math.hypot((x - W / 2) / W, (z - D / 2) / D) * 2 + (c.n(x, z) - 0.5) * 0.2 < 0.6 ? 38 : 51), pondN: 2, pondR: [4, 7], villages: 0.4 }),
+  P('copper', 'Copper canyon', 'Rugged', 'Orange cliffs over a green river', [51, 51, 4, 40], (c, x, z) => { const dist = Math.abs(z - meander(c, x, 0.2)); return 7.5 + quant(sstep(2, 9, dist) * 16, 3) + c.n(x, z) * 2; }, { stoneAbove: 19 }),
+  P('dunes', 'Dune sea', 'Rugged', 'Endless waves of sand and one green oasis', [47], (c, x, z) => 12.5 + Math.abs(Math.sin((x * 0.8 + z * 0.3) / 6 + c.nn(x, z, 24, 2) * 5)) * 7 + c.n(x, z) * 3 - gauss(x, z, c.oasis[0], c.oasis[1], c.oasis[2]) * 10,
+    { biomeAt: (c, x, z) => (gauss(x, z, c.oasis[0], c.oasis[1], c.oasis[2] * 1.5) > 0.3 ? 18 : 47), villages: 0.3 }),
+  P('ridges', 'Long ridges', 'Rugged', 'Parallel ridges with lakes between', [10, 40, 1, 48], (c, x, z) => 8 + Math.abs(Math.sin(z / D * 6.28 * 2.5 + c.n(x, z) * 2)) * 13 + c.n(x, z) * 3, { stoneAbove: 21 }),
+  P('petrified', 'Petrified forest', 'Rugged', 'Stone trunks on grey badlands', [42, 42, 12, 27], (c, x, z) => 11.5 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(4, 6), pondN: 0.5, villages: 0.3 }),
+  P('pinebarrens', 'Pine barrens', 'Wild', 'Sandy flats under tall pines', [39, 39, 6], (c, x, z) => 11.8 + c.n(x, z) * 3 + c.hp(c, x, z), { hp: hillsAndPonds(2, 6), pondN: 2, pondR: [3, 6] }),
+  P('cloudforest', 'Cloud forest', 'Wild', 'Steep green hills wrapped in mist', [41, 41, 20, 7], (c, x, z) => { const rg = c.ridge(x, z, 10); return 11 + c.n(x, z) * 5 + rg * rg * 16; }, { springs: 2, trees: 1.2 }),
+  P('crystal', 'Crystal glade', 'Wild', 'Pastel caps and glowing pools', [43, 43, 34], (c, x, z) => 12.5 + c.n(x, z) * 5 + c.hp(c, x, z), { hp: hillsAndPonds(5, 10), pondN: 2, pondR: [4, 7], villages: 0.4 }),
+  P('lichen', 'Lichen tundra', 'Wild', 'Rust-coloured moss on cold rock', [48, 48, 5, 23], (c, x, z) => 12.5 + c.n(x, z) * 5 + c.hp(c, x, z), { hp: hillsAndPonds(4, 8), pondN: 2, villages: 0.4 }),
+  P('mistwood', 'Mistwood', 'Wild', 'Pale blue pines and still water', [50, 50, 10, 6], (c, x, z) => 12.5 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(6, 10), pondN: 1.5 }),
+  P('cenotes', 'Cenotes', 'Wild', 'Deep round pools in the jungle floor', [7, 20, 41], (c, x, z) => 14 + c.n(x, z) * 4 - sum(c.ponds, (p) => (1 - sstep(p[2] * 0.3, p[2] * 0.42, Math.hypot(x - p[0], z - p[1])))) * 9, { pondN: 3, pondR: [6, 10], trees: 1.2 }),
+  P('stripes', 'Biome stripes', 'Special', 'Bands of every biome side by side', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x + (c.n(x, z) - 0.5) * 6) / Math.max(4, W / 12)) | 0) * 5 % BIO.length }),
+  P('rings', 'Biome rings', 'Special', 'Biomes in rings around a central pond', [0], (c, x, z) => 13 + c.n(x, z) * 3 - gauss(x, z, W / 2, D / 2, 6 * c.S) * 6, { biomeAt: (c, x, z) => (((Math.hypot(x - W / 2, z - D / 2) / Math.max(4, Math.min(W, D) / 14)) | 0) * 7 + 3) % BIO.length }),
   P('checker', 'Biome checkerboard', 'Special', 'Every biome in its own square', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x >> 3) * 7 + (z >> 3) * 13) % BIO.length) }),
   P('spiral', 'Spiral island', 'Special', 'A ridge winding round a central lake', [0, 3, 9, 21], (c, x, z) => {
     const dx = x - W / 2, dz = z - D / 2, r = Math.hypot(dx, dz) / c.S, a = (Math.atan2(dz, dx) + Math.PI) / (Math.PI * 2);
