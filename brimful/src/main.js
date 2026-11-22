@@ -851,6 +851,21 @@ function snowmanTick() {
     chronicle(`Children in ${v.name} built a snowman`);
   }
 }
+// ---- lanterns: after dark every villager walks about with a small warm light
+const lanternGeo = new THREE.SphereGeometry(0.07, 8, 6), lanternMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.0, 0.8) }), lanternHandle = new THREE.MeshLambertMaterial({ color: 0x3a2a1a });
+function lanterns() {
+  const on = night > 0.55;
+  for (const c of critters.list) {
+    if (c.kind !== 'villager' || c.dead) continue;
+    if (!c.lantern) {
+      if (!on) continue;
+      const g = new THREE.Group(), glow = new THREE.Mesh(lanternGeo, lanternMat), cap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.1), lanternHandle);
+      cap.position.y = 0.08; g.add(glow, cap); g.position.set(0.34, 0.5, 0.06); c.mesh.add(g); c.lantern = g;
+    }
+    c.lantern.visible = on && !c.swim;
+    if (on) c.lantern.position.y = 0.5 + Math.sin(c.t * 8) * 0.02;   // a little swing as they walk
+  }
+}
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
 const lights = [];   // { at, g }
@@ -1685,7 +1700,7 @@ function frame(now) {
     if (acc > TICK) acc = 0;
     checkMilestones(dt);
     if (!state.paused) { eruptions(dt * state.speed); sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
-    turnLights(dt); updateMist(dt);
+    turnLights(dt); updateMist(dt); lanterns();
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
