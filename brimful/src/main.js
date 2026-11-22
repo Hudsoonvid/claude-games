@@ -1962,4 +1962,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, types: WORLD_TYPES.map((t) => t[0]), buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
