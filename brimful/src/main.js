@@ -411,6 +411,7 @@ const MILESTONES = [
   ['erupt', 'Watch a volcano erupt', () => eruptT > 0],
   ['dust', 'Weather a dust storm', () => !!state.dust],
   ['snowman', 'Someone builds a snowman', () => snowmen.length > 0],
+  ['star', 'Wish on a shooting star', () => starWished],
   ['year', 'A full year passes', () => state.yearN >= 2],
   ['decade', 'Ten years pass', () => state.yearN >= 11],
 ];
@@ -870,6 +871,23 @@ function lanterns() {
     c.lantern.visible = on && !c.swim;
     if (on) c.lantern.position.y = 0.5 + Math.sin(c.t * 8) * 0.02;   // a little swing as they walk
   }
+}
+// ---- shooting stars: on clear nights a bright streak now and then crosses the sky
+let starCd = 6, starWished = false;
+function shootingStars(dt) {
+  starCd -= dt;
+  if (starCd > 0 || night < 0.75 || overcast > 0.3 || world.raining || world.snowing) return;
+  starCd = 5 + Math.random() * 14; starWished = true;
+  // a glowing trail high over the world, where the usual view looks
+  const span = Math.max(W, D), x0 = W / 2 + (Math.random() - 0.5) * span * 1.4, z0 = D / 2 + (Math.random() - 0.5) * span * 1.4, y0 = H + 18 + Math.random() * 20;
+  const ang = Math.random() * 6.283, sp = span * (1.2 + Math.random() * 0.6), vx = Math.cos(ang) * sp, vz = Math.sin(ang) * sp, vy = -sp * 0.25;
+  let t = 0; const life = 0.7 + Math.random() * 0.5;
+  transients.push((dt2) => {
+    t += dt2;
+    const k = Math.min(1, t / life), fade = Math.sin(k * Math.PI);
+    for (let j = 0; j < 6; j++) { const u = t - j * 0.006; fx.emit(x0 + vx * u, y0 + vy * u, z0 + vz * u, 0, 0, 0, fade > 0.5 ? 0xfffbe8 : 0xcfe0ff, 0.25 + 0.2 * fade, 0); }
+    return t >= life;
+  });
 }
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
@@ -1705,7 +1723,7 @@ function frame(now) {
     if (acc > TICK) acc = 0;
     checkMilestones(dt);
     if (!state.paused) { eruptions(dt * state.speed); sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
-    turnLights(dt); updateMist(dt); lanterns();
+    turnLights(dt); updateMist(dt); lanterns(); shootingStars(dt);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
