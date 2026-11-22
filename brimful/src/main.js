@@ -413,6 +413,7 @@ const MILESTONES = [
   ['snowman', 'Someone builds a snowman', () => snowmen.length > 0],
   ['pumpkin', 'Pumpkins in the fields', () => pumpkins.length > 0],
   ['balloon', 'A balloon drifts over', () => !!balloon],
+  ['whale', 'See a whale breach', () => state.chron.some((e) => e.t === 'A whale breached')],
   ['star', 'Wish on a shooting star', () => starWished],
   ['year', 'A full year passes', () => state.yearN >= 2],
   ['decade', 'Ten years pass', () => state.yearN >= 11],
@@ -776,7 +777,7 @@ const history = {
   apply(s) {
     if (s.w !== W || s.d !== D) return false;
     release(); inspect(null);
-    for (const o of live) { grid.remove(o); o.geometry.dispose(); }
+    for (const o of live) { grid.remove(o); o.geometry?.dispose(); }
     live.clear(); transients.length = 0;
     world.mat.set(s.mat); world.aux.set(s.aux); world.biome.set(s.biome); world.wd.set(s.wd);
     for (const f of [world.fl, world.fr, world.ft, world.fb]) f.fill(0);
@@ -968,6 +969,37 @@ function balloonTick(dt) {
   b.g.userData.flame.visible = Math.sin(b.t * 0.9) > 0.3 && Math.random() > 0.2;   // short bursts of the burner
   if (Math.hypot(b.x - W / 2, b.z - D / 2) > Math.max(W, D) * 1.0 && b.t > 5) { grid.remove(b.g); balloon = null; }
 }
+// ---- whales: in a deep sea a whale sometimes breaches, arcs out of the water and crashes back in
+let whaleCd = 60 + Math.random() * 120;
+const whaleMat = new THREE.MeshLambertMaterial({ color: 0x3a4a5a, flatShading: true }), bellyMat = new THREE.MeshLambertMaterial({ color: 0xc8d0d4, flatShading: true });
+function makeWhale() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 7).scale(1.1, 1, 3.4), whaleMat); body.castShadow = true;
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6, 0, Math.PI * 2, Math.PI * 0.55, Math.PI * 0.45).scale(1.05, 1, 3.2), bellyMat);
+  const fluke = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 0.9), whaleMat); fluke.position.z = -3.9;
+  const finL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.5), whaleMat); finL.position.set(1.3, -0.4, 1.0); finL.rotation.z = -0.5;
+  const finR = finL.clone(); finR.position.x = -1.3; finR.rotation.z = 0.5;
+  g.add(body, belly, fluke, finL, finR); g.scale.setScalar(1.25); return g;
+}
+function whaleTick(dt) {
+  whaleCd -= dt; if (whaleCd > 0) return;
+  whaleCd = 150 + Math.random() * 240;
+  let spot = null;
+  for (let k = 0; k < 200 && !spot; k++) { const x = 10 + Math.random() * (W - 20), z = 10 + Math.random() * (D - 20); if (world.depthAt(x, z) > 3.5 && world.depthAt(x + 5, z) > 2.5 && world.depthAt(x - 5, z) > 2.5) spot = [x, z]; }
+  if (!spot) return;
+  const g = makeWhale(), surf = world.surfAt(spot[0], spot[1]), dir = Math.random() * 6.283; grid.add(g); live.add(g);
+  let t = 0, splashed = false;
+  sound.boom(0.12, 1.2, 140); chronicle('A whale breached'); state.whaleAt = spot;
+  transients.push((dt2) => {
+    t += dt2 / 4; const k = Math.min(1, t), arc = Math.sin(k * Math.PI);
+    g.position.set(spot[0] + Math.sin(dir) * (k - 0.5) * 9, surf - 3 + arc * 7.5, spot[1] + Math.cos(dir) * (k - 0.5) * 9);
+    g.rotation.set(-Math.cos(k * Math.PI) * 0.9, dir, Math.sin(k * Math.PI * 2) * 0.3, 'YXZ');
+    if (k > 0.08 && k < 0.2 && Math.random() < 0.6) fx.burst(g.position.x, surf, g.position.z, 6, 0xd8f0f8, 3);
+    if (k > 0.85 && !splashed) { splashed = true; fx.burst(g.position.x, surf + 0.3, g.position.z, 60, 0xe8f6ff, 6); world.ripple(g.position.x, g.position.z, 0.6); sound.boom(0.25, 1.4, 260); }
+    if (k < 1) return false;
+    grid.remove(g); live.delete(g); return true;
+  });
+}
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
 const lights = [];   // { at, g }
@@ -1003,7 +1035,7 @@ function updateMist(dt) {
 }
 function resetScene() {
   history.clear();
-  for (const o of live) { grid.remove(o); o.geometry.dispose(); }
+  for (const o of live) { grid.remove(o); o.geometry?.dispose(); }
   live.clear(); transients.length = 0;
   fx.clear(); world.events.length = 0;
   state.shake = 0; state.flash = 0; state.painting = false; state.weatherT = 90; state.year = 0.1;
@@ -1805,7 +1837,7 @@ function frame(now) {
     if (acc > TICK) acc = 0;
     checkMilestones(dt);
     if (!state.paused) { eruptions(dt * state.speed); sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
-    turnLights(dt); updateMist(dt); lanterns(); shootingStars(dt); if (!state.paused) balloonTick(dt);
+    turnLights(dt); updateMist(dt); lanterns(); shootingStars(dt); if (!state.paused) { balloonTick(dt); whaleTick(dt * state.speed); }
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
@@ -2016,4 +2048,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, types: WORLD_TYPES.map((t) => t[0]), buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, launchBalloon: () => { balloonCd = 0; }, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, types: WORLD_TYPES.map((t) => t[0]), buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, launchBalloon: () => { balloonCd = 0; }, whale: () => { whaleCd = 0; }, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
