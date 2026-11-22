@@ -359,6 +359,7 @@ function setRain(r, storm = false, snow = false) {
   if (typeof booted !== 'undefined' && booted && was !== now && now) chronicle({ rain: 'Rain set in', storm: 'A storm broke', snow: 'Snow began to fall' }[now]);
   if (typeof booted !== 'undefined' && booted && (was === 'rain' || was === 'storm') && !now && typeof night !== 'undefined' && night < 0.3) { state.rainbow = 1; chronicle('A rainbow came out after the rain'); }   // sun after rain
   world.raining = !!r && !snow; world.snowing = !!snow; state.storm = !!r && storm && !snow;
+  if (r || snow) state.dust = false;
   $('bRain').classList.toggle('on', !!r || !!snow); $('bRain').textContent = snow ? 'Snow' : state.storm ? 'Storm' : 'Rain';
 }
 $('bRain').onclick = () => { state.weatherT = 240;   // a hand-picked sky holds for a while before the seasons take over again
@@ -408,6 +409,7 @@ const MILESTONES = [
   ['festival', 'A festival is held', () => typeof state.festival === 'number'],
   ['rainbow', 'See a rainbow', () => (state.rainbow || 0) > 0],
   ['erupt', 'Watch a volcano erupt', () => eruptT > 0],
+  ['dust', 'Weather a dust storm', () => !!state.dust],
   ['year', 'A full year passes', () => state.yearN >= 2],
   ['decade', 'Ten years pass', () => state.yearN >= 11],
 ];
@@ -586,7 +588,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); syncBridges([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; state.dust = false; state.dustV = 0; state.dry = undefined; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); syncBridges([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -1571,6 +1573,7 @@ function updateSky() {
   overcast += ((world.raining ? (state.storm ? 1 : 0.6) : world.snowing ? 0.7 : 0) - overcast) * 0.02;
   cTop.copy(SKY.night[0]).lerp(SKY.day[0], day).lerp(SKY.dusk[0], dusk).lerp(cTmp.set(0x55606e).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
   cBot.copy(SKY.night[1]).lerp(SKY.day[1], day).lerp(SKY.dusk[1], dusk).lerp(cTmp.set(0x9aa4ae).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
+  if (state.dustV > 0.01) { cTop.lerp(cTmp.set(0xb88a58).multiplyScalar(0.3 + 0.7 * day), state.dustV * 0.6); cBot.lerp(cTmp.set(0xd8b078).multiplyScalar(0.3 + 0.7 * day), state.dustV * 0.75); }
   const su = sky.material.uniforms;
   su.uSunDir.value.set(cx * 70, 25 + sy * 95, 45).normalize();
   su.uSunCol.value.set(0xffb070).lerp(cTmp.set(0xfff4e0), smooth(0.05, 0.5, sy));
@@ -1590,6 +1593,8 @@ function updateSky() {
     U.uAutumn.value = bump(0.5, 0.8); U.uWinter.value = Math.max(bump(0.74, 1.0), y < 0.04 ? 1 - y / 0.04 : 0); }
   { let cold = 0; for (let k = 0; k < 64; k++) cold += BIO[world.biome[ri(W * D)]].snowy ? 1 : 0;   // the lights show over snowy lands, and anywhere in deep winter
     state.cold = (state.cold ?? 0) * 0.97 + cold / 64 * 0.03;
+    let dryN = 0; for (let k = 0; k < 32; k++) { const b = BIO[world.biome[ri(W * D)]]; if (b.sandy && !b.snowy) dryN++; }
+    state.dry = (state.dry ?? 0) * 0.97 + dryN / 32 * 0.03;
     U.uAurora.value = Math.min(1, state.cold * 2.2 + U.uWinter.value * 0.5) * (1 - overcast * 0.6); }
   U.uNight.value = night; U.uCaustic.value = (0.25 + 0.75 * day) * (1 - overcast * 0.7);
   U.uCloud.value = day * (0.55 + overcast * 0.45); U.uRain.value += ((world.raining ? 1 : 0) - U.uRain.value) * 0.03;
@@ -1661,7 +1666,9 @@ function frame(now) {
       state.weatherT -= dt * state.speed;
       if (state.weatherT <= 0) {
         const season = Math.floor(state.year * 4), r = Math.random(), on = world.raining || world.snowing;
-        if (on) { setRain(false); state.weatherT = 70 + Math.random() * 110; }
+        if (state.dust) { state.dust = false; state.weatherT = 80 + Math.random() * 120; }
+        else if (on) { setRain(false); state.weatherT = 70 + Math.random() * 110; }
+        else if ((state.dry || 0) > 0.3 && season !== 3 && r < 0.35) { state.dust = true; state.weatherT = 40 + Math.random() * 40; chronicle('A dust storm blew in'); }   // dry lands get dust instead of rain
         else {
           if (season === 3) { if (r < 0.65) setRain(false, false, true); }
           else if (season === 1) { if (r < 0.15) setRain(true, true); else if (r < 0.3) setRain(true); }
@@ -1728,7 +1735,7 @@ function frame(now) {
     n = Math.max(1, n);
     const day = 1 - night, dawn = Math.max(0, 1 - Math.abs(state.tod - 0.27) / 0.08);
     sound.scape({
-      wind: Math.min(1, 0.25 + hi / n + overcast * 0.5 + (state.storm ? 0.4 : 0)) * (0.5 + 0.5 * near),
+      wind: Math.min(1, 0.25 + hi / n + overcast * 0.5 + (state.storm ? 0.4 : 0) + (state.dustV || 0) * 0.8) * (0.5 + 0.5 * near),
       waves: Math.min(1, (wet / n) * 1.6) * near * (0.6 + 0.4 * (world.flow > 0.01 ? 1 : 0.5)),
       rain: world.raining ? (state.storm ? 1 : 0.6) : 0,
       fire: Math.min(1, (hot / n) * 6) * near,
@@ -1785,6 +1792,12 @@ function frame(now) {
   const un = U.uUnder.value;
   scene.fog.color.copy(cBot).lerp(cTmp.set(0x06313f).multiplyScalar(0.35 + 0.65 * (1 - night)), un);
   scene.fog.density = 0.0008 / SF + un * 0.05;
+  state.dustV = (state.dustV || 0) + ((state.dust ? 1 : 0) - (state.dustV || 0)) * Math.min(1, dt * 0.4);
+  if (state.dustV > 0.01) {   // a dust storm: the air turns ochre and sand streams past on the wind
+    scene.fog.color.lerp(cTmp.set(0xd0a060).multiplyScalar(0.35 + 0.65 * (1 - night)), state.dustV * 0.7);
+    scene.fog.density += state.dustV * 0.0075 / SF;
+    if (!state.paused) for (let k = 0; k < Math.ceil(18 * state.dustV * SF); k++) fx.emit(-2 + Math.random() * W * 0.3, 1 + Math.random() * 18, Math.random() * D, 9 + Math.random() * 6, (Math.random() - 0.3) * 1.5, (Math.random() - 0.5) * 2, Math.random() < 0.5 ? 0xd8b070 : 0xb88a50, 6, 0.02);
+  }
   state.flash = Math.max(0, state.flash - dt * 2.2);
   if (usePost) {
     sunDir.copy(sun.position).normalize();
