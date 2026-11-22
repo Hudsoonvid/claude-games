@@ -357,6 +357,7 @@ $('bSpeed').onclick = () => { state.speed = state.speed >= 8 ? 1 : state.speed *
 function setRain(r, storm = false, snow = false) {
   const was = world.snowing ? 'snow' : state.storm ? 'storm' : world.raining ? 'rain' : '', now = snow ? 'snow' : r && storm ? 'storm' : r ? 'rain' : '';
   if (typeof booted !== 'undefined' && booted && was !== now && now) chronicle({ rain: 'Rain set in', storm: 'A storm broke', snow: 'Snow began to fall' }[now]);
+  if (typeof booted !== 'undefined' && booted && (was === 'rain' || was === 'storm') && !now && typeof night !== 'undefined' && night < 0.3) { state.rainbow = 1; chronicle('A rainbow came out after the rain'); }   // sun after rain
   world.raining = !!r && !snow; world.snowing = !!snow; state.storm = !!r && storm && !snow;
   $('bRain').classList.toggle('on', !!r || !!snow); $('bRain').textContent = snow ? 'Snow' : state.storm ? 'Storm' : 'Rain';
 }
@@ -552,7 +553,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; syncMills([]); syncLights([]); syncBridges([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; syncMills([]); syncLights([]); syncBridges([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -813,6 +814,7 @@ function buildLight(x, z) { const at = world.lighthouse(x, z); if (at) addLight(
 // ---- mist: pools low over the land at dawn and after rain, and burns off as the day warms
 const mist = makeMist(); for (const m of mist) grid.add(m);
 function updateMist(dt) {
+  state.rainbow = Math.max(0, (state.rainbow || 0) - dt / 70); U.uRainbow.value = Math.min(1, state.rainbow * 3) * (1 - overcast);
   state.damp = Math.max(0, Math.min(1, (state.damp || 0) + (world.raining ? dt * 0.05 : -dt * 0.004)));
   const dawn = Math.max(0, 1 - Math.abs(state.tod - 0.25) / 0.09), want = gfx.level === 0 ? 0 : Math.min(1, dawn * (0.55 + state.damp * 0.6) + state.damp * 0.25 + night * 0.15) * (state.mistOn === false ? 0 : 1);
   state.mistV = (state.mistV || 0) + (want - (state.mistV || 0)) * Math.min(1, dt * 0.5);

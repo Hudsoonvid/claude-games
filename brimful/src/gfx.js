@@ -23,7 +23,7 @@ export const U = {
   uTexel: { value: new THREE.Vector2(1 / 128, 1 / 128) },
   uDetail: { value: 1 },
   uCloud: { value: 0 },                      // strength of drifting cloud shadows
-  uAutumn: { value: 0 }, uWinter: { value: 0 }, uAurora: { value: 0 },
+  uAutumn: { value: 0 }, uWinter: { value: 0 }, uAurora: { value: 0 }, uRainbow: { value: 0 },
   uRain: { value: 0 },
 };
 
@@ -354,11 +354,11 @@ export function makeSky() {
     uniforms: {
       uTop: U.uSkyTop, uBot: U.uSkyBot, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) },
       uMoonDir: { value: new THREE.Vector3(-0.35, 0.87, -0.26).normalize() },
-      uTime: U.uTime, uNight: U.uNight, uAurora: U.uAurora,
+      uTime: U.uTime, uNight: U.uNight, uAurora: U.uAurora, uRainbow: U.uRainbow,
     },
     vertexShader: /* glsl */ `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight, uAurora; varying vec3 vDir;
+      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight, uAurora, uRainbow; varying vec3 vDir;
       ${NOISE}
       void main(){
         vec3 d = normalize(vDir);
@@ -379,6 +379,13 @@ export function makeSky() {
           float a = hem * smoothstep(0.35, 0.9, lane) * rays;
           vec3 ac = mix(vec3(0.2, 1.0, 0.55), vec3(0.6, 0.3, 1.0), smoothstep(base, base + 0.35, ht));
           col += ac * a * uAurora * uNight;
+        }
+        if (uRainbow > 0.01) { // a bow opposite the sun, about 42 degrees out, red on the outside
+          vec3 anti = normalize(vec3(-uSunDir.x, -0.12, -uSunDir.z)); float ang = acos(clamp(dot(d, anti), -1.0, 1.0)), r = (ang - 0.66) / 0.075;   // centred just under the horizon so the arch always shows
+          if (r > 0.0 && r < 1.0) {
+            vec3 bow = clamp(abs(fract(r * 0.85 + vec3(0.0, 0.667, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
+            col = mix(col, col + bow * 0.55, uRainbow * smoothstep(0.0, 0.25, r) * smoothstep(1.0, 0.75, r) * smoothstep(-0.02, 0.12, d.y) * (1.0 - uNight));
+          }
         }
         vec2 cp = d.xz / (d.y + 0.35) * 1.6 + vec2(uTime * 0.008, uTime * 0.004);
         float cl = smoothstep(0.52, 0.85, fbm(cp + fbm(cp * 2.0) * 0.6)) * smoothstep(0.02, 0.3, d.y);
