@@ -389,12 +389,44 @@ function drawGraph() {
     g.strokeStyle = col; g.lineWidth = 4; g.lineJoin = 'round'; g.stroke();
   }
 }
+// ---- milestones: little goals, ticked off as the world grows
+const MILESTONES = [
+  ['firstvillage', 'A village stands', () => critters.villages.length > 0],
+  ['village', 'A hamlet grows to a village', () => critters.villages.some((v) => v.tier >= 1)],
+  ['town', 'A village becomes a town', () => critters.villages.some((v) => v.tier >= 2)],
+  ['hall', 'A town hall is raised', () => critters.villages.some((v) => v.hall)],
+  ['three', 'Three villages at once', () => critters.villages.length >= 3],
+  ['road', 'A road joins two villages', () => critters.villages.some((v) => v.roadTo != null)],
+  ['bridge', 'A bridge crosses water', () => bridges.length > 0],
+  ['mill', 'A windmill turns', () => mills.length > 0],
+  ['light', 'A lighthouse is lit', () => lights.length > 0],
+  ['people', '30 people live here', () => critters.counts.villager >= 30],
+  ['crowd', '300 creatures at once', () => critters.list.length >= 300],
+  ['zoo', '15 kinds of creature', () => KIND_IDS.filter((k) => critters.counts[k] > 0).length >= 15],
+  ['penguin', 'Penguins on the ice', () => critters.counts.penguin > 0],
+  ['camel', 'Camels in the sand', () => critters.counts.camel > 0],
+  ['festival', 'A festival is held', () => typeof state.festival === 'number'],
+  ['rainbow', 'See a rainbow', () => (state.rainbow || 0) > 0],
+  ['year', 'A full year passes', () => state.yearN >= 2],
+  ['decade', 'Ten years pass', () => state.yearN >= 11],
+];
+let msT = 0;
+function checkMilestones(dt) {
+  msT += dt; if (msT < 1) return; msT = 0;
+  state.ms ||= []; const quiet = (state.msQuiet || 0) > 0; if (quiet) state.msQuiet--;   // what a new world starts with is ticked silently
+  for (const [id, label, test] of MILESTONES) if (!state.ms.includes(id) && test()) { state.ms.push(id); if (booted && !quiet) { toast('Milestone: ' + label); sound.blip(880, 0.25, 'triangle', 0.06); } }
+}
+function renderMilestones() {
+  const done = state.ms || [];
+  $('msCount').textContent = `${done.length} of ${MILESTONES.length}`;
+  $('censusMs').innerHTML = MILESTONES.map(([id, label]) => `<span class="${done.includes(id) ? 'done' : ''}">${label}</span>`).join('');
+}
 function renderCensus() {
   if (!$('census').classList.contains('open')) return;
   const c = critters.counts, row = (k, v, z) => `<div class="row${z ? ' zero' : ''}"><label>${k}</label><span>${v}</span></div>`;
   $('censusList').innerHTML = KIND_IDS.map((k) => row({ butterfly: 'Butterflies', deer: 'Deer', fox: 'Foxes', koi: 'Koi', sheep: 'Sheep', wolf: 'Wolves', goat: 'Goats' }[k] || k[0].toUpperCase() + k.slice(1) + 's', c[k], !c[k])).join('');
   $('censusVillages').innerHTML = critters.villages.length ? critters.villages.map((v, i) => `<div class="row"><label><i class="swatch" style="background:${hex(v.colour)}"></i>${v.name} <small style="opacity:.55">${TIERS[v.tier ?? 0]}</small></label><span>${critters.population(i)}</span></div>`).join('') : '<div class="row zero"><label>No villages yet</label></div>';
-  $('censusDate').textContent = dateLabel(); drawGraph();
+  $('censusDate').textContent = dateLabel(); drawGraph(); renderMilestones();
   $('censusChron').innerHTML = state.chron.length ? state.chron.slice(-8).reverse().map((e) => `<li><small>${e.d}</small>${e.t}${e.n > 1 ? ` <b>×${e.n}</b>` : ''}</li>`).join('') : '<li class="zero">Nothing has happened yet.</li>';
   $('censusWorld').innerHTML = (state.seasons ? row('Season', SEASONS[Math.floor(state.year * 4)]) : '') + row('Type', (WORLD_TYPES.find((t) => t[0] === state.preset) || [0, state.preset])[1]) + row('Seed', state.seed || '—') + row('Size', `${W} × ${D}`) + row('Water', Math.round(world.totalWater())) + row('Trees', Math.round(world.count(WOOD) / 5)) + row('Huts', Math.round(world.count(19)));
 }
@@ -553,7 +585,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; syncMills([]); syncLights([]); syncBridges([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; syncMills([]); syncLights([]); syncBridges([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -565,13 +597,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), bridges: bridges.map((b) => b.at), away: state.away });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), bridges: bridges.map((b) => b.at), away: state.away, ms: state.ms });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); syncBridges(s.bridges); state.away = s.away || {}; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); syncBridges(s.bridges); state.away = s.away || {}; state.ms = Array.isArray(s.ms) ? s.ms : []; state.msQuiet = 2; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -1559,6 +1591,7 @@ function frame(now) {
     let n = 0;
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
+    checkMilestones(dt);
     if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
     turnLights(dt); updateMist(dt);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
