@@ -21,7 +21,9 @@ import sys
 import bpy
 from mathutils import Vector
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'animals.glb')
+# BRIMFUL_LOW=1 builds the faceted low-poly set instead (src/animals_low.glb): fewer faces and flat shading
+LOW = os.environ.get('BRIMFUL_LOW') == '1'
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'animals_low.glb' if LOW else 'animals.glb')
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -66,11 +68,15 @@ def active(o):
 
 
 def ell(loc, scale, rot=(0, 0, 0), seg=16, rings=10):
+    if LOW:
+        seg, rings = min(seg, 8), min(rings, 5)
     bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=rings, radius=1, location=loc, rotation=rot, scale=scale)
     return bpy.context.active_object
 
 
 def cone(loc, r, depth, rot=(0, 0, 0), r2=0.0, verts=10):
+    if LOW:
+        verts = min(verts, 5)
     bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r, radius2=r2, depth=depth, location=loc, rotation=rot)
     return bpy.context.active_object
 
@@ -116,7 +122,7 @@ def paint_mesh(o, fn):
 def finish(o, material, pivot=None, paint=None):
     paint_mesh(o, paint)
     for p in o.data.polygons:
-        p.use_smooth = True
+        p.use_smooth = True   # low-poly facets come from flat shading in the game, which keeps the file small
     o.data.materials.clear()
     o.data.materials.append(material)
     if pivot is not None:
@@ -137,7 +143,7 @@ def fuse(objs, name, material, voxel=0.05, faces=420, smooth=3, pivot=None, pain
     s.factor = 0.6
     s.iterations = smooth
     bake(o)
-    faces = int(faces * 0.6)          # keep creatures light: hundreds of them share the screen
+    faces = int(faces * (0.14 if LOW else 0.6))          # keep creatures light: hundreds of them share the screen
     n = len(o.data.polygons)
     if n > faces:
         d = o.modifiers.new('decimate', 'DECIMATE')

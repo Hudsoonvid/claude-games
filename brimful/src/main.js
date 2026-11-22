@@ -7,7 +7,7 @@ const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a)
 import { generate, WORLD_TYPES } from './gen.js';
 import { BIO } from './biomes.js';
 import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity, setEdgeSolid } from './mesher.js';
-import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe, townName } from './critters.js';
+import { setAnimalStyle, Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe, townName } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
 import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makeMist, makePost } from './gfx.js';
@@ -474,7 +474,7 @@ function applyGfx(save = true) {
   motes.visible = gfx.motes;
   resize();
   // reflect in the panel
-  $('gContainer').value = gfx.container || 'planter';
+  $('gContainer').value = gfx.container || 'planter'; $('gAnimals').value = gfx.animals || 'low';
   $('gQ').value = gfx.mode === 'auto' ? 'auto' : gfx.mode === 'custom' ? 'custom' : String(gfx.level);
   $('gRes').value = Math.round(gfx.res * 100 * DPR / Math.max(1, Math.min(DPR, 2)) ); $('gRes').value = Math.round(gfx.res * 100);
   $('gResO').textContent = Math.round(gfx.res * 100) + '%'; $('gShadow').value = String(gfx.shadows);
@@ -521,6 +521,7 @@ try { cine.auto = localStorage.getItem('brimful-cine') !== '0'; } catch { /* una
 $('gCine').checked = cine.auto;
 $('gCine').onchange = (e) => { cine.auto = e.target.checked; try { localStorage.setItem('brimful-cine', cine.auto ? '1' : '0'); } catch { /* unavailable */ } };
 for (const ev of ['pointerdown', 'wheel', 'touchstart']) addEventListener(ev, () => cine.poke(), { capture: true, passive: true });
+$('gAnimals').onchange = (e) => { gfx.animals = e.target.value; ls.set(GFX_KEY, gfx); setAnimalStyle(gfx.animals); critters.restyle(); };
 $('gContainer').onchange = (e) => { gfx.container = e.target.value; ls.set(GFX_KEY, gfx); buildContainer(); };
 
 // Auto quality: watch real frame times, step down when it struggles, creep back up when there is clear headroom.
@@ -1905,6 +1906,7 @@ addEventListener('pagehide', autosave);
 // ---------------------------------------------------------------- boot
 setTab('earth'); setTool('sand'); setSize(2); setTimeMode('auto');
 applyGfx(false);
+setAnimalStyle(gfx.animals || 'low');
 loadModels().then(() => {   // the Blender-made creature models unpack first, then the world starts
   if (!restore(ls.get(AUTO_KEY))) { newWorld('valley', W, D); showHelp(true); }
   resize();

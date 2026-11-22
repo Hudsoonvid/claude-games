@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import animalsGlb from './animals.glb?inline';
+import animalsLowGlb from './animals_low.glb?inline';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { W, H, D, AIR, LAVA, STEAM, TUFT, WEED, FIRE, WOOD, LEAF, SEED, TURF, SOIL, THATCH, PLANK, CROP, DAM, OPAQUE, rnd, ri } from './world.js';
 const DXS = [1, -1, 0, 0], DZS = [0, 0, 1, -1];
@@ -81,15 +82,22 @@ function part(geo, mat, sx, sy, sz, x = 0, y = 0, z = 0) {
 const eyes = (g, x, y, z, s = 0.08) => g.add(part(G.body, M.eye, s, s, s, x, y, z), part(G.body, M.eye, s, s, s, -x, y, z));
 
 // ---- Blender-made models (tools/make_animals.py -> animals.glb, embedded in the bundle)
-const MODELS = {};
-export function loadModels() {
-  return new Promise((done) => {
+// two sets: smooth "detailed" ones and faceted "low poly" ones (Settings picks which)
+const SETS = { detailed: {}, low: {} };
+let MODELS = SETS.low;
+export let animalStyle = 'low';
+export function setAnimalStyle(s) { animalStyle = s === 'detailed' ? 'detailed' : 'low'; MODELS = SETS[animalStyle]; }
+function parseGlb(data, into) {
+  return new Promise((ok) => {
     try {
-      const bin = atob(animalsGlb.split(',')[1]), buf = new Uint8Array(bin.length);
+      const bin = atob(data.split(',')[1]), buf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      new GLTFLoader().parse(buf.buffer, '', (g) => { for (const n of [...g.scene.children]) MODELS[n.name] = compact(n); done(true); }, () => done(false));
-    } catch { done(false); }
+      new GLTFLoader().parse(buf.buffer, '', (g) => { for (const n of [...g.scene.children]) into[n.name] = compact(n); ok(true); }, () => ok(false));
+    } catch { ok(false); }
   });
+}
+export function loadModels() {
+  return Promise.all([parseGlb(animalsGlb, SETS.detailed), parseGlb(animalsLowGlb, SETS.low)]).then((r) => { MODELS = SETS[animalStyle]; return r[0] || r[1]; });
 }
 // Fold a model's static pieces together so a creature costs a few draw calls instead of a dozen:
 // one mesh per tint slot, one vertex-coloured mesh for everything of fixed colour; hinged parts stay separate.
@@ -140,6 +148,13 @@ const TINTS = {
   koi: [[std(0xf7f3ea), std(0xfbe8c8), std(0xf2ead8)]], turtle: [[std(0x7a8a4a), std(0x8a7a4e), std(0x5f7a5a)]], heron: [[std(0xdfe6ee), std(0xc2cedc)]], owl: [[std(0xa88a62), std(0xb9a27e), std(0xd6ccba)]],
 };
 const plain = {};   // one shared Lambert per exported material colour
+const flatOf = new Map();   // low-poly style: each material's faceted twin, made once
+function flat(m) {
+  if (!m || m.flatShading || !(m.isMeshLambertMaterial || m.isMeshStandardMaterial)) return m;
+  let f = flatOf.get(m);
+  if (!f) { f = m.clone(); f.flatShading = true; f.needsUpdate = true; flatOf.set(m, f); }
+  return f;
+}
 function fromModel(kind) {
   const g = MODELS[kind].clone(true), u = g.userData, picks = (TINTS[kind] || []).map(pickOf);
   u.limbs = []; u.wings = []; u.ears = [];
@@ -157,6 +172,7 @@ function fromModel(kind) {
     else if (mn === 'wing') { o.material = M.wing; o.castShadow = false; }
     else o.material = fixedMat;
   });
+  if (animalStyle === 'low') g.traverse((o) => { if (o.isMesh) o.material = flat(o.material); });
   if (!u.limbs.length) delete u.limbs; if (!u.ears.length) delete u.ears; if (u.wings.length < 2) delete u.wings;
   if (kind === 'glimmer') {
     glowTex ||= glowTexture();
@@ -306,6 +322,14 @@ export class Critters {
     let best = -1, bd = 22;
     this.villages.forEach((v, i) => { const d = Math.hypot(v.x - x, v.z - z); if (d < bd) { bd = d; best = i; } });
     return best >= 0 ? best : this.found(x, z);
+  }
+  restyle() { // swap every creature's model for the current style, keeping where it is and what it is doing
+    for (const c of this.list) {
+      if (c.dead) continue;
+      const old = c.mesh, m = build(c.kind);
+      m.position.copy(old.position); m.rotation.copy(old.rotation); m.scale.copy(old.scale);
+      this.scene.remove(old); this.scene.add(m); c.mesh = m; c.lantern = null;
+    }
   }
   population(i) { let n = 0; for (const c of this.list) if (c.kind === 'villager' && !c.dead && c.vid === i) n++; return n; }
 
