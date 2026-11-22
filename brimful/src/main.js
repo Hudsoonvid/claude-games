@@ -268,8 +268,8 @@ const TOOLS = [
   { id: 'dig', tab: 'earth', label: 'Scoop', type: 'dig', color: '#efe7d8', glyph: '⌣' },
   // life
   ...KIND_IDS.map((k) => ({ id: k, tab: 'life', label: k[0].toUpperCase() + k.slice(1), type: 'critter',
-    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158', koi: '#ffd2bd', turtle: '#cfe6b8', heron: '#dfe8f2', sheep: '#f4f0e6', owl: '#d9c4a6', wolf: '#c9c6c0', bear: '#b89a80', beaver: '#c8a684', camel: '#e2c49a', goat: '#ece6da', penguin: '#d8dde6', flamingo: '#f8c0c8', squirrel: '#e8a878', hedgehog: '#c8b49a', seal: '#c8ccd4', boar: '#a89078' }[k] || '#eee',
-    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦', koi: '➤', turtle: '◒', heron: '⌇', sheep: '☁', owl: '◉', wolf: '◭', bear: '●', beaver: '⌒', camel: '⌓', goat: '♈', penguin: '◍', flamingo: '⥿', squirrel: '❦', hedgehog: '✹', seal: '◖', boar: '◆' }[k] || k[0].toUpperCase(), gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
+    color: { minnow: '#bfe9f2', duck: '#fff3b8', frog: '#bfe6a8', mossback: '#e3efc6', rabbit: '#e8dccb', deer: '#e2c9a6', fox: '#f6c39a', crab: '#f7b5a4', villager: '#f3c9b0', bee: '#ffe98a', butterfly: '#ffd9ec', songbird: '#ffc9bd', glimmer: '#2b3158', koi: '#ffd2bd', turtle: '#cfe6b8', heron: '#dfe8f2', sheep: '#f4f0e6', owl: '#d9c4a6', wolf: '#c9c6c0', bear: '#b89a80', beaver: '#c8a684', camel: '#e2c49a', goat: '#ece6da', penguin: '#d8dde6', flamingo: '#f8c0c8', squirrel: '#e8a878', hedgehog: '#c8b49a', seal: '#c8ccd4', boar: '#a89078', moose: '#a88a70', panda: '#f2f0ea', crocodile: '#a8b880', parrot: '#ff9a7a' }[k] || '#eee',
+    glyph: { minnow: '➤', duck: '◖', frog: '⩌', mossback: '◓', rabbit: '⌃', deer: 'ᛉ', fox: '◣', crab: '⌓', villager: '☺', bee: '⁂', butterfly: '⋈', songbird: '♪', glimmer: '✦', koi: '➤', turtle: '◒', heron: '⌇', sheep: '☁', owl: '◉', wolf: '◭', bear: '●', beaver: '⌒', camel: '⌓', goat: '♈', penguin: '◍', flamingo: '⥿', squirrel: '❦', hedgehog: '✹', seal: '◖', boar: '◆', moose: 'Ψ', panda: '◕', crocodile: '≻', parrot: '❧' }[k] || k[0].toUpperCase(), gc: k === 'glimmer' ? '#f4ffb0' : '#3a2a22' })),
   { id: 'possess', tab: 'life', label: 'Ride along', type: 'possess', color: '#f6d9c9', glyph: '⌖' },
   // powers
   { id: 'fire', tab: 'powers', label: 'Spark', type: 'fire', color: '#ffb028', glyph: '♨' },
@@ -574,7 +574,7 @@ function populate(villages) {
     }
   }
   // the newer animals live where their land is: camels on desert sand, goats on high rock, penguins on cold shores, flamingos in warm shallows
-  const want = { camel: n(1.5), goat: n(1.5), penguin: n(3), flamingo: n(1.5), squirrel: n(2), hedgehog: n(1), seal: n(1.5), boar: n(1) };
+  const want = { camel: n(1.5), goat: n(1.5), penguin: n(3), flamingo: n(1.5), squirrel: n(2), hedgehog: n(1), seal: n(1.5), boar: n(1), moose: n(0.8), panda: n(1.5), crocodile: n(1), parrot: n(2.5) };
   for (let t = 0; t < 3000 * area && Object.values(want).some((v) => v > 0); t++) {
     const x = 3 + rnd() * (W - 6), z = 3 + rnd() * (D - 6), gy = world.groundY(x, z), top = world.get(x | 0, gy - 1, z | 0), bio = BIO[world.biome[(x | 0) + (z | 0) * W]];
     const s = world.surfAt(x, z), dep = world.depthAt(x, z), warm = !bio.snowy && [4, 11, 13, 18, 37, 38, 44, 35].includes(world.biome[(x | 0) + (z | 0) * W]);
@@ -584,12 +584,16 @@ function populate(villages) {
     else if (bio.snowy && want.penguin > 0 && (s < 0 ? top !== AIR : dep > 0.5)) k = 'penguin';
     else if (warm && s > 0 && dep < 1.8 && want.flamingo > 0) k = 'flamingo';
     else if (s > 0 && dep > 1 && (bio.snowy || [10, 23, 24, 48, 50].includes(world.biome[(x | 0) + (z | 0) * W])) && want.seal > 0) k = 'seal';
+    else if (s < 0 && top === TURF && [10, 26, 1, 50, 5, 24].includes(world.biome[(x | 0) + (z | 0) * W]) && want.moose > 0) k = 'moose';
+    else if (s < 0 && top === TURF && world.biome[(x | 0) + (z | 0) * W] === 14 && want.panda > 0) k = 'panda';
+    else if (s > 0 && dep < 2.5 && [6, 13, 7, 28, 20].includes(world.biome[(x | 0) + (z | 0) * W]) && want.crocodile > 0) k = 'crocodile';
+    else if (s < 0 && [18, 7, 20, 41, 37].includes(world.biome[(x | 0) + (z | 0) * W]) && want.parrot > 0) k = 'parrot';
     else if (s < 0 && top === TURF && !bio.evergreen && BIO.indexOf(bio) !== 4 && bio.trees >= 1.2 && want.squirrel > 0) k = 'squirrel';
     else if (s < 0 && top === TURF && (bio.trees >= 1.5 || bio.tree === 'conifer' || bio.tree === 'spire') && want.boar > 0) k = 'boar';
     else if (s < 0 && top === TURF && !bio.snowy && !bio.sandy && want.hedgehog > 0 && rnd() < 0.3) k = 'hedgehog';
     if (!k) continue;
-    const herd = k === 'penguin' ? 3 : k === 'flamingo' ? 3 : k === 'hedgehog' ? 1 : 2;
-    for (let j = 0; j < herd && want[k] > 0; j++) { const px = x + rnd() * 2, pz = z + rnd() * 2; critters.spawn(k, px, s > 0 ? s : world.groundY(px, pz) + 0.1, pz, true); want[k]--; }
+    const herd = k === 'penguin' || k === 'flamingo' || k === 'parrot' ? 3 : k === 'hedgehog' || k === 'moose' || k === 'crocodile' ? 1 : 2;
+    for (let j = 0; j < herd && want[k] > 0; j++) { const px = x + rnd() * 2, pz = z + rnd() * 2; critters.spawn(k, px, s > 0 ? s : world.groundY(px, pz) + (k === 'parrot' ? 3 + rnd() * 3 : 0.1), pz, true); want[k]--; }
   }
   for (const v of villages || []) for (let k = 0, vid = critters.found(v.x, v.z); k < 2 + v.huts; k++) {
     const x = v.x + 0.5 + (rnd() - 0.5) * 5, z = v.z + 0.5 + (rnd() - 0.5) * 5;
