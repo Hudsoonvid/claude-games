@@ -484,6 +484,8 @@ export class Critters {
     const surf = w.surfAt(c.x, c.z);
     // afloat with a little hysteresis, so something riding at the surface does not flicker between swimming and falling
     if (surf > c.y + 0.3) c.swim = true; else if (surf < c.y - 0.25 || surf - w.bedAt(c.x, c.z) < 0.3) c.swim = false;
+    const deck = w.decks && w.decks.length ? w.deckAt(c.x, c.z) : -1;
+    if (deck > 0 && c.y > deck - 1.3) { c.swim = false; if (c.y < deck) { c.y = deck; c.vy = Math.max(0, c.vy); } }   // up onto a bridge and across
     const inWater = c.swim;
     const hops = kind === 'frog' || kind === 'rabbit';
     let dx = 0, dz = 0, sp = { mossback: 1.3, rabbit: 3.4, frog: 3.6, duck: 1.2, villager: 1.7, deer: 2.2, fox: 2.8, crab: 1.2, sheep: 1.2, turtle: 0.8, heron: 1.3, wolf: 3.2, bear: 1.4, beaver: 1.1 }[kind], jump = false;
@@ -555,6 +557,7 @@ export class Critters {
     }
     const moving = !hops || !c.ground || inWater;
     c.vx = moving ? dx * sp : 0; c.vz = moving ? dz * sp : 0;
+    const ox = c.x, oz = c.z;
     // horizontal with one-block step-up
     for (let axis = 0; axis < 2; axis++) {
       const v = axis ? c.vz : c.vx; if (!v) continue;
@@ -566,9 +569,13 @@ export class Critters {
         c.y = fy + 1.02; if (axis) c.z = n; else c.x = n;
       } else if (!ctl) c.retarget = Math.min(c.retarget, 0.2);
     }
+    // the rails keep walkers on a bridge until they reach a bank
+    if (deck > 0 && w.deckAt(c.x, c.z) < 0 && w.surfAt(c.x, c.z) > 0) { c.x = ox; c.z = oz; if (!ctl) { c.heading += Math.PI * (0.5 + rnd()); c.retarget = Math.min(c.retarget, 0.3); } }
     const ny = c.y + c.vy * dt;
     c.ground = false;
-    if (c.vy <= 0 && w.solid(Math.floor(c.x), Math.floor(ny), Math.floor(c.z))) { c.y = Math.floor(ny) + 1; c.vy = 0; c.ground = true; }
+    const deck2 = deck > 0 ? w.deckAt(c.x, c.z) : -1;
+    if (deck2 > 0 && c.vy <= 0 && ny <= deck2 && c.y > deck2 - 1.3) { c.y = deck2; c.vy = 0; c.ground = true; }
+    else if (c.vy <= 0 && w.solid(Math.floor(c.x), Math.floor(ny), Math.floor(c.z))) { c.y = Math.floor(ny) + 1; c.vy = 0; c.ground = true; }
     else if (c.vy > 0 && w.solid(Math.floor(c.x), Math.floor(ny + 0.6), Math.floor(c.z))) c.vy = 0;
     else c.y = ny;
     if (c.y > H - 1) c.y = H - 1;

@@ -854,6 +854,16 @@ export class World {
     return laid;
   }
 
+  // bridge decks (drawn by the game, not voxels): the walkable height at a point, or -1
+  deckAt(fx, fz) {
+    for (const d of this.decks || []) {
+      const ax = d[0] + 0.5, az = d[2] + 0.5, bx = d[3] + 0.5, bz = d[5] + 0.5, ux = bx - ax, uz = bz - az, L = Math.hypot(ux, uz) || 1;
+      const t = ((fx - ax) * ux + (fz - az) * uz) / L, side = Math.abs((fx - ax) * uz - (fz - az) * ux) / L;
+      if (t > -0.6 && t < L + 0.6 && side < 0.6) return d[1] + (d[4] - d[1]) * Math.max(0, Math.min(1, t / L)) + 0.2;   // the deck slopes from bank to bank
+    }
+    return -1;
+  }
+
   growLily(x, z, c) {
     if (rnd() > 0.012 || this.cd[c] < 0.7 || this.cd[c] > 2.8) return;
     const y = Math.floor(this.cs[c]);

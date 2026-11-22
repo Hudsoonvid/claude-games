@@ -773,20 +773,20 @@ function turnMills(dt) {
 const bridges = [];   // { at: [x0, y0, z0, x1, y1, z1], g }
 const deckMat = new THREE.MeshLambertMaterial({ color: 0xa8784a }), postMat = new THREE.MeshLambertMaterial({ color: 0x6e4e30 });
 function addBridge(at) {
-  const [x0, y0, z0, x1, y1, z1] = at, dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz), deck = Math.max(y0, y1) + 0.12;
-  const g = new THREE.Group(); g.position.set((x0 + x1) / 2 + 0.5, deck, (z0 + z1) / 2 + 0.5); g.rotation.y = Math.atan2(dx, dz);
+  const [x0, y0, z0, x1, y1, z1] = at, dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz) || 1, mid = (y0 + y1) / 2 + 0.12;
+  const g = new THREE.Group(); g.position.set((x0 + x1) / 2 + 0.5, mid, (z0 + z1) / 2 + 0.5); g.rotation.order = 'YXZ'; g.rotation.y = Math.atan2(dx, dz); g.rotation.x = -Math.atan2(y1 - y0, len);
   const plank = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.16, len + 1), deckMat); plank.castShadow = plank.receiveShadow = true; g.add(plank);
   for (const sx of [-0.52, 0.52]) {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, len + 0.8), postMat); rail.position.set(sx, 0.55, 0); g.add(rail);
     for (let t = -len / 2; t <= len / 2 + 0.01; t += Math.max(1.5, len / Math.ceil(len / 2))) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.62, 0.1), postMat); post.position.set(sx, 0.3, t); g.add(post);
-      const px = (x0 + x1) / 2 + Math.sin(g.rotation.y) * t, pz = (z0 + z1) / 2 + Math.cos(g.rotation.y) * t, bed = world.bedAt(px + 0.5, pz + 0.5);
+      const px = (x0 + x1) / 2 + Math.sin(g.rotation.y) * t, pz = (z0 + z1) / 2 + Math.cos(g.rotation.y) * t, bed = world.bedAt(px + 0.5, pz + 0.5), deck = mid + (y1 - y0) * (t / len);
       if (deck - bed > 0.3) { const pile = new THREE.Mesh(new THREE.BoxGeometry(0.14, deck - bed, 0.14), postMat); pile.position.set(sx, -(deck - bed) / 2, t); g.add(pile); }
     }
   }
-  grid.add(g); bridges.push({ at, g });
+  grid.add(g); bridges.push({ at, g }); world.decks = bridges.map((b) => b.at);
 }
-function syncBridges(list) { for (const b of bridges) grid.remove(b.g); bridges.length = 0; for (const at of list || []) addBridge(at); }
+function syncBridges(list) { for (const b of bridges) grid.remove(b.g); bridges.length = 0; world.decks = []; for (const at of list || []) addBridge(at); }
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
 const lights = [];   // { at, g }
