@@ -411,6 +411,7 @@ const MILESTONES = [
   ['erupt', 'Watch a volcano erupt', () => eruptT > 0],
   ['dust', 'Weather a dust storm', () => !!state.dust],
   ['snowman', 'Someone builds a snowman', () => snowmen.length > 0],
+  ['pumpkin', 'Pumpkins in the fields', () => pumpkins.length > 0],
   ['star', 'Wish on a shooting star', () => starWished],
   ['year', 'A full year passes', () => state.yearN >= 2],
   ['decade', 'Ten years pass', () => state.yearN >= 11],
@@ -595,7 +596,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; state.dust = false; state.dustV = 0; state.dry = undefined; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); syncBridges([]); syncSnowmen([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; state.dust = false; state.dustV = 0; state.dry = undefined; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); syncBridges([]); syncSnowmen([]); syncPumpkins([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -607,13 +608,13 @@ function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   remesh(9999); water.update(world);   // fully drawn before the first frame
   autosave();
 }
-const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), bridges: bridges.map((b) => b.at), snowmen: snowmen.map((m) => m.at), away: state.away, ms: state.ms });
+const snapshot = () => ({ v: 2, w: world.serialize(), c: critters.serialize(), tod: state.tod, tm: state.timeMode, preset: state.preset, rain: world.raining, storm: state.storm, snow: world.snowing, name: state.name, year: state.year, seasons: state.seasons, seed: state.seed, villages: critters.villages, day: state.day, yearN: state.yearN, chron: state.chron, hist: state.hist, mills: mills.map((m) => m.at), lights: lights.map((l) => l.at), bridges: bridges.map((b) => b.at), snowmen: snowmen.map((m) => m.at), pumpkins: pumpkins.map((p) => p.at), away: state.away, ms: state.ms });
 function restore(s) {
   if (!s || s.v !== 2 || !s.w) return false;
   try {
     release(); resetScene(); critters.clear();
     world.deserialize(s.w); buildStage(); critters.deserialize(s.c); critters.villages = Array.isArray(s.villages) ? s.villages : []; const was = booted; booted = false; critters.update(0, input, 0); booted = was; remesh(9999); water.update(world); banners.sync(true);
-    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); syncBridges(s.bridges); syncSnowmen(s.snowmen); state.away = s.away || {}; state.ms = Array.isArray(s.ms) ? s.ms : []; state.msQuiet = 2; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
+    state.tod = s.tod ?? 0.36; setTimeMode(s.tm in TIME_MODES ? s.tm : 'auto'); state.preset = s.preset || 'valley'; state.name = s.name || ''; state.year = s.year ?? 0.1; state.seed = s.seed || ''; state.day = s.day || 1; state.yearN = s.yearN || 1; state.chron = Array.isArray(s.chron) ? s.chron : []; state.hist = Array.isArray(s.hist) ? s.hist : []; syncMills(s.mills); syncLights(s.lights); syncBridges(s.bridges); syncSnowmen(s.snowmen); syncPumpkins(s.pumpkins); state.away = s.away || {}; state.ms = Array.isArray(s.ms) ? s.ms : []; state.msQuiet = 2; setSeasons(s.seasons ?? true); setRain(!!s.rain || !!s.snow, !!s.storm, !!s.snow);
     syncName();
     return true;
   } catch (e) { console.warn('could not load world', e); return false; }
@@ -888,6 +889,27 @@ function shootingStars(dt) {
     for (let j = 0; j < 6; j++) { const u = t - j * 0.006; fx.emit(x0 + vx * u, y0 + vy * u, z0 + vz * u, 0, 0, 0, fade > 0.5 ? 0xfffbe8 : 0xcfe0ff, 0.25 + 0.2 * fade, 0); }
     return t >= life;
   });
+}
+// ---- pumpkins: in autumn village fields fill with pumpkins; they are gone by winter
+const pumpkins = [];   // { at, g }
+const pumpGeo = new THREE.SphereGeometry(0.3, 10, 7).scale(1, 0.72, 1), pumpMat = new THREE.MeshLambertMaterial({ color: 0xe8822a }), stemGeo = new THREE.CylinderGeometry(0.035, 0.045, 0.14, 5);
+function addPumpkin(at) {
+  const g = new THREE.Group(), body = new THREE.Mesh(pumpGeo, pumpMat), stem = new THREE.Mesh(stemGeo, postMat);
+  const sc = 0.7 + rnd() * 0.6; g.scale.setScalar(sc); body.position.y = 0.21; stem.position.y = 0.46; body.castShadow = true; g.add(body, stem);
+  g.position.set(at[0] + 0.5, at[1], at[2] + 0.5); g.rotation.y = rnd() * 6.28; grid.add(g); pumpkins.push({ at, g });
+}
+function syncPumpkins(list) { for (const p of pumpkins) grid.remove(p.g); pumpkins.length = 0; for (const at of list || []) addPumpkin(at); }
+function pumpkinTick() {
+  const autumn = state.seasons && Math.floor(state.year * 4) === 2;
+  if (!autumn) { if (pumpkins.length) syncPumpkins([]); return; }
+  if (pumpkins.length > critters.villages.length * 10) return;
+  for (const v of critters.villages) for (let k = 0; k < 6; k++) {
+    const x = Math.round(v.x + (rnd() - 0.5) * 18), z = Math.round(v.z + (rnd() - 0.5) * 18), gy = world.groundY(x, z);
+    if (world.get(x, gy - 1, z) !== 20 && world.get(x, gy, z) !== 20) continue;   // only in a field
+    if (pumpkins.some((p) => p.at[0] === x && p.at[2] === z) || rnd() > 0.25) continue;
+    addPumpkin([x, world.get(x, gy - 1, z) === 20 ? gy - 1 : gy, z]);
+    if (pumpkins.length === 1) chronicle('Pumpkins ripened in the fields');
+  }
 }
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
@@ -1905,7 +1927,7 @@ function frame(now) {
         v.lightTries = (v.lightTries || 0) + 1;
         if (lit) { v.light = true; chronicle(`${v.name} lit a lighthouse`); } else if (v.lightTries >= 4) v.light = true;   // an inland town stops looking
       }
-      if (i === 0) snowmanTick();
+      if (i === 0) { snowmanTick(); pumpkinTick(); }
       if (v.tier >= 1 && !v.road) { // a growing village lays a road to its nearest neighbour
         v.road = true; let best = null, bd = Math.max(W, D) * 0.9;
         critters.villages.forEach((o, j) => { const d = Math.hypot(o.x - v.x, o.z - v.z); if (j !== i && d < bd && !(o.roadTo === i)) { bd = d; best = j; } });
@@ -1934,4 +1956,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
