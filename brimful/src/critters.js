@@ -25,6 +25,10 @@ export const KINDS = {
   goat: { name: 'goat', cap: 20, hint: 'WASD climb · Space leap' },
   penguin: { name: 'penguin', cap: 30, hint: 'WASD waddle or swim · Space hop' },
   flamingo: { name: 'flamingo', cap: 16, hint: 'WASD wade · Space hop' },
+  squirrel: { name: 'squirrel', cap: 24, hint: 'WASD scamper · Space leap' },
+  hedgehog: { name: 'hedgehog', cap: 16, hint: 'WASD trundle · Space hop' },
+  seal: { name: 'seal', cap: 16, hint: 'WASD swim or flop · Space hop' },
+  boar: { name: 'boar', cap: 14, hint: 'WASD trot · Space leap' },
   crab: { name: 'crab', cap: 25, hint: 'WASD scuttle · Space hop' },
   villager: { name: 'villager', cap: 40, hint: 'WASD walk · Space jump' },
   bee: { name: 'bee', cap: 40, hint: 'WASD fly · Space up · Shift down' },
@@ -131,6 +135,7 @@ const TINTS = {
   minnow: [M.fish], duck: [M.duck], frog: [M.frog], mossback: [M.shell], rabbit: [M.fur], deer: [M.deer], fox: [[M.fox]], crab: [M.crab],
   villager: [M.tunic, M.face, M.hair], butterfly: [M.bfly], songbird: [M.bird],
   wolf: [[std(0x9a9894), std(0x8a8680), std(0xb0aca4), std(0x6a6662)]], bear: [[std(0x7a5236), std(0x6a4630), std(0x8a6440)]], beaver: [[std(0x7a5232), std(0x6a462c)]],
+  squirrel: [[std(0xb8602e), std(0x9a5a3a), std(0x8a8480)]], seal: [[std(0x8a8a90), std(0x6e6a66), std(0xa8a49c)]], boar: [[std(0x5a4636), std(0x6a5442), std(0x4a3a30)]],
   camel: [[std(0xd8b483), std(0xc9a070), std(0xe2c49a)]], goat: [[std(0xf2eee6), std(0x8a6a4a), std(0x4a4440), std(0xc8b49a)]],
   koi: [[std(0xf7f3ea), std(0xfbe8c8), std(0xf2ead8)]], turtle: [[std(0x7a8a4a), std(0x8a7a4e), std(0x5f7a5a)]], heron: [[std(0xdfe6ee), std(0xc2cedc)]], owl: [[std(0xa88a62), std(0xb9a27e), std(0xd6ccba)]],
 };
@@ -246,7 +251,7 @@ function build(kind) {
 const lerpAngle = (a, b, t) => { let d = (b - a) % 6.2832; if (d > 3.1416) d -= 6.2832; else if (d < -3.1416) d += 6.2832; return a + d * t; };
 const FLY = { glimmer: 1, butterfly: 1, songbird: 1, bee: 1, owl: 1 };
 const SWIM = { minnow: 1, koi: 1 };
-export const BEH = { camel: 'sheep', goat: 'deer', penguin: 'duck', flamingo: 'heron' };   // newer animals borrow an older one's habits
+export const BEH = { camel: 'sheep', goat: 'deer', penguin: 'duck', flamingo: 'heron', squirrel: 'rabbit', hedgehog: 'mossback', seal: 'turtle', boar: 'sheep' };   // newer animals borrow an older one's habits
 const GRAZE = { mossback: 1, rabbit: 1, deer: 1, sheep: 1 };
 
 const NAME_A = ['Al', 'Bri', 'Cor', 'Del', 'El', 'Fen', 'Gar', 'Hal', 'Is', 'Jor', 'Kes', 'Lin', 'Mar', 'Nel', 'Or', 'Per', 'Ros', 'Sil', 'Tam', 'Wil'];

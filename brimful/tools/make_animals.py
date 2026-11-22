@@ -566,6 +566,44 @@ fleg = mat('flamleg', srgb(0xe07a8a))
 legs = [part([cone((x, 0.05, 0.42), 0.012, 0.84, verts=5, r2=0.01), ell((x, 0.05, 0.44), (0.018, 0.018, 0.022), seg=6, rings=4), ell((x, -0.02, 0.015), (0.03, 0.07, 0.01), seg=8, rings=5)], f'leg{k}', fleg, (x, 0.05, 0.84)) for k, x in enumerate((0.045, -0.045))]
 animals.append(animal('flamingo', [body, bill, *legs, eyes(0.04, -0.27, 1.64, 0.011)]))
 
+# ---------------------------------------------------------------- squirrel: small, upright, with a great plumed tail
+body = fuse([
+    ell((0, 0.02, 0.16), (0.09, 0.15, 0.11)), ell((0, -0.1, 0.24), (0.075, 0.08, 0.09)),
+    ell((0, -0.17, 0.33), (0.065, 0.075, 0.06)), ell((0, -0.23, 0.31), (0.035, 0.04, 0.035)),
+    ell((0.035, -0.15, 0.4), (0.014, 0.01, 0.035)), ell((-0.035, -0.15, 0.4), (0.014, 0.01, 0.035)),
+    ell((0.07, 0.08, 0.04), (0.03, 0.08, 0.04)), ell((-0.07, 0.08, 0.04), (0.03, 0.08, 0.04)),
+], 'body', TINT(), voxel=0.018, faces=380, paint=coat(0.7, 1.0, extra=lambda co, n, c: (1.25, 1.2, 1.1) if n.z < -0.2 and co.y < 0.05 else c))
+tail = fuse([ell((0, 0.2, 0.2), (0.07, 0.09, 0.14), rot=(R(-20), 0, 0)), ell((0, 0.22, 0.38), (0.08, 0.08, 0.12), rot=(R(25), 0, 0)), ell((0, 0.17, 0.5), (0.06, 0.06, 0.06))],
+            'tail', TINT(), voxel=0.02, faces=180, pivot=(0, 0.12, 0.15), paint=coat(0.8, 1.0, mottle=0.2, freq=20))
+animals.append(animal('squirrel', [body, tail, eyes(0.045, -0.2, 0.35, 0.012)]))
+
+# ---------------------------------------------------------------- hedgehog: a round prickly back over a pale face
+spines = fuse([ell((0, 0.04, 0.13), (0.15, 0.2, 0.13))], 'spines', mat('spines', srgb(0x6a5440)), voxel=0.02, faces=360,
+              paint=lambda co, n: ((0.6 + 0.4 * blotch(co, 40)),) * 3)
+face = fuse([ell((0, -0.15, 0.08), (0.075, 0.09, 0.065)), ell((0, -0.24, 0.07), (0.03, 0.04, 0.03)), ell((0, 0.0, 0.04), (0.12, 0.17, 0.04))], 'face', mat('hogface', srgb(0xd8c0a0)), voxel=0.016, faces=160)
+nose = part([ell((0, -0.275, 0.07), (0.014, 0.012, 0.012), seg=6, rings=4)], 'nose', DARK())
+animals.append(animal('hedgehog', [spines, face, nose, eyes(0.035, -0.2, 0.1, 0.01)]))
+
+# ---------------------------------------------------------------- seal: a sleek grey body, flippers and whiskered face
+body = fuse([
+    ell((0, 0.05, 0.16), (0.16, 0.42, 0.15)), ell((0, -0.32, 0.22), (0.12, 0.13, 0.12)), ell((0, -0.44, 0.22), (0.06, 0.07, 0.055)),
+    ell((0, 0.48, 0.08), (0.12, 0.08, 0.025)),
+    ell((0.15, -0.12, 0.05), (0.1, 0.05, 0.02), rot=(0, 0, R(-20))), ell((-0.15, -0.12, 0.05), (0.1, 0.05, 0.02), rot=(0, 0, R(20))),
+], 'body', TINT(), voxel=0.024, faces=440, paint=coat(0.65, 1.0, mottle=0.35, freq=14))
+animals.append(animal('seal', [body, eyes(0.06, -0.4, 0.27, 0.016), part([ell((0, -0.495, 0.23), (0.016, 0.012, 0.012), seg=6, rings=4)], 'nose', DARK())]))
+
+# ---------------------------------------------------------------- boar: bristly, heavy-shouldered, with small tusks
+body = fuse([
+    ell((0, 0.06, 0.42), (0.18, 0.36, 0.2)), ell((0, -0.18, 0.47), (0.19, 0.18, 0.23)),
+    ell((0, -0.38, 0.4), (0.11, 0.13, 0.12)), ell((0, -0.52, 0.36), (0.07, 0.08, 0.065)),
+    ell((0.08, -0.36, 0.52), (0.035, 0.02, 0.05)), ell((-0.08, -0.36, 0.52), (0.035, 0.02, 0.05)),
+    ell((0, -0.14, 0.66), (0.05, 0.26, 0.05)),
+], 'body', TINT(), voxel=0.026, faces=560, paint=coat(0.62, 1.0, mottle=0.25, freq=22))
+legs = [leg(f'leg{k}', x, y, 0.32, TINT(), thick=0.045, paint=hoofed(0.04)) for k, (x, y) in enumerate([(0.1, -0.22), (-0.1, -0.22), (0.1, 0.26), (-0.1, 0.26)])]
+snout = part([ell((0, -0.59, 0.35), (0.05, 0.02, 0.045), seg=8, rings=6)], 'snout', mat('snout', srgb(0x4a3430)))
+tusks = part([cone((0.06, -0.52, 0.32), 0.012, 0.08, rot=(R(-30), R(20), 0), verts=5), cone((-0.06, -0.52, 0.32), 0.012, 0.08, rot=(R(-30), R(-20), 0), verts=5)], 'tusks', mat('tusk', srgb(0xeee4cc)))
+animals.append(animal('boar', [body, *legs, snout, tusks, eyes(0.07, -0.45, 0.45, 0.014)]))
+
 # ---------------------------------------------------------------- props
 # a rowing boat for villagers on the water: hull hollowed with a boolean, a thwart to sit on
 hull = join([ell((0, 0, 0.12), (0.34, 0.74, 0.26))], 'hull')
