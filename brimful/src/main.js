@@ -407,6 +407,7 @@ const MILESTONES = [
   ['camel', 'Camels in the sand', () => critters.counts.camel > 0],
   ['festival', 'A festival is held', () => typeof state.festival === 'number'],
   ['rainbow', 'See a rainbow', () => (state.rainbow || 0) > 0],
+  ['erupt', 'Watch a volcano erupt', () => eruptT > 0],
   ['year', 'A full year passes', () => state.yearN >= 2],
   ['decade', 'Ten years pass', () => state.yearN >= 11],
 ];
@@ -585,7 +586,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; syncMills([]); syncLights([]); syncBridges([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); syncBridges([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -926,6 +927,41 @@ function migrate(season) {
     fx.burst(c.x, c.y + 0.5, c.z, 4, c.kind === 'songbird' ? 0xffc9bd : 0xfff2b0, 1.5, -0.3); critters.remove(c);
   }
   if (gone) chronicle(season === 2 ? 'The songbirds flew south for the winter' : 'The bees and butterflies went to sleep for the winter');
+}
+// ---- eruptions: a lava-filled crater high up rumbles now and then and throws glowing bombs down its slopes
+let vents = [], ventT = 0, eruptT = 0, eruptCd = 120 + Math.random() * 120;
+function findVents() {
+  vents = [];
+  for (let z = 2; z < D - 2; z += 2) for (let x = 2; x < W - 2; x += 2) { const g = world.groundY(x, z); if (g > 15 && world.get(x, g - 1, z) === LAVA) vents.push([x, g, z]); }
+}
+function lavaBomb(v) {
+  const a = rnd() * 6.283, sp = 3 + rnd() * 5; let x = v[0] + 0.5, y = v[1] + 1, z = v[2] + 0.5, vx = Math.cos(a) * sp, vz = Math.sin(a) * sp, vy = 9 + rnd() * 7;
+  transients.push((dt) => {
+    vy -= 14 * dt; x += vx * dt; y += vy * dt; z += vz * dt;
+    fx.emit(x, y, z, 0, 0.3, 0, rnd() < 0.5 ? 0xff8a2a : 0x5a5050, 0.5, -0.1);
+    if (x < 1 || z < 1 || x > W - 2 || z > D - 2) return true;
+    const gy = world.groundY(x | 0, z | 0);
+    if (y > gy) return false;
+    fx.burst(x, gy + 0.3, z, 10, 0xff6a1a, 2.5);
+    if (world.wet(x | 0, gy, z | 0)) { world.set(x | 0, gy, z | 0, 7, 6); sound.sizzle(); }   // hisses into steam
+    else if (rnd() < 0.5) world.set(x | 0, gy, z | 0, LAVA, 3); else world.ignite(x | 0, gy, z | 0);
+    return true;
+  });
+}
+function eruptions(dt) {
+  ventT -= dt; if (ventT <= 0) { ventT = 30; findVents(); }
+  if (!vents.length) return;
+  if (eruptT > 0) {
+    eruptT -= dt;
+    for (const v of vents) {
+      if (rnd() < dt * 2.5) lavaBomb(v);
+      if (rnd() < dt * 20) fx.emit(v[0] + rnd(), v[1] + 1, v[2] + rnd(), (rnd() - 0.5) * 1.5, 4 + rnd() * 3, (rnd() - 0.5) * 1.5, rnd() < 0.3 ? 0xff9a3a : 0x4a4446, 2.5, -0.05);
+    }
+    return;
+  }
+  for (const v of vents) if (rnd() < dt * 0.5) fx.emit(v[0] + rnd(), v[1] + 0.5, v[2] + rnd(), (rnd() - 0.5) * 0.4, 1.5 + rnd(), (rnd() - 0.5) * 0.4, 0x8a8486, 3, -0.03);   // a lazy plume between eruptions
+  eruptCd -= dt;
+  if (eruptCd <= 0) { eruptCd = 150 + rnd() * 240; eruptT = 9; state.shake = Math.max(state.shake, 0.8); sound.boom(0.6, 3, 70); chronicle('The volcano erupted'); }
 }
 function dateLabel() { return `Day ${state.day}` + (state.seasons ? `, ${SEASONS[Math.floor(state.year * 4)].toLowerCase()} of year ${state.yearN}` : ''); }
 function chronicle(text) {
@@ -1615,7 +1651,7 @@ function frame(now) {
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
     checkMilestones(dt);
-    if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
+    if (!state.paused) { eruptions(dt * state.speed); sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
     turnLights(dt); updateMist(dt);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
@@ -1814,4 +1850,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, buildLight, lights, bridges, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, buildMill, mills, migrate, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
