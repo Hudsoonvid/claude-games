@@ -1427,6 +1427,19 @@ function pan(dx, dy) {
   camGoal.tz = Math.max(-D * 0.6, Math.min(D * 0.6, camGoal.tz + dx * k * sy - dy * k * cy * 0.8));
 }
 
+// ---- photo: hide the interface for one frame and save the canvas as a picture
+let photoDue = false;
+function takePhoto() {
+  photoDue = false;
+  renderer.domElement.toBlob((blob) => {
+    if (!blob) { toast('Could not take a picture here'); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${(state.name || 'brimful').replace(/[^\w -]+/g, '').trim() || 'brimful'} - ${dateLabel()}.png`;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    $('flashOverlay')?.classList.add('on'); setTimeout(() => $('flashOverlay')?.classList.remove('on'), 160);
+    sound.blip(1200, 0.08, 'square', 0.03); toast('Picture saved');
+  }, 'image/png');
+}
+$('bPhoto').onclick = (e) => { e.stopPropagation(); photoDue = true; };
 addEventListener('keydown', (e) => {
   if (cine.poke()) return;   // the first key only wakes the view
   if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'z' && e.target.tagName !== 'INPUT') { e.preventDefault(); if (e.shiftKey) history.redo(); else history.undo(); return; }
@@ -1445,6 +1458,7 @@ addEventListener('keydown', (e) => {
   else if (k === 'r') setRain(!world.raining);
   else if (k === 'c') cine.start(false);
   else if (k === 'u') { document.body.classList.toggle('hideui'); if (document.body.classList.contains('hideui')) toast('Photo mode: press U to bring the controls back'); }
+  else if (k === 'k') photoDue = true;
   else if (k === 'h' || k === '?') showHelp(!$('help').classList.contains('open'));
 });
 addEventListener('keyup', (e) => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
@@ -1741,6 +1755,7 @@ function frame(now) {
     post.bloom.strength = 0.4 + night * 0.35 + un * 0.2;
     post.composer.render();
   } else renderer.render(scene, camera);
+  if (photoDue) takePhoto();
 
   statT += dt;
   if (statT > 0.5) {
