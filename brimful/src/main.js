@@ -1041,7 +1041,7 @@ function resetScene() {
   state.shake = 0; state.flash = 0; state.painting = false; state.weatherT = 90; state.year = 0.1;
   pourLevel = 0; sound.pour(0); sound.babble(0);
   acc = 0; ember.intensity = 0; glowGoal = 0; overcast = 0; U.uRain.value = 0; U.uUnder.value = 0;
-  pointers.clear(); drag = null; cursor.visible = false; inspect(null);
+  pointers.clear(); drag = null; cursor.visible = false; selectedVillage = -1; inspect(null);
 }
 
 function topOf(x, z) { const b = world.bed[x + z * W] | 0; return { y: b - 1, m: b > 0 ? world.get(x, b - 1, z) : STONE }; }
@@ -1592,12 +1592,23 @@ canvas.addEventListener('pointermove', (e) => {
 // a click that did not turn into a drag, made with the Look tool, picks a creature to inspect
 let downAt = null, selected = null;
 canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+let selectedVillage = -1;   // a village picked by clicking its banner
 function inspect(c) {
-  selected = c && !c.dead ? c : null;
-  $('card').classList.toggle('on', !!selected);
-  if (selected) syncCard();
+  selected = c && !c.dead ? c : null; if (selected) selectedVillage = -1;
+  $('card').classList.toggle('on', !!selected || selectedVillage >= 0);
+  $('cardRide').style.display = selectedVillage >= 0 && !selected ? 'none' : '';
+  if (selected || selectedVillage >= 0) syncCard();
+}
+function inspectVillage(i) { selected = null; selectedVillage = i; inspect(null); }
+function villageCard(i) {
+  const v = critters.villages[i]; if (!v) { selectedVillage = -1; inspect(null); return; }
+  const pop = critters.population(i), built = [v.hall && 'a town hall', v.mill && 'a windmill', lights.some((l) => Math.hypot(l.at[0] - v.x, l.at[2] - v.z) < 22) && 'a lighthouse'].filter(Boolean);
+  const links = critters.villages.map((o, j) => (j !== i && (v.roadTo === j || o.roadTo === i) ? o.name : null)).filter(Boolean);
+  $('cardName').textContent = `${v.name}, a ${TIERS[v.tier ?? 0]}`;
+  $('cardWhat').textContent = `${pop} ${pop === 1 ? 'person' : 'people'}` + (built.length ? ` · has ${built.join(', ')}` : '') + (links.length ? ` · road to ${links.join(' and ')}` : '');
 }
 function syncCard() {
+  if (!selected && selectedVillage >= 0) { villageCard(selectedVillage); return; }
   if (!selected || selected.dead) { inspect(null); return; }
   const k = selected.kind, an = /^[aeiou]/.test(k) ? 'An ' : 'A ';
   const vil = selected.kind === 'villager' && critters.villages[selected.vid];
@@ -1605,12 +1616,19 @@ function syncCard() {
   $('cardWhat').textContent = describe(selected, world, night);
 }
 $('cardRide').onclick = () => { if (selected && !selected.dead) { const c = selected; inspect(null); possess(c); } };
-$('cardClose').onclick = () => inspect(null);
+$('cardClose').onclick = () => { selectedVillage = -1; inspect(null); };
 
 const endPointer = (e) => {
   if (downAt && state.tool === 'look' && !critters.possessed && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6 && performance.now() - downAt.t < 500) {
     state.mx = e.clientX; state.my = e.clientY;
-    const r = gridRay(); inspect(critters.pick(r.o, r.d));
+    const r = gridRay(), c = critters.pick(r.o, r.d);
+    if (c) inspect(c);
+    else {   // no creature under the click: perhaps a village banner
+      const hit = raycaster.intersectObjects(banners.group.children, true)[0];   // gridRay left the shared raycaster aimed in world space
+      let g = hit && hit.object; while (g && g.parent !== banners.group) g = g.parent;
+      const i = g ? banners.group.children.indexOf(g) : -1;
+      if (i >= 0) inspectVillage(i); else { selectedVillage = -1; inspect(null); }
+    }
   }
   downAt = null;
   pointers.delete(e.pointerId);
@@ -2000,7 +2018,7 @@ function frame(now) {
 
   statT += dt;
   if (statT > 0.5) {
-    statT = 0; if (selected) syncCard(); banners.sync();
+    statT = 0; if (selected || selectedVillage >= 0) syncCard(); banners.sync();
     critters.villages.forEach((v, i) => { // hamlets grow into villages and villages into towns
       const pop = critters.population(i), tier = pop >= 15 ? 2 : pop >= 6 ? 1 : 0;
       if (v.tier === undefined) v.tier = tier;
