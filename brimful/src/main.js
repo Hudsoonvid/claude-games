@@ -357,7 +357,7 @@ $('bSpeed').onclick = () => { state.speed = state.speed >= 8 ? 1 : state.speed *
 function setRain(r, storm = false, snow = false) {
   const was = world.snowing ? 'snow' : state.storm ? 'storm' : world.raining ? 'rain' : '', now = snow ? 'snow' : r && storm ? 'storm' : r ? 'rain' : '';
   if (typeof booted !== 'undefined' && booted && was !== now && now) chronicle({ rain: 'Rain set in', storm: 'A storm broke', snow: 'Snow began to fall' }[now]);
-  if (typeof booted !== 'undefined' && booted && (was === 'rain' || was === 'storm') && !now && typeof night !== 'undefined' && night < 0.3) { state.rainbow = 1; chronicle('A rainbow came out after the rain'); }   // sun after rain
+  if (typeof booted !== 'undefined' && booted && (was === 'rain' || was === 'storm') && !now && typeof night !== 'undefined' && night < 0.3) { state.rainbow = 1; chronicle('A rainbow came out after the rain'); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sound.blip(f, 0.6, 'sine', 0.035), i * 160)); }   // sun after rain
   world.raining = !!r && !snow; world.snowing = !!snow; state.storm = !!r && storm && !snow;
   if (r || snow) state.dust = false;
   $('bRain').classList.toggle('on', !!r || !!snow); $('bRain').textContent = snow ? 'Snow' : state.storm ? 'Storm' : 'Rain';
@@ -861,7 +861,7 @@ function snowmanTick() {
     if (rnd() > 0.04 || snowmen.filter((m) => Math.hypot(m.at[0] - v.x, m.at[2] - v.z) < 14).length >= 2) continue;
     const a = rnd() * 6.283, r = 3 + rnd() * 7, x = Math.round(v.x + Math.cos(a) * r), z = Math.round(v.z + Math.sin(a) * r), gy = world.groundY(x, z);
     if (world.get(x, gy - 1, z) !== SNOW || world.wet(x, gy, z) || snowmen.some((m) => Math.abs(m.at[0] - x) < 2 && Math.abs(m.at[2] - z) < 2)) continue;
-    addSnowman([x, gy - 0.7, z]); fx.burst(x + 0.5, gy, z + 0.5, 10, 0xffffff, 1.6);   // standing in the snow layer
+    addSnowman([x, gy - 0.7, z]); sound.blip(330, 0.15, 'triangle', 0.03); fx.burst(x + 0.5, gy, z + 0.5, 10, 0xffffff, 1.6);   // standing in the snow layer
     chronicle(`Children in ${v.name} built a snowman`);
   }
 }
@@ -885,7 +885,7 @@ let starCd = 6, starWished = false;
 function shootingStars(dt) {
   starCd -= dt;
   if (starCd > 0 || night < 0.75 || overcast > 0.3 || world.raining || world.snowing) return;
-  starCd = 5 + Math.random() * 14; starWished = true;
+  starCd = 5 + Math.random() * 14; starWished = true; sound.blip(2400, 0.5, 'sine', 0.012);
   // a glowing trail high over the world, where the usual view looks
   const span = Math.max(W, D), x0 = W / 2 + (Math.random() - 0.5) * span * 1.4, z0 = D / 2 + (Math.random() - 0.5) * span * 1.4, y0 = H + 18 + Math.random() * 20;
   const ang = Math.random() * 6.283, sp = span * (1.2 + Math.random() * 0.6), vx = Math.cos(ang) * sp, vz = Math.sin(ang) * sp, vy = -sp * 0.25;
@@ -967,7 +967,8 @@ function balloonTick(dt) {
   }
   const b = balloon; b.t += dt; b.x += b.vx * b.sp * dt; b.z += b.vz * b.sp * dt;
   b.g.position.set(b.x, b.y + Math.sin(b.t * 0.4) * 0.8, b.z); b.g.rotation.y += dt * 0.05;
-  b.g.userData.flame.visible = Math.sin(b.t * 0.9) > 0.3 && Math.random() > 0.2;   // short bursts of the burner
+  const burn = Math.sin(b.t * 0.9) > 0.3; if (burn && !b.burning) sound.boom(0.035, 0.9, 700); b.burning = burn;
+  b.g.userData.flame.visible = burn && Math.random() > 0.2;   // short bursts of the burner
   if (Math.hypot(b.x - W / 2, b.z - D / 2) > Math.max(W, D) * 1.0 && b.t > 5) { grid.remove(b.g); balloon = null; }
 }
 // ---- whales: in a deep sea a whale sometimes breaches, arcs out of the water and crashes back in
@@ -990,7 +991,7 @@ function whaleTick(dt) {
   if (!spot) return;
   const g = makeWhale(), surf = world.surfAt(spot[0], spot[1]), dir = Math.random() * 6.283; grid.add(g); live.add(g);
   let t = 0, splashed = false;
-  sound.boom(0.12, 1.2, 140); chronicle('A whale breached'); state.whaleAt = spot;
+  sound.boom(0.12, 1.2, 140); sound.blip(90, 1.4, 'sine', 0.06); chronicle('A whale breached'); state.whaleAt = spot;
   transients.push((dt2) => {
     t += dt2 / 4; const k = Math.min(1, t), arc = Math.sin(k * Math.PI);
     g.position.set(spot[0] + Math.sin(dir) * (k - 0.5) * 9, surf - 3 + arc * 7.5, spot[1] + Math.cos(dir) * (k - 0.5) * 9);
