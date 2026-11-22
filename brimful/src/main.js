@@ -1689,6 +1689,7 @@ function updateSky() {
     let dryN = 0; for (let k = 0; k < 32; k++) { const b = BIO[world.biome[ri(W * D)]]; if (b.sandy && !b.snowy) dryN++; }
     state.dry = (state.dry ?? 0) * 0.97 + dryN / 32 * 0.03;
     U.uAurora.value = Math.min(1, state.cold * 2.2 + U.uWinter.value * 0.5) * (1 - overcast * 0.6); }
+  U.uMoonPhase.value = ((state.day - 1 + state.tod) % 8) / 8;   // a full cycle every eight days
   U.uNight.value = night; U.uCaustic.value = (0.25 + 0.75 * day) * (1 - overcast * 0.7);
   U.uCloud.value = day * (0.55 + overcast * 0.45); U.uRain.value += ((world.raining ? 1 : 0) - U.uRain.value) * 0.03;
   U.uSky.value.copy(cTop).lerp(cBot, 0.5).multiplyScalar(0.25 + 0.75 * day);

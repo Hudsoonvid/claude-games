@@ -23,7 +23,7 @@ export const U = {
   uTexel: { value: new THREE.Vector2(1 / 128, 1 / 128) },
   uDetail: { value: 1 },
   uCloud: { value: 0 },                      // strength of drifting cloud shadows
-  uAutumn: { value: 0 }, uWinter: { value: 0 }, uAurora: { value: 0 }, uRainbow: { value: 0 },
+  uAutumn: { value: 0 }, uWinter: { value: 0 }, uAurora: { value: 0 }, uRainbow: { value: 0 }, uMoonPhase: { value: 0.5 },
   uRain: { value: 0 },
 };
 
@@ -354,11 +354,11 @@ export function makeSky() {
     uniforms: {
       uTop: U.uSkyTop, uBot: U.uSkyBot, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(1, 1, 1) },
       uMoonDir: { value: new THREE.Vector3(-0.35, 0.87, -0.26).normalize() },
-      uTime: U.uTime, uNight: U.uNight, uAurora: U.uAurora, uRainbow: U.uRainbow,
+      uTime: U.uTime, uNight: U.uNight, uAurora: U.uAurora, uRainbow: U.uRainbow, uMoonPhase: U.uMoonPhase,
     },
     vertexShader: /* glsl */ `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight, uAurora, uRainbow; varying vec3 vDir;
+      uniform vec3 uTop, uBot, uSunDir, uSunCol, uMoonDir; uniform float uTime, uNight, uAurora, uRainbow, uMoonPhase; varying vec3 vDir;
       ${NOISE}
       void main(){
         vec3 d = normalize(vDir);
@@ -366,7 +366,13 @@ export function makeSky() {
         float sd = max(dot(d, uSunDir), 0.0);
         col += uSunCol * (pow(sd, 900.0) * 14.0 + pow(sd, 40.0) * 0.35 + pow(sd, 5.0) * 0.12) * (1.0 - uNight);
         float md = max(dot(d, uMoonDir), 0.0);
-        col += vec3(0.75, 0.85, 1.0) * (smoothstep(0.9992, 0.9996, md) * 2.2 + pow(md, 60.0) * 0.18) * uNight;
+        // the moon waxes and wanes: a shadow disc slides across it (phase 0 new, 0.5 full, 1 new again)
+        vec3 tng = normalize(cross(uMoonDir, vec3(0.0, 1.0, 0.0)));
+        float off = (uMoonPhase < 0.5 ? uMoonPhase * 2.0 : -(1.0 - uMoonPhase) * 2.0) * 0.075;   // 0 = shadow right over the moon (new)
+        float shade = smoothstep(0.9992, 0.9996, max(dot(d, normalize(uMoonDir + tng * off)), 0.0));
+        float disc = smoothstep(0.9992, 0.9996, md), lit = disc * (1.0 - shade * 0.92);
+        float fullness = 1.0 - abs(uMoonPhase - 0.5) * 2.0;
+        col += vec3(0.75, 0.85, 1.0) * (lit * 2.2 + disc * 0.06 + pow(md, 60.0) * 0.18 * (0.25 + 0.75 * fullness)) * uNight;
         vec3 sp = d * 140.0; vec3 cell = floor(sp);
         float st = h31(cell); float tw = 0.6 + 0.4 * sin(uTime * 2.0 + st * 60.0);
         col += vec3(0.9, 0.95, 1.0) * step(0.9988, st) * smoothstep(0.32, 0.05, length(fract(sp) - 0.5)) * uNight * tw * 2.2 * smoothstep(0.0, 0.25, d.y);
