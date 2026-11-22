@@ -412,6 +412,7 @@ const MILESTONES = [
   ['dust', 'Weather a dust storm', () => !!state.dust],
   ['snowman', 'Someone builds a snowman', () => snowmen.length > 0],
   ['pumpkin', 'Pumpkins in the fields', () => pumpkins.length > 0],
+  ['balloon', 'A balloon drifts over', () => !!balloon],
   ['star', 'Wish on a shooting star', () => starWished],
   ['year', 'A full year passes', () => state.yearN >= 2],
   ['decade', 'Ten years pass', () => state.yearN >= 11],
@@ -600,7 +601,7 @@ const randomSeed = () => `${SEED_A[(Math.random() * SEED_A.length) | 0]}-${SEED_
 function newWorld(preset, w = W, d = D, seedText = randomSeed()) {
   state.seed = seedText;
   release(); resetScene();
-  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; state.dust = false; state.dustV = 0; state.dry = undefined; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); syncBridges([]); syncSnowmen([]); syncPumpkins([]);
+  state.preset = preset; state.name = ''; state.day = 1; state.yearN = 1; state.chron = []; state.hist = []; state.festival = null; state.away = {}; state.rainbow = 0; state.ms = []; state.msQuiet = 2; state.dust = false; state.dustV = 0; state.dry = undefined; vents = []; ventT = 0; eruptT = 0; eruptCd = 90 + rnd() * 90; syncMills([]); syncLights([]); if (balloon) { grid.remove(balloon.g); balloon = null; } syncBridges([]); syncSnowmen([]); syncPumpkins([]);
   critters.clear();
   if (w !== WM.W || d !== WM.D) world.resize(w, d);
   const villages = generate(world, preset, seedText);
@@ -938,6 +939,34 @@ function murmuration(duskK) {
     fm.compose(fp, fq, fs); flock.setMatrixAt(i, fm);
   }
   flock.instanceMatrix.needsUpdate = true;
+}
+// ---- a hot-air balloon drifts across on fine days now and then
+let balloon = null, balloonCd = 90 + Math.random() * 120;
+function makeBalloon() {
+  const g = new THREE.Group(), cols = [0xe85a4a, 0xf2d27a, 0x5a9ad8, 0xf4f0e6];
+  for (let k = 0; k < 8; k++) {   // striped envelope: eight gores
+    const gore = new THREE.Mesh(new THREE.SphereGeometry(2.2, 4, 12, k * Math.PI / 4, Math.PI / 4, 0, Math.PI * 0.78).scale(1, 1.18, 1), new THREE.MeshLambertMaterial({ color: cols[k % 4] }));
+    gore.castShadow = true; g.add(gore);
+  }
+  const basket = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.9), postMat); basket.position.y = -3.4; basket.castShadow = true; g.add(basket);
+  for (const [x, z] of [[0.4, 0.4], [-0.4, 0.4], [0.4, -0.4], [-0.4, -0.4]]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.6, 3), postMat); r.position.set(x, -2.5, z); g.add(r); }
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 5), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.6, 0.4) })); flame.position.y = -2.7; g.add(flame); g.userData.flame = flame;
+  return g;
+}
+function balloonTick(dt) {
+  if (!balloon) {
+    balloonCd -= dt;
+    if (balloonCd > 0 || night > 0.3 || world.raining || world.snowing || state.dust || overcast > 0.3) return;
+    balloonCd = 240 + Math.random() * 300;
+    const g = makeBalloon(), a = Math.random() * 6.283, r = Math.max(W, D) * 0.9;
+    balloon = { g, x: W / 2 - Math.cos(a) * r, z: D / 2 - Math.sin(a) * r, vx: Math.cos(a), vz: Math.sin(a), sp: (1.1 + Math.random() * 0.6) * Math.max(1, Math.max(W, D) / 64), t: 0, y: RIM + 16 + Math.random() * 6 };
+    grid.add(g); chronicle('A hot-air balloon drifted over');
+    return;
+  }
+  const b = balloon; b.t += dt; b.x += b.vx * b.sp * dt; b.z += b.vz * b.sp * dt;
+  b.g.position.set(b.x, b.y + Math.sin(b.t * 0.4) * 0.8, b.z); b.g.rotation.y += dt * 0.05;
+  b.g.userData.flame.visible = Math.sin(b.t * 0.9) > 0.3 && Math.random() > 0.2;   // short bursts of the burner
+  if (Math.hypot(b.x - W / 2, b.z - D / 2) > Math.max(W, D) * 1.0 && b.t > 5) { grid.remove(b.g); balloon = null; }
 }
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
@@ -1776,7 +1805,7 @@ function frame(now) {
     if (acc > TICK) acc = 0;
     checkMilestones(dt);
     if (!state.paused) { eruptions(dt * state.speed); sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
-    turnLights(dt); updateMist(dt); lanterns(); shootingStars(dt);
+    turnLights(dt); updateMist(dt); lanterns(); shootingStars(dt); if (!state.paused) balloonTick(dt);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
@@ -1987,4 +2016,4 @@ loadModels().then(() => {   // the Blender-made creature models unpack first, th
   requestAnimationFrame(frame);
 });
 
-window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, types: WORLD_TYPES.map((t) => t[0]), buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
+window.__brimful = { sound, THREE, camera, scene, world, critters, state, cam: camGoal, gfx, perf, WM, setTool, setTab, newWorld, pick, possess, release, setLevel, strike, meteor, quake, types: WORLD_TYPES.map((t) => t[0]), buildMill, mills, migrate, snowmen, snowmanTick, addSnowman, pumpkins, pumpkinTick, launchBalloon: () => { balloonCd = 0; }, erupt: () => { ventT = 0; eruptCd = 0; }, buildLight, lights, bridges, get frames() { return frames; } };
