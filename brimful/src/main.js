@@ -1739,12 +1739,15 @@ function frame(now) {
     if (world.get(x, y, z) === 19 && world.get(x, y - 1, z) === 16) fx.emit(x + 0.5, y + 0.6, z + 0.5, 0.25 + Math.random() * 0.3, 0.9, (Math.random() - 0.5) * 0.3, 0xd9d6d0, 4, -0.012);
   }
   // petals and leaves drift down in the blossom and autumn biomes
-  if (!state.paused && gfx.motes) for (let k = 0; k < 2; k++) {
-    const x = ri(W), z = ri(D), pc = BIO[world.biome[x + z * W]].petals;
+  const fall = U.uAutumn.value;   // in autumn every broadleaf wood sheds turning leaves too
+  const AUTUMN_LEAVES = [0xd9722a, 0xe3a02c, 0xb8442a, 0xc8602a];
+  if (!state.paused && gfx.motes) for (let k = 0; k < 2 + Math.round(fall * 6); k++) {
+    const x = ri(W), z = ri(D), bio = BIO[world.biome[x + z * W]];
+    const pc = bio.petals || (fall > 0.3 && !bio.evergreen && rnd() < fall ? AUTUMN_LEAVES[ri(4)] : 0);
     if (!pc) continue;
     const y = world.groundY(x, z) - 1;
     if (world.get(x, y, z) !== 9) continue;
-    fx.emit(x + Math.random(), y - 0.2, z + Math.random(), 0.5 + Math.random() * 0.6, -0.3, (Math.random() - 0.5) * 0.8, Math.random() < 0.5 ? pc : BIO[world.biome[x + z * W]].leaf[0], 4.5, 0.045);
+    fx.emit(x + Math.random(), y - 0.2, z + Math.random(), 0.5 + Math.random() * 0.6, -0.3, (Math.random() - 0.5) * 0.8, Math.random() < 0.5 || !bio.petals ? pc : bio.leaf[0], 4.5, 0.045);
   }
 
   toolAcc += dt; critterCd -= dt;
