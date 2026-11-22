@@ -96,7 +96,7 @@ const banners = {
     for (const v of critters.villages) {
       const g = new THREE.Group(), x = v.x + 1.5, z = v.z + 0.5, y = world.groundY(x, z);
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 0.1), pole); p.position.y = 1.6; p.castShadow = true; g.add(p);
-      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55, 6, 1), new THREE.MeshLambertMaterial({ color: v.colour, side: THREE.DoubleSide }));
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55, 6, 1), new THREE.MeshLambertMaterial({ color: v.ruin ? 0x6a6660 : v.colour, side: THREE.DoubleSide }));   // a ruin's flag hangs faded
       flag.geometry.translate(0.45, 0, 0); flag.position.y = 2.85; flag.castShadow = true; g.add(flag); g.userData.flag = flag;
       g.position.set(x, y, z); this.group.add(g);
     }
@@ -397,6 +397,7 @@ const MILESTONES = [
   ['town', 'A village becomes a town', () => critters.villages.some((v) => v.tier >= 2)],
   ['hall', 'A town hall is raised', () => critters.villages.some((v) => v.hall)],
   ['three', 'Three villages at once', () => critters.villages.length >= 3],
+  ['ruin', 'A village is abandoned', () => critters.villages.some((v) => v.ruin)],
   ['road', 'A road joins two villages', () => critters.villages.some((v) => v.roadTo != null)],
   ['bridge', 'A bridge crosses water', () => bridges.length > 0],
   ['mill', 'A windmill turns', () => mills.length > 0],
@@ -1604,7 +1605,7 @@ function villageCard(i) {
   const v = critters.villages[i]; if (!v) { selectedVillage = -1; inspect(null); return; }
   const pop = critters.population(i), built = [v.hall && 'a town hall', v.mill && 'a windmill', lights.some((l) => Math.hypot(l.at[0] - v.x, l.at[2] - v.z) < 22) && 'a lighthouse'].filter(Boolean);
   const links = critters.villages.map((o, j) => (j !== i && (v.roadTo === j || o.roadTo === i) ? o.name : null)).filter(Boolean);
-  $('cardName').textContent = `${v.name}, a ${TIERS[v.tier ?? 0]}`;
+  $('cardName').textContent = v.ruin ? `${v.name}, abandoned` : `${v.name}, a ${TIERS[v.tier ?? 0]}`;
   $('cardWhat').textContent = `${pop} ${pop === 1 ? 'person' : 'people'}` + (built.length ? ` · has ${built.join(', ')}` : '') + (links.length ? ` · road to ${links.join(' and ')}` : '');
 }
 function syncCard() {
@@ -2023,6 +2024,20 @@ function frame(now) {
       const pop = critters.population(i), tier = pop >= 15 ? 2 : pop >= 6 ? 1 : 0;
       if (v.tier === undefined) v.tier = tier;
       else if (tier > v.tier) { v.tier = tier; chronicle(`${v.name} grew into a ${TIERS[tier]}`); toast(`${v.name} is now a ${TIERS[tier]}`); }
+      // a village with nobody left is abandoned after a while and slowly falls to ruin; newcomers can resettle it
+      if (pop === 0) {
+        v.empty = (v.empty || 0) + 0.5;
+        if (!v.ruin && v.hadPeople && v.empty > 90) { v.ruin = true; chronicle(`${v.name} was abandoned`); banners.sync(true); }
+        if (v.ruin && rnd() < 0.3) for (let k = 0; k < 6; k++) {
+          const x = Math.round(v.x + (rnd() - 0.5) * 16), z = Math.round(v.z + (rnd() - 0.5) * 16), y = world.groundY(x, z) - 1, m = world.get(x, y, z);
+          if (m === 16 || m === 19) world.set(x, y, z, AIR);                                    // thatch rots and lanterns go out
+          else if (m === 15 && rnd() < 0.25) world.set(x, y, z, rnd() < 0.5 ? AIR : STONE);    // walls crumble
+          else if ((m === TURF || m === 26) && world.get(x, y + 1, z) === AIR && rnd() < 0.4) world.set(x, y + 1, z, TUFT, ri(256));   // grass takes back the paths
+        }
+      } else {
+        v.empty = 0; v.hadPeople = true;
+        if (v.ruin) { v.ruin = false; chronicle(`${v.name} was resettled`); banners.sync(true); }
+      }
       if (v.tier >= 1 && !v.mill && rnd() < 0.12) { // a village with fields puts up a windmill
         for (let k = 0; k < 12 && !v.mill; k++) { const a = rnd() * 6.283, r = 6 + rnd() * 5, at = buildMill(Math.round(v.x + Math.cos(a) * r), Math.round(v.z + Math.sin(a) * r)); if (at) { v.mill = true; chronicle(`${v.name} built a windmill`); } }
       }
