@@ -915,6 +915,30 @@ function pumpkinTick() {
     if (pumpkins.length === 1) chronicle('Pumpkins ripened in the fields');
   }
 }
+// ---- murmuration: at dusk a flock of starlings wheels over the land in one shifting cloud
+const FLOCK = 70, flockGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.22, 0, 0), new THREE.Vector3(0.22, 0, 0), new THREE.Vector3(0, 0, 0.16)]);
+flockGeo.computeVertexNormals();
+const flock = new THREE.InstancedMesh(flockGeo, new THREE.MeshBasicMaterial({ color: 0x1c1a22, side: THREE.DoubleSide, transparent: true, opacity: 0 }), FLOCK);
+flock.frustumCulled = false; flock.visible = false; grid.add(flock);
+const flockSeed = Array.from({ length: FLOCK }, () => [Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28, 0.6 + Math.random() * 0.8]);
+const fm = new THREE.Matrix4(), fq = new THREE.Quaternion(), fe = new THREE.Euler(), fs = new THREE.Vector3(2.6, 2.6, 2.6), fp = new THREE.Vector3();
+let flockA = 0, flockT = 0, flockLast = 0;
+function murmuration(duskK) {
+  const now = performance.now(), dt = flockLast ? Math.min(0.1, (now - flockLast) / 1000) * (state.paused ? 0 : 1) : 0; flockLast = now;
+  const want = duskK > 0.35 && !world.raining && !world.snowing && !state.dust && gfx.level > 0 ? 1 : 0;
+  flockA += (want - flockA) * Math.min(1, dt * 0.8);
+  flock.visible = flockA > 0.02; if (!flock.visible) return;
+  flock.material.opacity = flockA; flockT += dt;
+  const t = flockT, cx = W / 2 + Math.sin(t * 0.07) * W * 0.3, cz = D / 2 + Math.cos(t * 0.05) * D * 0.3, cy = RIM + 12 + Math.sin(t * 0.11) * 3;
+  const sx = 9 + Math.sin(t * 0.3) * 4, sz = 6 + Math.cos(t * 0.23) * 4;   // the cloud stretches and pinches as it turns
+  for (let i = 0; i < FLOCK; i++) {
+    const [a, b, c, sp] = flockSeed[i], u = t * sp * 0.9 + a;
+    fp.set(cx + Math.sin(u) * sx * Math.cos(b + t * 0.2), cy + Math.sin(u * 1.3 + c) * 2.2, cz + Math.cos(u * 0.8 + b) * sz);
+    fe.set(Math.sin(u * 6) * 0.6, -u + Math.PI / 2, 0); fq.setFromEuler(fe);
+    fm.compose(fp, fq, fs); flock.setMatrixAt(i, fm);
+  }
+  flock.instanceMatrix.needsUpdate = true;
+}
 function buildMill(x, z) { const at = world.windmill(x, z); if (at) addMill(at); return at; }
 // ---- lighthouses: a slow beam sweeps the water at night
 const lights = [];   // { at, g }
@@ -1662,6 +1686,7 @@ let night = 0, overcast = 0;
 function updateSky() {
   const ang = (state.tod - 0.25) * Math.PI * 2, sy = Math.sin(ang), cx = Math.cos(ang);
   const day = smooth(-0.12, 0.3, sy), dusk = Math.max(0, 1 - Math.abs(sy) / 0.32) * 0.85;
+  murmuration(dusk);
   night = 1 - day;
   overcast += ((world.raining ? (state.storm ? 1 : 0.6) : world.snowing ? 0.7 : 0) - overcast) * 0.02;
   cTop.copy(SKY.night[0]).lerp(SKY.day[0], day).lerp(SKY.dusk[0], dusk).lerp(cTmp.set(0x55606e).multiplyScalar(0.25 + 0.75 * day), overcast * 0.85);
