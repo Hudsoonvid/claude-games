@@ -1429,14 +1429,23 @@ function pan(dx, dy) {
 
 // ---- photo: hide the interface for one frame and save the canvas as a picture
 let photoDue = false;
+// inside claude.ai the viewer saves through the artifact's downloads capability; elsewhere a plain download link works
+const downloadsNs = window.claude?.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
 function takePhoto() {
   photoDue = false;
-  renderer.domElement.toBlob((blob) => {
+  renderer.domElement.toBlob(async (blob) => {
     if (!blob) { toast('Could not take a picture here'); return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${(state.name || 'brimful').replace(/[^\w -]+/g, '').trim() || 'brimful'} - ${dateLabel()}.png`;
+    const filename = `${(state.name || 'brimful').replace(/[^\w -]+/g, '').trim() || 'brimful'} - ${dateLabel().replace(/[^\w ,-]+/g, '')}.png`;
+    sound.blip(1200, 0.08, 'square', 0.03);
+    const dl = window.claude?.use ? await downloadsNs : null;
+    if (dl) {
+      try { await dl.save({ filename, data: blob }); toast('Picture saved'); }
+      catch (e) { if (e?.code === 'rate_limited') toast('A save is already waiting for you'); else if (e?.code !== 'declined') toast('Pictures cannot be saved here'); }
+      return;
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    $('flashOverlay')?.classList.add('on'); setTimeout(() => $('flashOverlay')?.classList.remove('on'), 160);
-    sound.blip(1200, 0.08, 'square', 0.03); toast('Picture saved');
+    toast('Picture saved');
   }, 'image/png');
 }
 $('bPhoto').onclick = (e) => { e.stopPropagation(); photoDue = true; };
