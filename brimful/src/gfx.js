@@ -392,6 +392,28 @@ export function makeSky() {
   return mesh;
 }
 
+// ---------------------------------------------------------------- mist: soft drifting layers that pool low over the land
+export function makeMist() {
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, fog: false,
+    uniforms: { uTime: U.uTime, uNight: U.uNight, uMist: { value: 0 }, uLayer: { value: 0 } },
+    vertexShader: /* glsl */ `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime, uNight, uMist, uLayer; varying vec2 vUv; varying vec3 vW;
+      ${NOISE}
+      void main(){
+        vec2 p = vW.xz * 0.06 + vec2(uTime * 0.012, uTime * 0.007) + uLayer * 7.3;
+        float n = fbm(p + fbm(p * 1.7 + uTime * 0.01) * 0.8);
+        float edge = smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x) * smoothstep(0.0, 0.08, vUv.y) * smoothstep(1.0, 0.92, vUv.y);
+        float a = smoothstep(0.38, 0.8, n) * edge * uMist * (0.32 - uLayer * 0.1);
+        vec3 col = mix(vec3(0.96, 0.97, 1.0), vec3(0.32, 0.38, 0.52), uNight);
+        gl_FragColor = vec4(col, a);
+      }`,
+  });
+  const make = (k) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mat.clone()); m.material.uniforms.uLayer.value = k; m.material.uniforms.uTime = U.uTime; m.material.uniforms.uNight = U.uNight; m.renderOrder = 4; m.frustumCulled = false; return m; };
+  return [make(0), make(1)];
+}
+
 // ---------------------------------------------------------------- motes
 export function makeMotes(count = 420) {
   const geo = new THREE.BufferGeometry();

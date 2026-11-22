@@ -10,7 +10,7 @@ import { buildChunk, MATERIAL_COLORS, WATER_COLOR, BIOMES, setGrassDensity, setE
 import { Critters, KINDS, KIND_IDS, setNightGlow, loadModels, setCritterShadows, describe, townName } from './critters.js';
 import { Fx } from './fx.js';
 import { Sound } from './audio.js';
-import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makePost } from './gfx.js';
+import { U, patchSolid, patchGlow, patchFlora, makeWater, makeSky, makeMotes, makeMist, makePost } from './gfx.js';
 
 const $ = (id) => document.getElementById(id);
 const AUTO_KEY = 'brimful-save-v2', INDEX_KEY = 'brimful-worlds-v2', GFX_KEY = 'brimful-gfx-v1';
@@ -810,6 +810,15 @@ function turnLights(dt) {
   }
 }
 function buildLight(x, z) { const at = world.lighthouse(x, z); if (at) addLight(at); return at; }
+// ---- mist: pools low over the land at dawn and after rain, and burns off as the day warms
+const mist = makeMist(); for (const m of mist) grid.add(m);
+function updateMist(dt) {
+  state.damp = Math.max(0, Math.min(1, (state.damp || 0) + (world.raining ? dt * 0.05 : -dt * 0.004)));
+  const dawn = Math.max(0, 1 - Math.abs(state.tod - 0.25) / 0.09), want = gfx.level === 0 ? 0 : Math.min(1, dawn * (0.55 + state.damp * 0.6) + state.damp * 0.25 + night * 0.15) * (state.mistOn === false ? 0 : 1);
+  state.mistV = (state.mistV || 0) + (want - (state.mistV || 0)) * Math.min(1, dt * 0.5);
+  const lvl = (world.waterLevel ?? 11) + 1.2;
+  mist.forEach((m, k) => { m.visible = state.mistV > 0.01; m.material.uniforms.uMist.value = state.mistV; m.scale.set(W - 1, 1, D - 1); m.position.set(W / 2, lvl + k * 1.6, D / 2); });
+}
 function resetScene() {
   history.clear();
   for (const o of live) { grid.remove(o); o.geometry.dispose(); }
@@ -1549,7 +1558,7 @@ function frame(now) {
     while (acc >= TICK && n++ < (state.speed > 4 ? 8 : 4)) { world.step(); acc -= TICK; handleEvents(); }
     if (acc > TICK) acc = 0;
     if (!state.paused) { sampleHistory(dt * state.speed); festivals(dt); turnMills(dt * state.speed); }
-    turnLights(dt);
+    turnLights(dt); updateMist(dt);
     if (state.timeMode === 'auto') { const before = state.tod; state.tod = (state.tod + dt * state.speed / 300) % 1; if (state.tod < before) state.day++; }
     if (state.seasons) { // a year is six day-lengths: spring, summer, autumn, winter
       const season0 = Math.floor(state.year * 4);
