@@ -495,6 +495,10 @@ for (const [id, k] of [['gBloom', 'bloom'], ['gRays', 'rays'], ['gTilt', 'tilt']
 $('gSound').onchange = (e) => { sound.init(); sound.setMuted(!e.target.checked); };
 function setSeasons(v) { state.seasons = !!v; $('gSeasons').checked = state.seasons; }
 $('gSeasons').onchange = (e) => setSeasons(e.target.checked);
+// natural disasters can be switched off for a calm world (a per-browser preference; powers still work by hand)
+let calm = false; try { calm = localStorage.getItem('brimful-calm') === '1'; } catch { /* unavailable */ }
+$('gDisasters').checked = !calm;
+$('gDisasters').onchange = (e) => { calm = !e.target.checked; try { localStorage.setItem('brimful-calm', calm ? '1' : '0'); } catch { /* unavailable */ } if (calm) { state.dust = false; eruptT = 0; } };
 
 // ---------------------------------------------------------------- cinematic: a slow drift around the world, controls hidden, until any input
 const cine = {
@@ -1039,6 +1043,7 @@ function lavaBomb(v) {
   });
 }
 function eruptions(dt) {
+  if (calm && eruptT <= 0) return;
   ventT -= dt; if (ventT <= 0) { ventT = 30; findVents(); }
   if (!vents.length) return;
   if (eruptT > 0) {
@@ -1756,7 +1761,7 @@ function frame(now) {
         const season = Math.floor(state.year * 4), r = Math.random(), on = world.raining || world.snowing;
         if (state.dust) { state.dust = false; state.weatherT = 80 + Math.random() * 120; }
         else if (on) { setRain(false); state.weatherT = 70 + Math.random() * 110; }
-        else if ((state.dry || 0) > 0.3 && season !== 3 && r < 0.35) { state.dust = true; state.weatherT = 40 + Math.random() * 40; chronicle('A dust storm blew in'); }   // dry lands get dust instead of rain
+        else if (!calm && (state.dry || 0) > 0.3 && season !== 3 && r < 0.35) { state.dust = true; state.weatherT = 40 + Math.random() * 40; chronicle('A dust storm blew in'); }   // dry lands get dust instead of rain
         else {
           if (season === 3) { if (r < 0.65) setRain(false, false, true); }
           else if (season === 1) { if (r < 0.15) setRain(true, true); else if (r < 0.3) setRain(true); }
@@ -1765,7 +1770,7 @@ function frame(now) {
         }
       }
     }
-    if (state.storm && Math.random() < dt * 0.22) { const x = 2 + ri(W - 4), z = 2 + ri(D - 4); strike({ x, y: Math.max(world.groundY(x, z), Math.ceil(world.cs[x + z * W])), z }); }
+    if (state.storm && !calm && Math.random() < dt * 0.22) { const x = 2 + ri(W - 4), z = 2 + ri(D - 4); strike({ x, y: Math.max(world.groundY(x, z), Math.ceil(world.cs[x + z * W])), z }); }
     if (world.snowing) for (let k = 0; k < Math.ceil(2 * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, (Math.random() - 0.5) * 1.5, -3.5, (Math.random() - 0.5) * 1.5, 0xffffff, 9, 0.004);
     if (world.raining) for (let k = 0; k < Math.ceil((gfx.clouds ? 1.5 : 3) * SF * SF); k++) fx.emit(Math.random() * W, H + 2, Math.random() * D, 0, -22, 0, 0xbfe6f7, 1.3, 0.5);
   }
