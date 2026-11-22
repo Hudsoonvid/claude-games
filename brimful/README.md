@@ -40,7 +40,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
 - **Water** is not voxels. It is a virtual-pipes shallow-water simulation on a grid twice as fine as the terrain:
   it has momentum, makes waves, runs downhill as streams, pools, is displaced by anything dropped in and spills
   over the rim. It is drawn as one smooth surface with reflections, depth colour, foam and caustics beneath.
-- **Earth**: sand, soil, stone, lava, ice, seeds, springs that well up water and drains that swallow it; raise, lower and smooth the land; paint any of 52 biomes (each with its own colours, tree shapes and habits: conifers, palms, willows,
+- **Earth**: sand, soil, stone, lava, ice, seeds, springs that well up water and drains that swallow it; raise, lower and smooth the land; paint any of 56 biomes (each with its own colours, tree shapes and habits: conifers, palms, willows,
   bamboo, giant mushrooms, dead snags and more).
 - **Reactions**: lava boils water to steam and freezes to basalt; steam condenses and rains back; fire spreads
   through trees, grass and huts; water puts it out; ice melts by heat.
@@ -69,7 +69,7 @@ Then open the printed local URL. `npm run build` produces a single self-containe
   crickets, croaking frogs, hooting owls and howling wolves at night.
 - **Seasons**: the year turns through spring, summer, autumn and winter, tinting grass and broadleaf trees, and
   weather comes and goes by itself (showers, summer storms, winter snow). It can be switched off in Settings.
-- **Worlds**: 97 world types in five groups (gentle, water, rugged, wild and special), from orchard hills and lake
+- **Worlds**: 101 world types in five groups (gentle, water, rugged, wild and special), from orchard hills and lake
   districts to fjords, mesas, crater lakes, twin volcanoes, glaciers, fungal wilds, a volcanic island, stone pillars, a bayou and a moonlit glade, plus a
   biome checkerboard and *Surprise me*. Type any
   width and depth from 16 to 256 blocks (in steps of 16). Villages are generated where there is room. Every world has a seed (shown in the menu under the

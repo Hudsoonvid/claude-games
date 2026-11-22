@@ -203,6 +203,10 @@ export const PRESETS = [
   P('taigalakes', 'Taiga lakes', 'Wild', 'Dark spruce around cold blue lakes', [10, 10, 5, 50], (c, x, z) => 13 + c.n(x, z) * 5 + c.hp(c, x, z), { hp: hillsAndPonds(5, 9), pondN: 4, pondR: [4, 8], trees: 1.2 }),
   P('hotsprings', 'Hot springs', 'Wild', 'Steaming pools in the snow', [26, 5, 23], (c, x, z) => 13 + c.n(x, z) * 6 + c.hp(c, x, z), { hp: hillsAndPonds(5, 9), pondN: 3, pondR: [4, 6], springs: 4, pools: (c, x, z, h) => (c.nn(x, z, 6, 91) > 0.8 && h < 14 ? 1 : 0), villages: 0.5 }),
   P('craters', 'Crater field', 'Wild', 'Plains pocked by old impacts', [0, 22, 19, 4], (c, x, z) => 13 + c.n(x, z) * 3 + sum(c.pillars, (p) => { const d = Math.hypot(x - p[0], z - p[1]) / (p[2] * 2.2); return d < 1.3 ? (d < 1 ? -(1 - d * d) * p[3] * 0.4 : (1.3 - d) * 6) : 0; }), { trees: 0.6 }),
+  P('cactusflats', 'Cactus flats', 'Rugged', 'Cacti and wildflowers on hot sand', [52, 52, 52, 52, 11], (c, x, z) => 12.5 + c.n(x, z) * 4 + c.hp(c, x, z), { hp: hillsAndPonds(3, 8), pondN: 0.5, villages: 0.4 }),
+  P('saguaro', 'Saguaro hills', 'Rugged', 'Tall cacti on rust-red slopes', [53, 53, 51, 12], (c, x, z) => 12 + c.n(x, z) * 9 + c.hp(c, x, z), { hp: hillsAndPonds(8, 9), pondN: 0.6, villages: 0.5 }),
+  P('ferngully', 'Fern gully', 'Wild', 'A green ravine full of ferns and falls', [54, 54, 41], (c, x, z) => { const dist = Math.abs(z - meander(c, x, 0.2)); return 8 + sstep(1.5, 9, dist) * 12 + c.n(x, z) * 3; }, { springs: 2, trees: 1.2 }),
+  P('rosegarden', 'Rose garden', 'Gentle', 'Red roses, hedges and ponds', [55, 55, 0, 3], (c, x, z) => 12.5 + c.n(x, z) * 3 + c.hp(c, x, z), { hp: hillsAndPonds(2, 8), pondN: 2, pondR: [3, 6], villages: 1.2 }),
   P('stripes', 'Biome stripes', 'Special', 'Bands of every biome side by side', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x + (c.n(x, z) - 0.5) * 6) / Math.max(4, W / 12)) | 0) * 5 % BIO.length }),
   P('rings', 'Biome rings', 'Special', 'Biomes in rings around a central pond', [0], (c, x, z) => 13 + c.n(x, z) * 3 - gauss(x, z, W / 2, D / 2, 6 * c.S) * 6, { biomeAt: (c, x, z) => (((Math.hypot(x - W / 2, z - D / 2) / Math.max(4, Math.min(W, D) / 14)) | 0) * 7 + 3) % BIO.length }),
   P('checker', 'Biome checkerboard', 'Special', 'Every biome in its own square', [0], (c, x, z) => 12.5 + c.n(x, z) * 5, { biomeAt: (c, x, z) => (((x >> 3) * 7 + (z >> 3) * 13) % BIO.length) }),
@@ -319,7 +323,7 @@ export function generate(world, presetId, seedText) {
   let trees = Math.round(9 * area * (pre.trees ?? 1)), tries = 3000 * area;
   while (trees > 0 && tries-- > 0) {
     const x = 4 + ri(W - 8), z = 4 + ri(D - 8), h = hm[x + z * W], b = world.biome[x + z * W], bio = BIO[b], top = world.get(x, h - 1, z);
-    if (!(top === TURF || (bio.tree === 'palm' && top === SAND && h > WL + 1)) || h > H - 12 || rnd() * 3 > bio.trees) continue;
+    if (!(top === TURF || ((bio.tree === 'palm' || bio.tree === 'cactus') && top === SAND && h > WL + 1)) || h > H - 12 || rnd() * 3 > bio.trees) continue;   // palms and cacti root in sand
     let near = false;
     const gap = bio.tree === 'bamboo' ? 2 : bio.tree === 'bush' ? 2 : 4;
     for (let dz = -gap; dz <= gap && !near; dz++) for (let dx = -gap; dx <= gap; dx++) if (world.get(x + dx, h + 1, z + dz) === WOOD) { near = true; break; }

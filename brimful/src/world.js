@@ -228,6 +228,16 @@ export class World {
         for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) { const d = dx * dx + dz * dz; if (d <= 9.5 + rnd() * 2) put(x + dx, y, z + dz); if (d <= 3) put(x + dx, y + 1, z + dz); }
         return;
       case 'bush': ball(y - 1, 1.3 + rnd() * 0.4, 1.8); return;
+      case 'cactus': { // a green column with an arm or two; the trunk turns to cactus flesh above a woody base that keeps it alive
+        let k = y - 1; while (k > 1 && this.get(x, k - 1, z) === WOOD) k--;
+        for (let yy = k + 1; yy < y; yy++) if (this.get(x, yy, z) === WOOD) this.set(x, yy, z, LEAF);
+        put(x, y, z); put(x, y + 1, z);
+        for (let a = 0, n = 1 + ri(2); a < n; a++) {
+          const d = [[1, 0], [-1, 0], [0, 1], [0, -1]][ri(4)], ay = k + 2 + ri(Math.max(1, y - k - 2));
+          put(x + d[0], ay, z + d[1]); put(x + d[0] * 2, ay, z + d[1] * 2); put(x + d[0] * 2, ay + 1, z + d[1] * 2); put(x + d[0] * 2, ay + 2, z + d[1] * 2);
+        }
+        return;
+      }
       case 'slender': ball(y, 1.5, 0.55); return;
       case 'bamboo': // tufts of leaf on the upper culm
         for (let k = -3; k <= 0; k += 1) { put(x + 1, y + k, z); put(x - 1, y + k, z); put(x, y + k, z + 1); put(x, y + k, z - 1); }

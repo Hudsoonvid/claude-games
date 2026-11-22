@@ -60,4 +60,8 @@ export const BIO = [
   B('Sunflower fields', 0x86b84e, 0x68a040, 0x8cc254, 0xc0e078, [0x5aa04a, 0x6ab054, 0x4a9040], 'round', { trees: 0.2, tufts: 3.4, flowers: [0xffd02a, 0xffc010, 0xffe060, 0x8a5a2a] }),
   B('Mistwood', 0x7a9a8a, 0x5a7a70, 0x7a9c90, 0xb0d0c8, [0x5a8a8a, 0x6a9a9a, 0x4a7a7a], 'spire', { trees: 2.2, tufts: 0.8, trunk: [6, 3], evergreen: true, shroom: 1 }),
   B('Copper canyon', 0xc87a40, 0xa86a3a, 0xc08048, 0xe0a868, [0x8a8a4a, 0x9a9654, 0x7a7a42], 'bush', { trees: 0.4, tufts: 0.6, trunk: [1, 1] }),
+  B('Cactus desert', 0xe0c88a, 0xc4ac6a, 0xd8c07a, 0xf0dca8, [0x4a8a4a, 0x569a54, 0x3e7a40], 'cactus', { trees: 1.1, tufts: 0.3, trunk: [2, 3], evergreen: true, sandy: true, flowers: [0xff5a8a, 0xffd84a] }),
+  B('Saguaro hills', 0xc89a6a, 0xa88458, 0xc09a68, 0xe0c090, [0x4e8a52, 0x5a9a5c, 0x427a46], 'cactus', { trees: 0.8, tufts: 0.6, trunk: [3, 2], evergreen: true, flowers: [0xffffff, 0xffe070] }),
+  B('Fern gully', 0x3e8a4a, 0x2a6e3a, 0x3e9a4e, 0x7ad07a, [0x2a8a4a, 0x36a058, 0x1e7a3e], 'tall', { trees: 1.6, tufts: 3, trunk: [5, 3], evergreen: true, shroom: 1 }),
+  B('Rose garden', 0x6aa84a, 0x4e9040, 0x74b452, 0xa8d878, [0x4a8a3e, 0x56984a, 0x3e7a36], 'bush', { trees: 0.6, tufts: 3.4, trunk: [1, 1], petals: 0xe83a5a, flowers: [0xe83a5a, 0xff7a9a, 0xffffff, 0xc82a4a] }),
 ];
